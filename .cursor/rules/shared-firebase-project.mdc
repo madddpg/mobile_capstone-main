@@ -1,0 +1,21 @@
+---
+description: Web shop and Flutter builder share one Firebase/Firestore project
+alwaysApply: true
+---
+
+# Shared Firebase project
+
+Web (shop dashboard) and mobile (Flutter builder app) use the **same** Firebase project: `iconstruct-58a87`. One Firestore, one Auth, one App Check, one `firestore.rules` file.
+
+## Do
+
+- Treat every Firestore change as affecting **both** clients
+- Keep `firestore.rules` as the union of web + mobile paths. Default-deny at the bottom; every collection either app uses must be listed
+- Web owns shops / billing / products. Flutter owns estimates, posts, bids, notifications, and `users/{uid}/saved_projects`
+- Coordinate before adding collections or tightening rules — a mobile-only or web-only rules deploy overwrites the live file and can lock the other app out (Saved Projects `permission-denied` is the usual symptom)
+
+## Do not
+
+- Assume a separate Firestore for Flutter
+- Deploy a rules file that only covers one client
+- Register App Check debug tokens on the wrong app (use Android `com.example.iconstruct`, not a different Firebase/web app)

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "244045941716",
+    "project_id": "iconstruct-58a87",
+    "storage_bucket": "iconstruct-58a87.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:244045941716:android:f501eff78dc3ff22606441",
+        "android_client_info": {
+          "package_name": "com.example.iconstruct"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC5gembaurNYI-Lb4Tzfsa9TKsl0-gFAY8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

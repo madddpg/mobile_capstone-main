@@ -1,0 +1,35 @@
+---
+description: iConstruct product scope — planning and material canvassing only
+alwaysApply: true
+---
+
+# iConstruct Product Scope
+
+iConstruct is a **Smart Material Estimator and Bidding Process Support System for Builders**.
+
+## In scope
+
+Focus only on the **planning / pre-procurement phase** of renovation:
+
+1. **Smart material estimation** — AI-first consultation to describe material wants; system templates act as **references only** (not shop catalogs). After area (sqm) is entered, essential BOM quantities auto-scale. Swappable slots (e.g. tiles) let builders change default types.
+2. **Material canvassing / supplier bidding** — request quotations from hardware shops, compare offers, and select a supplier
+
+## Flow note (panelist-aligned)
+
+Estimate Name → AI conversation (templates available beside chat as references) → area-scaled essential BOM → review/finalize → request quotations.
+
+## Out of scope
+
+Do **not** design or implement features for the actual construction/execution phase, including:
+
+- On-site project management or construction progress logging
+- Labor scheduling, contractor crews, or task boards for building work
+- Post-procurement inventory delivery tracking as a construction site tool
+- Treating “Completed” as finished renovation construction — if used, it means the **planning/canvassing cycle** is done (materials planned and supplier selected), not that the renovation build is finished
+
+## UX and copy guidance
+
+- Prefer language like: plan materials, estimate materials, canvass suppliers, request quotations, compare bids
+- Avoid implying the app manages the full renovation lifecycle or on-site building work
+- Project tracking statuses should reflect **planning and bidding** states (draft, planning, waiting for quotations, receiving quotations, supplier selected), not construction milestones
+- **Create / name estimate screen** must not ask for construction fields (location, start date, build schedule). Collect only estimate name and optional material notes

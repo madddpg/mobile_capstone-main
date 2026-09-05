@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/xampp/htdocs/**)",
+      "Bash(dart analyze *)",
+      "Bash(cd \"c:/xampp/htdocs/mobile_capstone-main\" && find test -type f && echo \"---\" && sed -n '1,30p' test/*.dart 2>/dev/null | head -40 && echo \"--- dev_deps ---\" && sed -n '/^dev_dependencies:/,/^$/p' pubspec.yaml)",
+      "Bash(flutter test *)"
+    ],
+    "additionalDirectories": [
+      "C:\\xampp\\htdocs\\mobile_capstone-main\\test"
+    ]
+  }
+}

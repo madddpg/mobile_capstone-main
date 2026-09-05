@@ -1,0 +1,16 @@
+{
+  "name": "iconstruct",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:rules": "firebase emulators:exec --only firestore \"node --test test/rules/firestore.rules.test.mjs\""
+  },
+  "dependencies": {
+    "axios": "^1.14.0",
+    "bcrypt": "^6.0.0"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.10.0"
+  }
+}

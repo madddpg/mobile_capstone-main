@@ -1,0 +1,359 @@
+rules_version = '2';
+
+// Shared Firebase project: web shop dashboard + Flutter builder app.
+// Web owns shops / billing / products. Flutter owns estimates, posts, bids,
+// notifications, and saved projects. Default-deny at the bottom — every
+// collection used by either client must be listed here.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function shopIsApproved(shopId) {
+      return shopId is string
+        && exists(/databases/$(database)/documents/shops/$(shopId))
+        && get(/databases/$(database)/documents/shops/$(shopId)).data.status is string
+        && get(/databases/$(database)/documents/shops/$(shopId)).data.status.matches('(?i)^approved$');
+    }
+
+    function isApprovedShop() {
+      return signedIn() && shopIsApproved(request.auth.uid);
+    }
+
+    // Builder uid on a posted estimate. Canonical field is userId (Auth uid).
+    function isPostOwner(data) {
+      return signedIn() && (
+        data.userId == request.auth.uid
+        || data.builderId == request.auth.uid
+        || data.ownerId == request.auth.uid
+        || data.postedBy == request.auth.uid
+      );
+    }
+
+    function postDoc(postId) {
+      return get(/databases/$(database)/documents/projectPosts/$(postId)).data;
+    }
+
+    function ownsPostedEstimate(postId) {
+      return isPostOwner(postDoc(postId));
+    }
+
+    // ── Admins ──────────────────────────────────────────────────────────────
+    match /admins/{adminId} {
+      allow read: if isAdmin() || isOwner(adminId);
+      allow write: if isAdmin();
+    }
+
+    // ── Shops (web dashboard + builder ranking of approved shops) ───────────
+    match /shops/{shopId} {
+      allow read: if isOwner(shopId) || isAdmin()
+                  || (resource.data.status == "approved");
+
+      allow create: if isOwner(shopId)
+        && request.resource.data.subscriptionPlan == "basic"
+        && request.resource.data.status == "pending";
+
+      // Owners may edit profile fields only — not plan, approval, or billing.
+      // Cloud Functions (Admin SDK) bypass rules for PayMongo activation.
+      allow update: if isAdmin() || (
+        isOwner(shopId)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny([
+              "subscriptionPlan",
+              "subscriptionStatus",
+              "subscriptionExpiry",
+              "status",
+            ])
+      ) || (
+        isOwner(shopId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["status", "updatedAt"])
+        && request.resource.data.status == "deleted"
+      );
+
+      allow delete: if isAdmin();
+
+      match /categories/{categoryId} {
+        allow read: if isOwner(shopId) || isAdmin()
+                    || get(/databases/$(database)/documents/shops/$(shopId)).data.status == "approved";
+        allow write: if (isOwner(shopId) && shopIsApproved(shopId)) || isAdmin();
+      }
+    }
+
+    // ── OTPs (email verification) — Cloud Functions / Admin SDK only ────────
+    match /otps/{email} {
+      allow read, write: if false;
+    }
+
+    match /email_otp/{email} {
+      allow read, write: if false;
+    }
+
+    // PayMongo audit (Admin SDK only)
+    match /paymongoActivations/{sessionId} {
+      allow read, write: if false;
+    }
+
+    match /paymongoEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /checkoutSessions/{sessionId} {
+      allow read, write: if false;
+    }
+
+    // ── Subscription payments ───────────────────────────────────────────────
+    match /subscriptionPayments/{paymentId} {
+      allow read: if isAdmin()
+                  || (signedIn() && resource.data.shopId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.shopId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ── System config (plans, maintenance, etc.) ────────────────────────────
+    match /systemConfig/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /systemLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ── Products (web shops write; Flutter builders browse) ─────────────────
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.shopId == request.auth.uid
+        && shopIsApproved(request.auth.uid);
+      allow update: if signedIn()
+        && resource.data.shopId == request.auth.uid
+        && request.resource.data.shopId == request.auth.uid
+        && shopIsApproved(request.auth.uid);
+      allow delete: if signedIn()
+        && resource.data.shopId == request.auth.uid
+        && shopIsApproved(request.auth.uid);
+    }
+
+    // Template references used by the Flutter planner
+    match /renovation_templates/{templateId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── Builders / mobile app users ─────────────────────────────────────────
+    // Profiles + fcmTokens live on users/{uid}. Nested drafts stay owner-only.
+    // Owner must be able to list their own user doc + subcollections.
+    match /users/{userId} {
+      allow get: if signedIn();
+      allow list: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+
+      match /favorites/{favoriteId} {
+        allow get, list, create, update, delete: if isOwner(userId);
+      }
+
+      match /saved_projects/{projectId} {
+        allow get, list, create, update, delete: if isOwner(userId);
+      }
+    }
+
+    // Same path as the nested match above. Listed twice so a collection query
+    // on saved_projects cannot fall through a recursive default-deny.
+    match /users/{userId}/saved_projects/{projectId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ── Project posts / quotations (web shops + Flutter builders) ───────────
+    match /projectPosts/{postId} {
+      // Posts stay private to the owning builder and approved shops that quote.
+      allow get, list: if isAdmin()
+        || isPostOwner(resource.data)
+        || isApprovedShop();
+
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.projectName is string
+        && request.resource.data.projectName.size() > 0
+        && request.resource.data.projectName.size() <= 200
+        && request.resource.data.materials is list
+        && request.resource.data.materials.size() <= 500
+        && request.resource.data.status == 'open'
+        && request.resource.data.quotationCount == 0
+        && !request.resource.data.keys().hasAny([
+             'price', 'unitPrice', 'catalogPrice', 'estimatedTotal', 'listPrice'
+           ]);
+
+      // Admin; shop bid-counter bump; or the owning builder (accept offer, edits).
+      allow update: if isAdmin()
+        || (isApprovedShop()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(["quotationCount", "updatedAt"]))
+        || (isPostOwner(resource.data)
+            && request.resource.data.userId == resource.data.userId);
+
+      allow delete: if isAdmin() || isPostOwner(resource.data);
+
+      match /quotations/{quotationId} {
+        allow get, list: if isAdmin()
+          || (signedIn() && (
+            ownsPostedEstimate(postId)
+            || resource.data.shopId == request.auth.uid
+            || request.auth.uid == quotationId
+          ));
+
+        allow create: if signedIn()
+          && request.resource.data.keys().hasAll(["shopId"])
+          && request.resource.data.shopId == request.auth.uid
+          && request.auth.uid == quotationId
+          && shopIsApproved(request.auth.uid)
+          && request.resource.data.estimatedTotal is number
+          && request.resource.data.estimatedTotal >= 0
+          && request.resource.data.postId == postId
+          && request.resource.data.status == 'submitted';
+
+        allow update: if isAdmin()
+          || (signedIn()
+              && resource.data.shopId == request.auth.uid
+              && shopIsApproved(request.auth.uid)
+              && request.resource.data.shopId == resource.data.shopId
+              && request.resource.data.postId == resource.data.postId)
+          || (ownsPostedEstimate(postId)
+              && request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['status', 'acceptedAt'])
+              && request.resource.data.status in ['accepted', 'rejected']);
+
+        allow delete: if isAdmin()
+          || (signedIn()
+              && resource.data.shopId == request.auth.uid
+              && shopIsApproved(request.auth.uid));
+      }
+
+      match /acceptance/{acceptanceId} {
+        allow read: if isAdmin()
+          || (signedIn() && ownsPostedEstimate(postId))
+          || (signedIn() && resource.data.shopId == request.auth.uid);
+        allow create: if signedIn()
+          && ownsPostedEstimate(postId)
+          && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // Collection-group queries used by the web shop dashboard.
+    // Builders only see quotes on their own posts; shops only see their own.
+    match /{path=**}/quotations/{quotationId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.shopId == request.auth.uid)
+        || (signedIn() && (
+             resource.data.userId == request.auth.uid
+             || resource.data.builderId == request.auth.uid
+           ));
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll(["shopId"])
+        && request.resource.data.shopId == request.auth.uid
+        && shopIsApproved(request.auth.uid);
+    }
+
+    // Builder ↔ shop chat. Unlocks after a quotation is accepted.
+    // Canonical builder uid is userId on the post; conversations store it as
+    // builderId (and may also copy userId).
+    match /conversations/{conversationId} {
+      function isConvParticipant(data) {
+        return signedIn() && (
+          data.builderId == request.auth.uid
+          || data.userId == request.auth.uid
+          || data.shopId == request.auth.uid
+        );
+      }
+
+      function acceptedQuoteForConv() {
+        return request.resource.data.projectId is string
+          && request.resource.data.quotationId is string
+          && exists(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId))
+          && get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.status == 'accepted'
+          && (
+               get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.shopId == request.resource.data.shopId
+               || request.resource.data.quotationId == request.resource.data.shopId
+             );
+      }
+
+      allow get: if isAdmin()
+        || (signedIn() && (
+             !exists(/databases/$(database)/documents/conversations/$(conversationId))
+             || isConvParticipant(resource.data)
+           ));
+      allow list: if isAdmin() || isConvParticipant(resource.data);
+
+      allow create: if signedIn()
+        && (request.resource.data.builderId == request.auth.uid
+            || request.resource.data.userId == request.auth.uid)
+        && ownsPostedEstimate(request.resource.data.projectId)
+        && request.resource.data.shopId is string
+        && request.resource.data.shopId.size() > 0
+        && request.resource.data.projectId is string
+        && request.resource.data.status == 'open'
+        && acceptedQuoteForConv();
+
+      allow update: if isAdmin()
+        || (isConvParticipant(resource.data)
+            && request.resource.data.shopId == resource.data.shopId
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'updatedAt', 'status']));
+
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isAdmin()
+          || isConvParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data);
+
+        allow create: if signedIn()
+          && isConvParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data)
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 4000
+          && request.resource.data.senderRole in ['builder', 'shop'];
+
+        allow update, delete: if false;
+      }
+    }
+
+    // In-app notifications — written by Cloud Functions (Admin SDK) only.
+    match /notifications/{notificationId} {
+      allow read: if signedIn()
+        && resource.data.recipientId == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.recipientId == request.auth.uid
+        && request.resource.data.recipientId == resource.data.recipientId
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['isRead']);
+      allow create: if false;
+      allow delete: if signedIn()
+        && resource.data.recipientId == request.auth.uid;
+    }
+
+    // Unknown collections stay closed. Add an explicit match before shipping
+    // a new one — coordinate with the web teammate first.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
