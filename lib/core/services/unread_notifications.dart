@@ -4,13 +4,23 @@ import 'package:flutter/material.dart';
 
 /// Live unread in-app notification count for the signed-in builder.
 Stream<int> unreadNotificationCountStream() {
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  // Reached from the global nav, which is built in widget tests and can render
+  // before Firebase is initialised. Touching FirebaseAuth.instance in that
+  // state throws and takes the whole navigation bar down with it, so an
+  // unavailable backend degrades to a zero count instead.
+  final String? uid;
+  try {
+    uid = FirebaseAuth.instance.currentUser?.uid;
+  } catch (_) {
+    return Stream<int>.value(0);
+  }
   if (uid == null) {
     return Stream<int>.value(0);
   }
 
-  // Filter isRead client-side so we don't depend on a composite index deploy.
-  return FirebaseFirestore.instance
+  try {
+    // Filter isRead client-side so we don't depend on a composite index deploy.
+    return FirebaseFirestore.instance
       .collection('notifications')
       .where('recipientId', isEqualTo: uid)
       .snapshots()
@@ -19,7 +29,10 @@ Stream<int> unreadNotificationCountStream() {
             .where((doc) => (doc.data()['isRead'] ?? false) != true)
             .length,
       )
-      .handleError((_) => 0);
+        .handleError((_) => 0);
+  } catch (_) {
+    return Stream<int>.value(0);
+  }
 }
 
 /// Small red count badge over a child (nav icon, bell, etc.).

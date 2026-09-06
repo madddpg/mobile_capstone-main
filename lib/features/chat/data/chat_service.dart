@@ -8,6 +8,26 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// Same Firebase project as the web shop dashboard. Conversation docs and
 /// Cloud Functions are owned by the web repo — this client only reads/writes
 /// messages and may create a thread if the function is slow.
+
+/// Whether one conversation counts as unread for [uid].
+///
+/// Kept as a plain function over the document map so the rule can be tested
+/// without a Firestore fake. Three things make a conversation unread: the last
+/// message came from someone else, it has a timestamp, and the user has either
+/// never opened the thread or last opened it before that message arrived.
+bool conversationIsUnread(Map<String, dynamic> data, String uid) {
+  if (data['lastSenderId'] == uid) return false;
+
+  final lastAt = data['lastMessageAt'];
+  if (lastAt is! Timestamp) return false;
+
+  final readMap = data['readAt'];
+  final readAt = readMap is Map ? readMap[uid] : null;
+  if (readAt is! Timestamp) return true;
+
+  return lastAt.compareTo(readAt) > 0;
+}
+
 class ChatService {
   ChatService({
     FirebaseFirestore? firestore,
@@ -107,6 +127,41 @@ class ChatService {
 
   /// Send as builder. Message + conversation-summary are written in one batch so
   /// the inbox preview can never drift from the last message that was stored.
+  /// Marks a conversation read for the signed-in user.
+  ///
+  /// Stored as `readAt.<uid>` rather than a single field so the shop client
+  /// can keep its own marker in the same document without the two overwriting
+  /// each other. Called when a thread is opened and whenever new messages
+  /// arrive while it is on screen.
+  Future<void> markConversationRead(String conversationId) async {
+    final uid = _uid;
+    if (uid == null || conversationId.trim().isEmpty) return;
+    try {
+      await _db.collection('conversations').doc(conversationId).set({
+        'readAt': {uid: FieldValue.serverTimestamp()},
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // A failed marker only means the badge lingers; never break the thread.
+    }
+  }
+
+  /// Number of conversations holding a message from the other party that this
+  /// user has not opened since.
+  ///
+  /// Derived from [watchMyConversations] rather than a separate query, so it
+  /// inherits the same builderId/userId merge and needs no extra index. A
+  /// conversation counts when the last message came from someone else and
+  /// either was never read or arrived after the last read.
+  Stream<int> watchUnreadCount() {
+    final uid = _uid;
+    if (uid == null) return Stream<int>.value(0);
+
+    return watchMyConversations()
+        .map((docs) =>
+            docs.where((d) => conversationIsUnread(d.data(), uid)).length)
+        .handleError((_) => 0);
+  }
+
   Future<void> sendMessage({
     required String conversationId,
     required String text,

@@ -81,6 +81,31 @@ test("price question that also names materials is answered for the material half
   );
 });
 
+console.log("\npreScreen — Region IV-A place names are on topic");
+[
+  "what tiles are easy to find in Lipa",
+  "is marine plywood available in Calamba hardware",
+  "anong meron sa hardware sa Dasmarinas Cavite",
+  "supplier options around Antipolo Rizal",
+].forEach((msg) => {
+  test(JSON.stringify(msg), () => {
+    assert.strictEqual(preScreen(msg).allow, true);
+  });
+});
+
+test("a location question is not blocked as the wrong phase", () => {
+  // "where is it cheapest" is pricing, but naming a CALABARZON town while
+  // asking about availability is a material question and must get through.
+  assert.strictEqual(preScreen("which hardware in Batangas stocks Ga.26").allow, true);
+});
+
+test("a town name does not smuggle an off-domain question through", () => {
+  // Off-domain is checked before the regional allowance, so this stays blocked.
+  const r = preScreen("write me a python script for my Calamba thesis");
+  assert.strictEqual(r.allow, false);
+  assert.strictEqual(r.reason, "off-domain");
+});
+
 console.log("\nvalidateResult — catches a reply that drifted");
 test("peso amount in the reply forces out of scope", () => {
   const r = validateResult({

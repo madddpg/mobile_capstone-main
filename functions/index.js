@@ -755,8 +755,17 @@ exports.onQuotationSubmitted = onDocumentCreated("projectPosts/{postId}/quotatio
     }
 
     const userData = userDoc.data() || {};
+    // Deduplicate the same way the post-created notification does. A token
+    // written twice by different clients would otherwise deliver the same
+    // quotation to one device more than once.
     const fcmTokens = Array.isArray(userData.fcmTokens)
-      ? userData.fcmTokens.filter((t) => typeof t === "string" && t.trim() !== "")
+      ? [
+          ...new Set(
+            userData.fcmTokens.filter(
+              (t) => typeof t === "string" && t.trim() !== ""
+            )
+          ),
+        ]
       : [];
 
     const shopName = quotation.shopName || "A hardware shop";

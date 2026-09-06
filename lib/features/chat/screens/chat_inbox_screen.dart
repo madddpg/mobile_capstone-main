@@ -66,7 +66,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
         OffsetPanelShell(
           extent: OffsetPanelExtent.centeredWithNav,
           safeAreaBottom: false,
-          activeNav: OffsetNavTab.bidding,
+          activeNav: OffsetNavTab.chat,
           panelColor: IConstructPanel.darkBlue,
           contentPadding: EdgeInsets.zero,
           header: OffsetPanelHeaders.backOnly(context),

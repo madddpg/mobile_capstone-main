@@ -1,5 +1,18 @@
 import 'package:iconstruct/features/project_creation/data/material_kind.dart';
 
+/// The region this estimating tool is scoped to.
+const String kEstimateRegion = 'Region IV-A (CALABARZON)';
+
+/// Provinces covered by the region, each with its own DPWH district
+/// engineering office.
+const List<String> kRegionProvinces = <String>[
+  'Cavite',
+  'Laguna',
+  'Batangas',
+  'Rizal',
+  'Quezon',
+];
+
 /// Provenance for every material the system estimates.
 ///
 /// Answers the question an adviser, an engineer, or a supplier will ask:
@@ -15,12 +28,28 @@ import 'package:iconstruct/features/project_creation/data/material_kind.dart';
 ///     Construction Estimate*, from plain geometry, or from published
 ///     manufacturer coverage rates for proprietary goods.
 ///   * **Commercial packaging and counter practice** are neither. They are
-///     Philippine hardware trade practice, and they are labelled as such
+///     CALABARZON hardware trade practice, and they are labelled as such
 ///     rather than dressed up as a standard.
 ///
 /// Note on volumes: a house renovation or extension is a *building*, so the
 /// governing items are DPWH Volume III (Buildings). Volume II items 404 and
 /// 405 cover highways and bridges and are the wrong citation here.
+///
+/// Geographic scope: this system serves **Region IV-A (CALABARZON)**. Getting
+/// the regional boundary right matters, because the three tiers are not
+/// regional in the same way:
+///
+///   * The **DPWH Standard Specifications and the PNS are national**. They
+///     apply identically in Cavite, Laguna, Batangas, Rizal and Quezon as
+///     anywhere else in the country. Relabelling a national item as a Region
+///     IV-A item would be a false citation, so the app does not do it. What is
+///     regional is which office applies and enforces them, namely DPWH
+///     Regional Office IV-A and the district engineering offices for the five
+///     provinces.
+///   * **Quantity coefficients** from Fajardo are likewise national.
+///   * **Commercial packaging, counter terminology and supplier availability
+///     are genuinely regional**, and that tier is scoped to CALABARZON
+///     hardware retail rather than claimed for the whole country.
 ///
 /// Full provenance table, including edition dates and links, lives in
 /// `docs/material-data-sources.md`.
@@ -31,9 +60,10 @@ enum SourceTier {
   /// A published estimating reference or a manufacturer's stated coverage.
   referenceText,
 
-  /// Philippine hardware trade practice. Real, widely observed, but not
-  /// codified in any national document, and flagged so it is never mistaken
-  /// for one.
+  /// Hardware trade practice observed in Region IV-A (CALABARZON). Real and
+  /// widely followed, but not codified in any national document, and flagged
+  /// so it is never mistaken for one. This is the one tier that is genuinely
+  /// regional; the standards above it are national instruments.
   tradePractice,
 }
 
@@ -60,7 +90,7 @@ class MaterialSource {
   String get tierLabel => switch (tier) {
         SourceTier.nationalStandard => 'Philippine national standard',
         SourceTier.referenceText => 'Estimating reference',
-        SourceTier.tradePractice => 'PH hardware trade practice',
+        SourceTier.tradePractice => 'CALABARZON hardware trade practice',
       };
 }
 
@@ -203,12 +233,31 @@ const _manufacturer = MaterialSource(
 
 const _trade = MaterialSource(
   tier: SourceTier.tradePractice,
-  authority: 'Philippine hardware trade practice',
-  reference: 'Commercial packaging and counter terminology',
+  authority: 'CALABARZON hardware trade practice',
+  reference:
+      'Commercial packaging and counter terminology in Cavite, Laguna, '
+      'Batangas, Rizal and Quezon',
   covers:
       'How the item is packed and asked for: 40 kg cement bags, 6 m bar '
       'lengths, 4 L paint gallons, 4 ft by 8 ft plywood, gauge numbers for '
-      'roofing. Widely observed but not codified. Confirm with your supplier.',
+      'roofing. Observed across CALABARZON hardware retail, from the chains '
+      'in Calamba, Santa Rosa, Dasmarinas, Antipolo and Lipa down to barangay '
+      'hardware. Not codified anywhere. Confirm with your own supplier.',
+);
+
+/// The office that applies the national specifications inside this region, and
+/// the source of regional unit-price references used at the canvassing stage.
+const _dpwhRegion4a = MaterialSource(
+  tier: SourceTier.nationalStandard,
+  authority: 'DPWH Regional Office IV-A (CALABARZON)',
+  reference:
+      'Regional and district engineering offices for Cavite, Laguna, '
+      'Batangas, Rizal and Quezon',
+  covers:
+      'Applies and enforces the national specifications within this region, '
+      'and publishes the regional unit-price and quantity references used for '
+      'programs of work here. The specification itself is national; the office '
+      'and its price data are what is regional.',
 );
 
 /// Sources backing a material, most authoritative first.
@@ -235,11 +284,12 @@ class MaterialSources {
 
         MaterialKind.structuralCement ||
         MaterialKind.gravel =>
-          const [_dpwh900, _fajardo, _trade],
+          const [_dpwh900, _fajardo, _dpwhRegion4a, _trade],
 
         MaterialKind.washedSand => const [_dpwh900, _fajardo, _trade],
 
-        MaterialKind.chbBlock => const [_dpwh1046, _pnsCmu, _geometry, _trade],
+        MaterialKind.chbBlock =>
+          const [_dpwh1046, _pnsCmu, _geometry, _dpwhRegion4a, _trade],
         MaterialKind.chbMortar => const [_dpwh1046, _dpwh1027, _fajardo, _trade],
 
         MaterialKind.rebar => const [_pns49, _dpwh902, _nscp, _trade],

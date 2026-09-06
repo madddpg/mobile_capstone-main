@@ -4,6 +4,36 @@ Provenance for every material and quantity iConstruct produces. Written for
 review: each claim names the Philippine instrument behind it, and anything not
 backed by a national instrument says so plainly.
 
+## Geographic scope: Region IV-A (CALABARZON)
+
+The system serves Cavite, Laguna, Batangas, Rizal and Quezon. Being precise
+about what that scoping does and does not change is important, because a panel
+can reasonably ask why a "regional" tool cites national documents.
+
+**What is national and stays national.** The DPWH Standard Specifications and
+the Philippine National Standards apply identically in every region. Item 1046
+is Item 1046 in Calamba and in Davao. Relabelling one as a "Region IV-A item"
+would be a false citation, so the app does not do it. Fajardo's quantity
+coefficients are likewise national.
+
+**What is regional.** Three things genuinely are:
+
+1. **The office that applies and enforces the specifications here** is DPWH
+   Regional Office IV-A, with district engineering offices covering the five
+   provinces. It is also the source of the regional unit-price and programme-of-
+   work references used at the canvassing stage.
+2. **Supplier availability.** What provincial hardware in Quezon actually
+   stocks differs from what a Santa Rosa chain store carries.
+3. **Commercial packaging and counter terminology**, which is the tier the app
+   marks in amber and never presents as a standard.
+
+**How this shows in the app.** The material identification card tags that third
+tier "CALABARZON hardware trade practice" rather than claiming it nationally.
+The AI consultant is instructed to name materials the way CALABARZON stores
+stock them, and to flag anything not commonly carried in provincial hardware
+there. Its scope guard also treats regional place names as on-topic, so asking
+what is available in Lipa or Antipolo is answered rather than deflected.
+
 ## The short answer
 
 The system produces three different kinds of data, and they come from three
@@ -14,7 +44,7 @@ so the app keeps them apart and labels each one.
 |---|---|---|
 | Material list | Which items belong in this job | Renovation templates in the app, extended by supplier catalogue records and, optionally, an AI consultation the user reviews |
 | Quantity | How much of each item | Geometry from the user's area and selected size, Fajardo's coefficients, and published manufacturer coverage rates |
-| Identification | How to recognise and order it | Philippine hardware trade practice, with the national standard cited for the acceptance check where one exists |
+| Identification | How to recognise and order it | CALABARZON hardware trade practice, with the national standard cited for the acceptance check where one exists |
 
 The app shows this on every material. Open any line item in the Bill of
 Materials, tap its picture, and the identification card ends with a
@@ -82,12 +112,13 @@ This is the material pictures, the counter phrasing, the lookalike warnings,
 and the delivery checks added so a user can confirm they are buying the right
 item. **Its provenance is different and weaker, and the app says so.**
 
-- **Commercial packaging and counter terminology** are Philippine hardware
+- **Commercial packaging and counter terminology** are CALABARZON hardware
   trade practice: 40 kg cement bags, 6 m bar lengths, 4 L paint gallons,
   4 ft by 8 ft plywood, gauge numbers for roofing sheets. These are widely and
-  consistently observed in Philippine hardware retail but are not codified in
-  any national instrument. In the app they carry an amber
-  **PH hardware trade practice** tag.
+  consistently observed across hardware retail in the five provinces, from the
+  chains in Calamba, Santa Rosa, Dasmarinas, Antipolo and Lipa down to barangay
+  hardware, but are not codified in any national instrument. In the app they
+  carry an amber **CALABARZON hardware trade practice** tag.
 
 - **Acceptance checks** are tied to a national standard wherever one exists.
   The rebar check, that a 6 m bar sold as 10 mm should weigh about 3.7 kg,
@@ -95,15 +126,21 @@ item. **Its provenance is different and weaker, and the app says so.**
   block thickness check follows from PNS ASTM C90:2019. The Ga.26 roofing
   check is the thing DPWH Item 1014 governs.
 
-- **The pictures** are vector drawings authored for this project, not
-  photographs. Nothing is reproduced from a manufacturer or retailer. They
-  are drawn from the physical form of the goods and respond to the spec the
-  user selects, so a 6 in block draws deeper than a 4 in and a 16 mm bar
-  draws thicker than a 10 mm.
+- **The pictures** are real photographs where one has been sourced, and a
+  drawing where none has yet. Photographs come from Wikimedia Commons under
+  licences that permit reuse, each one opened and checked to confirm it shows
+  the material it is attached to; `docs/photo-credits.md` carries the
+  attribution the licences require. Those photographs are European and American
+  stock rather than CALABARZON stock, which is a known gap recorded in that
+  file. Where no photograph exists the app draws the material, responding to
+  the spec the user selects, so a 6 in block draws deeper than a 4 in and a
+  16 mm bar draws thicker than a 10 mm. Nothing is AI-generated.
 
 **This layer should be validated by a practising foreman or the adviser before
-defence.** It is the one part of the system not traceable to a published
-document, and it is the part a practitioner can most usefully correct.
+defence, and validated inside Region IV-A specifically.** It is the one part of
+the system not traceable to a published document, it is the part a practitioner
+can most usefully correct, and it is the part where a Cavite or Quezon supplier
+is the authority rather than a national reference.
 
 ## Citations, verified against primary sources
 
@@ -183,8 +220,8 @@ in `test/material_kind_test.dart`.
 
 - Coefficients drawn from manufacturer coverage rates vary by brand. The app
   labels these so a user knows to check the bag.
-- The trade practice layer reflects general Philippine hardware retail and may
-  differ by region and by store.
+- The trade practice layer reflects CALABARZON hardware retail and may differ
+  by province and by store. It is not claimed to hold outside Region IV-A.
 - The system estimates materials for canvassing and quotation. It does not
   perform structural design, and it does not replace a licensed engineer where
   the NSCP requires one.

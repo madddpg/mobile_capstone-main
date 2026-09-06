@@ -64,6 +64,23 @@ const MATERIAL_TERMS = [
   "renovation", "extension", "bathroom", "kitchen", "sqm", "square meter",
 ];
 
+// ── Region IV-A (CALABARZON) place names ───────────────────────────────────
+//
+// The tool is scoped to CALABARZON, so a builder naming their town is on
+// topic: "what tiles are easy to find in Lipa" is a material availability
+// question, not chit-chat. Without this the message could read as off-domain.
+const REGION_PLACES = [
+  "calabarzon", "region iv-a", "region 4a", "region 4-a",
+  "cavite", "laguna", "batangas", "rizal", "quezon province",
+  "calamba", "santa rosa", "sta rosa", "binan", "binan", "cabuyao",
+  "san pablo", "san pedro", "los banos", "bay", "calauan",
+  "dasmarinas", "bacoor", "imus", "general trias", "gen trias", "tagaytay",
+  "silang", "trece martires", "kawit", "noveleta", "rosario",
+  "lipa", "tanauan", "batangas city", "sto tomas", "santo tomas", "malvar",
+  "antipolo", "cainta", "taytay", "binangonan", "angono", "rodriguez",
+  "lucena", "tayabas", "candelaria", "sariaya", "infanta",
+];
+
 function normalize(text) {
   return String(text || "").toLowerCase().replace(/\s+/g, " ").trim();
 }
@@ -130,7 +147,8 @@ function preScreen(userMessage) {
   const msg = normalize(userMessage);
   if (!msg) return { allow: true };
 
-  const mentionsMaterial = hitsAnyWord(msg, MATERIAL_TERMS);
+  const mentionsMaterial =
+    hitsAnyWord(msg, MATERIAL_TERMS) || hitsAny(msg, REGION_PLACES);
 
   // Another domain entirely. Blocked even if a material word appears, since
   // that is the shape a prompt-injection attempt takes.
@@ -193,6 +211,7 @@ module.exports = {
   REDIRECTS,
   // exported for tests
   MATERIAL_TERMS,
+  REGION_PLACES,
   OFF_DOMAIN,
   WRONG_PHASE,
 };

@@ -316,7 +316,7 @@ service cloud.firestore {
         || (isConvParticipant(resource.data)
             && request.resource.data.shopId == resource.data.shopId
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'updatedAt', 'status']));
+                 .hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'updatedAt', 'status', 'readAt']));
 
       allow delete: if isAdmin();
 

@@ -4,11 +4,30 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/services/unread_notifications.dart';
 import 'package:iconstruct/core/utils/hammer_nav.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
-import 'package:iconstruct/features/auth/presentation/screens/home_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/main_home_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/saved_projects.dart';
+import 'package:iconstruct/features/chat/data/chat_service.dart';
+import 'package:iconstruct/features/chat/screens/chat_inbox_screen.dart';
 /// Which pill-nav label is active.
-enum OffsetNavTab { home, estimate, finalize, files, bidding }
+///
+/// The global bar has four destinations: [home], [bidding], [chat] and
+/// [files]. [estimate] and [finalize] are steps inside the planning flow
+/// rather than places you navigate to, so they highlight nothing. They are
+/// kept so those screens can still declare where they sit.
+enum OffsetNavTab { home, estimate, finalize, files, bidding, chat }
+
+/// Unread conversation count for the chat tab.
+///
+/// Wrapped because the bar renders in widget tests and before Firebase is
+/// initialised, where constructing the service throws and would take the whole
+/// navigation bar down with it.
+Stream<int> _chatUnreadStream() {
+  try {
+    return ChatService().watchUnreadCount();
+  } catch (_) {
+    return Stream<int>.value(0);
+  }
+}
 
 /// Shared cream floating pill navigation used across planning screens.
 class OffsetPillNav extends StatelessWidget {
@@ -82,29 +101,32 @@ class OffsetPillNav extends StatelessWidget {
                       onTap: () => handleHammerTap(context),
                     ),
                   const SizedBox(width: 10),
-                  if (activeTab == OffsetNavTab.files ||
-                      activeTab == OffsetNavTab.bidding ||
-                      activeTab == OffsetNavTab.home)
-                    _NavIcon(
-                      icon: Icons.calculate_rounded,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const HomeScreen(),
-                          ),
+                  StreamBuilder<int>(
+                    stream: _chatUnreadStream(),
+                    builder: (context, chatSnap) {
+                      final unreadChats = chatSnap.data ?? 0;
+
+                      if (activeTab == OffsetNavTab.chat) {
+                        return _ActiveNavChip(
+                          icon: Icons.chat_bubble_rounded,
+                          label: 'Chat',
+                          badgeCount: unreadChats,
                         );
-                      },
-                    )
-                  else
-                    _ActiveNavChip(
-                      icon: activeTab == OffsetNavTab.finalize
-                          ? Icons.fact_check_rounded
-                          : Icons.calculate_rounded,
-                      label: activeTab == OffsetNavTab.finalize
-                          ? 'Finalize'
-                          : 'Estimate',
-                    ),
+                      }
+                      return _NavIcon(
+                        icon: Icons.chat_bubble_rounded,
+                        badgeCount: unreadChats,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ChatInboxScreen(),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
                   const SizedBox(width: 10),
                   if (activeTab == OffsetNavTab.files)
                     _ActiveNavChip(

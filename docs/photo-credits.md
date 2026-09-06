@@ -20,3 +20,13 @@ attached to. Nothing here is a drawing, a 3D render, or AI-generated.
 | `washed_sand` | Heap of Fine Construction Sand.jpg | CC0 | Paul The Writer | https://commons.wikimedia.org/wiki/File:Heap_of_Fine_Construction_Sand.jpg |
 | `pvc_pipe` | Orange plastic pipes.jpg | CC0 | W.carter | https://commons.wikimedia.org/wiki/File:Orange_plastic_pipes.jpg |
 | `silicone` | Siliconchik.JPG | CC BY-SA 3.0 | Дар Ветер | https://commons.wikimedia.org/wiki/File:Siliconchik.JPG |
+
+## Regional note
+
+The project is scoped to Region IV-A (CALABARZON), and these photographs are
+not. They are European and American stock: the cement is a 25 kg CEM II bag,
+not the 40 kg sack sold in Calamba or Lipa. They are accurate enough to show
+what the goods physically are, which is what the identification card needs,
+but replacing them with photos taken in CALABARZON hardware would make the
+visual match the region the estimate is written for, and would remove the
+attribution obligation above.

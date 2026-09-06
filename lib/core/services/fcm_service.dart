@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:iconstruct/features/bidding/screens/quotations_screen.dart';
 import 'package:iconstruct/features/chat/screens/chat_thread_screen.dart';
@@ -57,9 +58,12 @@ class FCMService {
         return;
       }
 
-      // iOS: show system banners while app is open.
+      // Let iOS suppress its own banner while the app is open. This handler
+      // already draws a local notification from onMessage, and leaving alert
+      // on meant iOS showed the system banner as well: one quotation, two
+      // notifications. Badge and sound stay with the system.
       await _messaging.setForegroundNotificationPresentationOptions(
-        alert: true,
+        alert: false,
         badge: true,
         sound: true,
       );
@@ -171,11 +175,41 @@ class FCMService {
     );
   }
 
+  /// Key holding the last token this install registered, so the previous one
+  /// can be retired when FCM rotates it.
+  static const _lastTokenKey = 'fcm_last_token';
+
   Future<void> saveUserToken(String uid, String token) async {
     try {
-      await _firestore.collection('users').doc(uid).set({
+      // A device's FCM token rotates on reinstall, restore, or cleared app
+      // data. The old one keeps working for a while, so simply adding each new
+      // token left one device holding several live tokens, and the server's
+      // multicast then delivered the same quotation to it once per token.
+      // Retire the previous token for this install before adding the new one.
+      String? previous;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        previous = prefs.getString(_lastTokenKey);
+        await prefs.setString(_lastTokenKey, token);
+      } catch (_) {
+        // No local storage is not a reason to skip registering the token.
+      }
+
+      final update = <String, dynamic>{
         'fcmTokens': FieldValue.arrayUnion([token]),
-      }, SetOptions(merge: true));
+      };
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .set(update, SetOptions(merge: true));
+
+      if (previous != null && previous.isNotEmpty && previous != token) {
+        await _firestore.collection('users').doc(uid).set({
+          'fcmTokens': FieldValue.arrayRemove([previous]),
+        }, SetOptions(merge: true));
+        debugPrint('Retired stale FCM token for users/$uid');
+      }
+
       debugPrint('FCM token saved for users/$uid');
     } catch (e) {
       debugPrint('Error saving FCM token: $e');

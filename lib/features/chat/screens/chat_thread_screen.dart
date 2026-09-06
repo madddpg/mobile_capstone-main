@@ -10,6 +10,7 @@ import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
+import 'package:iconstruct/features/chat/widgets/message_list.dart';
 import 'package:iconstruct/features/onboarding/data/home_guide_steps.dart';
 import 'package:iconstruct/features/onboarding/presentation/widgets/home_guide_overlay.dart';
 
@@ -46,6 +47,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   int _guideStep = 0;
   bool _preparing = true;
   String? _prepareError;
+
+  /// Newest message id already marked read, so repeated rebuilds of the
+  /// message list do not each write a read marker.
+  String? _markedReadUpTo;
   final List<HomeGuideStep> _guideSteps = chatGuideSteps();
 
   @override
@@ -53,6 +58,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _prepareThread();
+      // Opening the thread is what clears its badge.
+      await _chat.markConversationRead(widget.conversationId);
       if (mounted) await _maybeStartGuide();
     });
   }
@@ -159,7 +166,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
         OffsetPanelShell(
       extent: OffsetPanelExtent.centeredWithNav,
       safeAreaBottom: false,
-      activeNav: OffsetNavTab.bidding,
+      activeNav: OffsetNavTab.chat,
       panelColor: IConstructPanel.darkBlue,
       contentPadding: EdgeInsets.zero,
       header: OffsetPanelHeaders.backOnly(context),
@@ -251,8 +258,19 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     }
 
                     // watchMessages returns newest-first; reverse for display.
-                    final docs =
-                        (snapshot.data?.docs ?? []).reversed.toList();
+                    final raw = snapshot.data?.docs ?? [];
+
+                    // A message arriving while the thread is open is already
+                    // being read, so clear its badge rather than leaving a
+                    // count for something on screen.
+                    if (raw.isNotEmpty && raw.first.id != _markedReadUpTo) {
+                      _markedReadUpTo = raw.first.id;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _chat.markConversationRead(widget.conversationId);
+                      });
+                    }
+
+                    final docs = raw.reversed.toList();
                     if (docs.isEmpty) {
                       return Padding(
                         padding: const EdgeInsets.all(28),
@@ -267,67 +285,12 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                       );
                     }
 
-                    return ListView.builder(
+                    return MessengerMessageList(
+                      docs: docs.map((d) => d.data()).toList(),
+                      uid: uid,
+                      shopName: shopName,
+                      conversation: data,
                       controller: _scroll,
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                      itemCount: docs.length,
-                      itemBuilder: (context, index) {
-                        final msg = docs[index].data();
-                        final role = (msg['senderRole'] ?? '').toString();
-                        final senderId = (msg['senderId'] ?? '').toString();
-                        final mine = senderId == uid || role == 'builder';
-                        final system = role == 'system';
-                        final text = (msg['text'] ?? '').toString();
-                        if (system) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Text(
-                              text,
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                color: AppColors.cream.withValues(alpha: 0.65),
-                                fontSize: 12,
-                              ),
-                            ),
-                          );
-                        }
-                        return Align(
-                          alignment: mine
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(vertical: 5),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.sizeOf(context).width * 0.62,
-                            ),
-                            decoration: BoxDecoration(
-                              color: mine
-                                  ? IConstructPanel.midBlue
-                                  : AppColors.cream,
-                              borderRadius: BorderRadius.only(
-                                topLeft: const Radius.circular(18),
-                                topRight: const Radius.circular(18),
-                                bottomLeft: Radius.circular(mine ? 18 : 4),
-                                bottomRight: Radius.circular(mine ? 4 : 18),
-                              ),
-                            ),
-                            child: Text(
-                              text,
-                              style: GoogleFonts.poppins(
-                                color: mine
-                                    ? Colors.white
-                                    : AppColors.textDark,
-                                fontSize: 13,
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
                     );
                   },
                 ),
