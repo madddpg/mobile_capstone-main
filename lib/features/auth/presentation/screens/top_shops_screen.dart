@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
 import 'package:iconstruct/features/auth/presentation/services/shop_ranking_service.dart';
+import 'package:iconstruct/features/auth/presentation/widgets/shop_storefront_sheet.dart';
 
 class TopShopsScreen extends StatefulWidget {
   const TopShopsScreen({super.key});
@@ -78,7 +79,9 @@ class _TopShopsScreenState extends State<TopShopsScreen> {
               final shop = shops[index];
               final isTop3 = index < 3 && shop.quotationCount > 0;
 
-              return Container(
+              return GestureDetector(
+                onTap: () => showShopStorefrontSheet(context, shop),
+                child: Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -138,6 +141,18 @@ class _TopShopsScreenState extends State<TopShopsScreen> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (shop.hasStorefront) ...[
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Tap to see what they supply',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: darkBlue,
+                              ),
+                            ),
+                          ],
                           if (shop.subscriptionPlan != null) ...[
                             const SizedBox(height: 4),
                             Text(
@@ -178,6 +193,7 @@ class _TopShopsScreenState extends State<TopShopsScreen> {
                     ),
                   ],
                 ),
+              ),
               );
             },
           );

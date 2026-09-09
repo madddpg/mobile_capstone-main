@@ -55,6 +55,11 @@ class ShopRankingService {
 
         return RankedShop(
           uid: uid,
+          suppliedCategories: RankedShop.readList(data['suppliedCategories']),
+          description: asString(data['description']),
+          businessHours: asString(data['businessHours']),
+          coverageCities: RankedShop.readList(data['coverageCities']),
+          storefrontAbout: asString(data['storefrontAbout']),
           shopName: asString(data['shopName'], fallback: 'Unknown Shop'),
           address: asString(data['address']),
           barangay: asString(data['barangay']),

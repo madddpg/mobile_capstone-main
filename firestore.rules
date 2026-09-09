@@ -234,10 +234,26 @@ service cloud.firestore {
               && shopIsApproved(request.auth.uid)
               && request.resource.data.shopId == resource.data.shopId
               && request.resource.data.postId == resource.data.postId)
+          // The builder may accept a quotation whole or line by line. Partial
+          // acceptance rewrites the items array with an `accepted` flag on each
+          // entry and records what the kept lines come to, so those two fields
+          // join the allowed set. The builder still cannot touch price fields,
+          // shopId or postId.
           || (ownsPostedEstimate(postId)
               && request.resource.data.diff(resource.data).affectedKeys()
-                   .hasOnly(['status', 'acceptedAt'])
-              && request.resource.data.status in ['accepted', 'rejected']);
+                   .hasOnly(['status', 'acceptedAt', 'items', 'acceptedTotal'])
+              && request.resource.data.status
+                   in ['accepted', 'partially_accepted', 'rejected']
+              && request.resource.data.shopId == resource.data.shopId
+              && request.resource.data.postId == resource.data.postId
+              && request.resource.data.estimatedTotal == resource.data.estimatedTotal
+              && (!('items' in request.resource.data.diff(resource.data).affectedKeys())
+                  || (request.resource.data.items is list
+                      && request.resource.data.items.size() == resource.data.items.size()))
+              && (!('acceptedTotal' in request.resource.data.diff(resource.data).affectedKeys())
+                  || (request.resource.data.acceptedTotal is number
+                      && request.resource.data.acceptedTotal >= 0
+                      && request.resource.data.acceptedTotal <= resource.data.estimatedTotal)));
 
         allow delete: if isAdmin()
           || (signedIn()
@@ -328,9 +344,22 @@ service cloud.firestore {
           && isConvParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data)
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 4000
-          && request.resource.data.senderRole in ['builder', 'shop'];
+          && request.resource.data.senderRole in ['builder', 'shop']
+          // A message must carry words, an attachment, or both. Requiring text
+          // outright would reject a photo sent with no caption.
+          && (request.resource.data.text.size() > 0
+              || request.resource.data.keys().hasAny(['attachment']))
+          && (!request.resource.data.keys().hasAny(['attachment'])
+              || (request.resource.data.attachment.url is string
+                  && request.resource.data.attachment.url.size() > 0
+                  && request.resource.data.attachment.url.size() <= 2000
+                  && request.resource.data.attachment.name is string
+                  && request.resource.data.attachment.name.size() <= 200
+                  && request.resource.data.attachment.kind in ['image', 'file']
+                  && request.resource.data.attachment.sizeBytes is int
+                  && request.resource.data.attachment.sizeBytes >= 0
+                  && request.resource.data.attachment.sizeBytes <= 10485760));
 
         allow update, delete: if false;
       }

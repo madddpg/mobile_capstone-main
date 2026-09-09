@@ -1,0 +1,68 @@
+rules_version = '2';
+
+// Cloud Storage rules.
+//
+// The bucket previously had no rules file in this repo at all, so whatever the
+// console happened to hold was the only thing standing in front of it. Chat
+// attachments made that worth fixing: builders send site photos and receipts,
+// and those should not be world-readable.
+//
+// A limit worth knowing: Storage rules cannot read Firestore, so they cannot
+// check that the caller is actually a participant in the conversation whose id
+// appears in the path. Membership is enforced on the Firestore side, where the
+// message carrying the attachment URL can only be written and read by the two
+// participants. These rules do what Storage alone can: require a signed-in
+// caller, cap the size, and pin the content types.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Matches the app's ChatAttachmentService.maxBytes.
+    function withinSizeLimit() {
+      return request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    function isAllowedType() {
+      return request.resource.contentType.matches('image/.*')
+        || request.resource.contentType in [
+             'application/pdf',
+             'text/plain',
+             'text/csv',
+             'application/msword',
+             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+             'application/vnd.ms-excel',
+             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+           ];
+    }
+
+    // Chat attachments, one folder per conversation.
+    match /chat_attachments/{conversationId}/{fileName} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && withinSizeLimit()
+        && isAllowedType();
+
+      // Attachments are immutable once sent. A thread that could be edited
+      // after the fact is not a record either party can rely on.
+      allow update, delete: if false;
+    }
+
+    // Profile and project images the app already uploads elsewhere. Readable
+    // by any signed-in user, writable only under the owner's own uid.
+    match /users/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.auth.uid == userId
+        && withinSizeLimit();
+    }
+
+    // Nothing else in the bucket is reachable from the apps.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

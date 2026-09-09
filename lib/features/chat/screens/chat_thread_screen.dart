@@ -9,6 +9,7 @@ import 'package:iconstruct/core/theme/app_theme.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/features/chat/data/chat_attachment_service.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
 import 'package:iconstruct/features/chat/widgets/message_list.dart';
 import 'package:iconstruct/features/onboarding/data/home_guide_steps.dart';
@@ -40,6 +41,8 @@ class ChatThreadScreen extends StatefulWidget {
 
 class _ChatThreadScreenState extends State<ChatThreadScreen> {
   final _chat = ChatService();
+  final _attachments = ChatAttachmentService();
+  bool _uploading = false;
   final _controller = TextEditingController();
   final _scroll = ScrollController();
   bool _sending = false;
@@ -125,6 +128,83 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     _controller.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// Offers the three ways to attach something, then uploads and sends it.
+  ///
+  /// Whatever is already typed rides along as the caption, so a builder can
+  /// write "this is the wall" and then pick the photo.
+  Future<void> _attach() async {
+    if (_sending || _uploading) return;
+
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: IConstructPanel.navy,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final option in const [
+              ('camera', Icons.photo_camera_rounded, 'Take a photo'),
+              ('gallery', Icons.photo_library_rounded, 'Choose a photo'),
+              ('file', Icons.attach_file_rounded, 'Attach a document'),
+            ])
+              ListTile(
+                leading: Icon(option.$2, color: AppColors.cream),
+                title: Text(
+                  option.$3,
+                  style: GoogleFonts.poppins(color: AppColors.cream),
+                ),
+                onTap: () => Navigator.pop(context, option.$1),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+
+    setState(() => _uploading = true);
+    try {
+      final picked = choice == 'file'
+          ? await _attachments.pickFile()
+          : await _attachments.pickImage(fromCamera: choice == 'camera');
+      if (picked == null) return;
+
+      final uploaded = await _attachments.upload(
+        conversationId: widget.conversationId,
+        picked: picked,
+      );
+      await _chat.sendMessage(
+        conversationId: widget.conversationId,
+        text: _controller.text,
+        attachment: uploaded.toMap(),
+      );
+      _controller.clear();
+      await _scrollToLatest();
+    } on ChatAttachmentException catch (e) {
+      if (!mounted) return;
+      showAppMessage(context, SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) return;
+      showAppMessage(
+        context,
+        SnackBar(content: Text(firestoreUserMessage(e, action: 'send this attachment'))),
+      );
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _scrollToLatest() async {
+    if (!_scroll.hasClients) return;
+    await _scroll.animateTo(
+      _scroll.position.maxScrollExtent + 80,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
   }
 
   Future<void> _send() async {
@@ -309,6 +389,23 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     ? const SizedBox.shrink()
                     : Row(
                         children: [
+                          IconButton(
+                            onPressed: (_sending || _uploading) ? null : _attach,
+                            tooltip: 'Attach a photo or document',
+                            icon: _uploading
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.cream,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.add_circle_outline_rounded,
+                                    color: AppColors.cream,
+                                  ),
+                          ),
                           Expanded(
                             child: TextField(
                               controller: _controller,

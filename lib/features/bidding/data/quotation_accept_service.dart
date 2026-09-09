@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
 
@@ -50,11 +51,17 @@ class QuotationAcceptService {
   final FirebaseAuth _auth;
   final ChatService _chat;
 
+  /// Accepts a shop's quotation, whole or in part.
+  ///
+  /// [acceptedIndexes] names the line positions the builder kept. Passing null
+  /// accepts everything, which is the behaviour from before per-line choice
+  /// existed, so existing callers are unaffected.
   Future<String> acceptQuotation({
     required String postId,
     required String quotationId,
     required String shopId,
     required String shopName,
+    Set<int>? acceptedIndexes,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not signed in');
@@ -119,10 +126,23 @@ class QuotationAcceptService {
         savedProjectExists = (await txn.get(savedProjectRef)).exists;
       }
 
+      // Resolve which lines the builder kept. The items array is rewritten
+      // whole because Firestore cannot address one element of an array.
+      final quotationData = quotationSnap.data() ?? <String, dynamic>{};
+      final lines = quotationItems(quotationData);
+      final outcome = resolveAcceptance(
+        items: lines,
+        acceptedIndexes: lines.isEmpty ? null : acceptedIndexes,
+      );
+
       // ---- then all writes ----
       txn.update(quotationRef, {
-        'status': 'accepted',
+        'status': outcome.status,
         'acceptedAt': FieldValue.serverTimestamp(),
+        if (lines.isNotEmpty) ...{
+          'items': outcome.items,
+          'acceptedTotal': outcome.acceptedTotal,
+        },
       });
       for (final doc in toReject) {
         txn.update(doc.reference, {
@@ -158,6 +178,7 @@ class QuotationAcceptService {
     required String quotationId,
     required String shopId,
     required String shopName,
+    Set<int>? acceptedIndexes,
     required String projectTitle,
     String builderName = 'Builder',
   }) async {
@@ -166,6 +187,7 @@ class QuotationAcceptService {
       quotationId: quotationId,
       shopId: shopId,
       shopName: shopName,
+      acceptedIndexes: acceptedIndexes,
     );
 
     return _chat.waitOrEnsureConversation(

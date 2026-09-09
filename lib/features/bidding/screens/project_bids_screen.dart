@@ -11,6 +11,7 @@ import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
 import 'package:iconstruct/features/bidding/data/quotation_accept_service.dart';
+import 'package:iconstruct/features/bidding/widgets/line_selection_sheet.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
 import 'package:iconstruct/features/chat/screens/chat_thread_screen.dart';
 
@@ -274,28 +275,16 @@ class ProjectBidsScreen extends StatelessWidget {
   }
 
   Future<void> _confirmAccept(BuildContext context, _ShopOffer shop) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select this shop?'),
-        content: Text(
-          'This marks ${shop.quote.shopName} as your chosen supplier and opens live chat. '
-          'Items they did not quote stay unquoted — no payment happens in the app.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Select and chat'),
-          ),
-        ],
-      ),
+    // Per-line choice. A builder canvassing several shops usually wants
+    // cement from one and tile from another, so an offer can be taken in part.
+    final selection = await showLineSelectionSheet(
+      context,
+      postId: postId,
+      quotationId: shop.quote.id,
+      shopName: shop.quote.shopName,
     );
 
-    if (result != true || !context.mounted) return;
+    if (selection == null || !context.mounted) return;
 
     showDialog<void>(
       context: context,
@@ -311,6 +300,7 @@ class ProjectBidsScreen extends StatelessWidget {
         quotationId: shop.quote.id,
         shopId: shop.shopId,
         shopName: shop.quote.shopName,
+        acceptedIndexes: selection.acceptedIndexes,
       );
     } catch (e) {
       if (!context.mounted) return;

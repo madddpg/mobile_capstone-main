@@ -1,21 +1,27 @@
 {
-	"firestore": {
-		"rules": "firestore.rules",
-		"indexes": "firestore.indexes.json"
-	},
-	"functions": {
-		"source": "functions"
-	},
-	"emulators": {
-		"functions": {
-			"port": 5001
-		},
-		"firestore": {
-			"port": 8080
-		},
-		"ui": {
-			"enabled": true,
-			"port": 4002
-		}
-	}
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": {
+    "source": "functions"
+  },
+  "emulators": {
+    "functions": {
+      "port": 5001
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4002
+    },
+    "storage": {
+      "port": 9199
+    }
+  }
 }

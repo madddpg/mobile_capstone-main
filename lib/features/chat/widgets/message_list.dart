@@ -1,8 +1,13 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
+import 'package:iconstruct/features/chat/data/chat_attachment_service.dart';
+
+/// How far a sent message has got.
+enum DeliveryState { sending, delivered, seen }
 
 /// Messenger-style thread.
 ///
@@ -107,22 +112,38 @@ class MessengerMessageList extends StatelessWidget {
 
   bool _endsRun(int i) => i == docs.length - 1 || _startsRun(i + 1);
 
-  /// Whether the shop has opened the thread since the builder's last message.
-  bool get _seenByShop {
+  /// When the shop last opened this thread, if ever.
+  Timestamp? get _shopReadAt {
     final conv = conversation;
-    if (conv == null) return false;
+    if (conv == null) return null;
 
     final shopId = (conv['shopId'] ?? '').toString();
-    if (shopId.isEmpty) return false;
+    if (shopId.isEmpty) return null;
 
     final readMap = conv['readAt'];
     final readAt = readMap is Map ? readMap[shopId] : null;
-    if (readAt is! Timestamp) return false;
+    return readAt is Timestamp ? readAt : null;
+  }
 
-    final lastAt = conv['lastMessageAt'];
-    if (lastAt is! Timestamp) return false;
-
-    return readAt.compareTo(lastAt) >= 0;
+  /// Delivery state of the builder's most recent message.
+  ///
+  /// Three states rather than two, because "Sent" covering both a message still
+  /// in flight and one sitting unread on the shop's device hides the difference
+  /// that matters when a builder is waiting on a reply.
+  ///
+  /// Sending: Firestore has not stamped a server time yet, so the write is
+  /// still in flight or queued offline. Delivered: the message is on the
+  /// server and will reach the shop. Seen: the shop opened the thread after it
+  /// arrived.
+  static DeliveryState deliveryStateFor({
+    required Timestamp? messageAt,
+    required Timestamp? shopReadAt,
+  }) {
+    if (messageAt == null) return DeliveryState.sending;
+    if (shopReadAt == null) return DeliveryState.delivered;
+    return shopReadAt.compareTo(messageAt) >= 0
+        ? DeliveryState.seen
+        : DeliveryState.delivered;
   }
 
   /// Index of the builder's most recent message, which is the only one that
@@ -173,13 +194,14 @@ class MessengerMessageList extends StatelessWidget {
           children: [
             if (startsRun && sentAt != null) _timeSeparator(sentAt),
             _bubbleRow(
+              message: msg,
               text: text,
               mine: mine,
               startsRun: startsRun,
               endsRun: endsRun,
               maxWidth: maxBubble,
             ),
-            if (i == lastMine) _deliveryLine(),
+            if (i == lastMine) _deliveryLine(msg),
           ],
         );
       },
@@ -203,12 +225,15 @@ class MessengerMessageList extends StatelessWidget {
   }
 
   Widget _bubbleRow({
+    required Map<String, dynamic> message,
     required String text,
     required bool mine,
     required bool startsRun,
     required bool endsRun,
     required double maxWidth,
   }) {
+    final attachment = message['attachment'];
+    final hasAttachment = attachment is Map && attachment['url'] != null;
     // Tight inside a run, looser between runs, so the grouping is legible
     // without any divider.
     final topGap = startsRun ? 0.0 : 2.0;
@@ -221,13 +246,24 @@ class MessengerMessageList extends StatelessWidget {
         color: mine ? IConstructPanel.midBlue : AppColors.cream,
         borderRadius: _radius(mine: mine, startsRun: startsRun, endsRun: endsRun),
       ),
-      child: Text(
-        text,
-        style: GoogleFonts.poppins(
-          color: mine ? Colors.white : AppColors.textDark,
-          fontSize: 13.5,
-          height: 1.35,
-        ),
+      child: Column(
+        crossAxisAlignment:
+            mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hasAttachment)
+            _attachment(Map<String, dynamic>.from(attachment), mine, maxWidth),
+          if (hasAttachment && text.isNotEmpty) const SizedBox(height: 6),
+          if (text.isNotEmpty)
+            Text(
+              text,
+              style: GoogleFonts.poppins(
+                color: mine ? Colors.white : AppColors.textDark,
+                fontSize: 13.5,
+                height: 1.35,
+              ),
+            ),
+        ],
       ),
     );
 
@@ -279,17 +315,137 @@ class MessengerMessageList extends StatelessWidget {
     );
   }
 
-  Widget _deliveryLine() {
+  Widget _deliveryLine(Map<String, dynamic> message) {
+    final state = deliveryStateFor(
+      messageAt: message['createdAt'] is Timestamp
+          ? message['createdAt'] as Timestamp
+          : null,
+      shopReadAt: _shopReadAt,
+    );
+
+    final (label, icon) = switch (state) {
+      DeliveryState.sending => ('Sending', Icons.schedule_rounded),
+      DeliveryState.delivered => ('Delivered', Icons.done_all_rounded),
+      DeliveryState.seen => ('Seen', Icons.done_all_rounded),
+    };
+
+    // Seen is the one state worth a stronger colour; the other two are status
+    // the builder only glances at.
+    final tint = state == DeliveryState.seen
+        ? AppColors.cream
+        : AppColors.cream.withValues(alpha: 0.5);
+
     return Padding(
       padding: const EdgeInsets.only(top: 4, right: 2),
-      child: Text(
-        _seenByShop ? 'Seen' : 'Sent',
-        textAlign: TextAlign.right,
-        style: GoogleFonts.poppins(
-          color: AppColors.cream.withValues(alpha: 0.55),
-          fontSize: 10.5,
-          fontWeight: FontWeight.w500,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Icon(icon, size: 12, color: tint),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              color: tint,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A photo or a document sitting in a bubble.
+  ///
+  /// Photos go through [CachedNetworkImage] so each one is fetched once and
+  /// then read from disk; a thread full of site photos would otherwise
+  /// re-download on every open. Documents show as a labelled row rather than a
+  /// preview, because there is nothing useful to show of a PDF at this size.
+  Widget _attachment(Map<String, dynamic> a, bool mine, double maxWidth) {
+    final url = (a['url'] ?? '').toString();
+    final name = (a['name'] ?? 'Attachment').toString();
+    final isImage = (a['kind'] ?? '').toString() == 'image';
+    final bytes = a['sizeBytes'] is num ? (a['sizeBytes'] as num).toInt() : 0;
+
+    if (isImage) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: CachedNetworkImage(
+          imageUrl: url,
+          width: maxWidth - 26,
+          fit: BoxFit.cover,
+          // Decode near the size actually shown. Without this the full image
+          // is decoded into memory even though it is drawn small.
+          memCacheWidth: 900,
+          placeholder: (context, _) => Container(
+            width: maxWidth - 26,
+            height: 150,
+            color: Colors.black.withValues(alpha: 0.18),
+            alignment: Alignment.center,
+            child: const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+          errorWidget: (context, _, _) => Container(
+            width: maxWidth - 26,
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            color: Colors.black.withValues(alpha: 0.18),
+            alignment: Alignment.center,
+            child: Text(
+              'Photo unavailable',
+              style: GoogleFonts.poppins(
+                fontSize: 11.5,
+                color: mine ? Colors.white70 : AppColors.textDark,
+              ),
+            ),
+          ),
         ),
+      );
+    }
+
+    final onSurface = mine ? Colors.white : AppColors.textDark;
+    return Container(
+      constraints: BoxConstraints(maxWidth: maxWidth - 26),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: (mine ? Colors.white : AppColors.textDark)
+            .withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.insert_drive_file_rounded, size: 20, color: onSurface),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: onSurface,
+                  ),
+                ),
+                if (bytes > 0)
+                  Text(
+                    ChatAttachmentService.readableSize(bytes),
+                    style: GoogleFonts.poppins(
+                      fontSize: 10.5,
+                      color: onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

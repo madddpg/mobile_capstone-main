@@ -162,18 +162,30 @@ class ChatService {
         .handleError((_) => 0);
   }
 
+  /// Sends a message, optionally with one uploaded attachment.
+  ///
+  /// [attachment] is the map from `UploadedAttachment.toMap()`. A message may
+  /// be an attachment with no words, so an empty text is allowed when one is
+  /// present.
   Future<void> sendMessage({
     required String conversationId,
     required String text,
+    Map<String, dynamic>? attachment,
   }) async {
     final uid = _uid;
     if (uid == null) {
       throw StateError('You have been signed out. Please sign in again.');
     }
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty && attachment == null) return;
     final capped =
         trimmed.length > 4000 ? trimmed.substring(0, 4000) : trimmed;
+
+    // The thread list shows a one-line preview, so an attachment with no
+    // caption needs words of its own rather than an empty row.
+    final preview = capped.isNotEmpty
+        ? (capped.length > 200 ? capped.substring(0, 200) : capped)
+        : (attachment?['kind'] == 'image' ? 'Photo' : 'Attachment');
 
     final convRef = _db.collection('conversations').doc(conversationId);
     final batch = _db.batch();
@@ -181,12 +193,13 @@ class ChatService {
       'senderId': uid,
       'senderRole': 'builder',
       'text': capped,
+      if (attachment != null) 'attachment': attachment,
       'createdAt': FieldValue.serverTimestamp(),
     });
     batch.set(
       convRef,
       {
-        'lastMessage': capped.length > 200 ? capped.substring(0, 200) : capped,
+        'lastMessage': preview,
         'lastMessageAt': FieldValue.serverTimestamp(),
         'lastSenderId': uid,
         'updatedAt': FieldValue.serverTimestamp(),
