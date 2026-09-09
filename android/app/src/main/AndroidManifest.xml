@@ -2,6 +2,25 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Chat attachments. Taking a photo of a wall or a delivery is the common
+         case, so the camera is declared rather than left to chance. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Reading a picked photo or document. Android 13 split the old storage
+         permission by media type and Android 14 added the partial-access grant,
+         so all three are declared with the legacy one capped at API 32 where it
+         still applies. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- The camera is useful but not required; a device without one should
+         still be able to install and use everything else. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
     <application
         android:label="iconstruct"
         android:name="${applicationName}"
@@ -48,6 +67,25 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Package visibility for attachment picking on Android 11+. Without
+             these the camera and document pickers resolve to nothing and the
+             chooser silently fails to open. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT"/>
+            <data android:mimeType="*/*"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT"/>
+            <data android:mimeType="*/*"/>
+        </intent>
+        <!-- Sharing the canvass sheet out as a PDF or images. -->
+        <intent>
+            <action android:name="android.intent.action.SEND"/>
+            <data android:mimeType="*/*"/>
         </intent>
     </queries>
 </manifest>

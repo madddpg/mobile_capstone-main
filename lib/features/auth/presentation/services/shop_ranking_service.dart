@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:iconstruct/core/firebase/firestore_coerce.dart';
 import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
+import 'package:iconstruct/features/auth/presentation/models/shop_rating.dart';
 
 class ShopRankingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -55,6 +56,7 @@ class ShopRankingService {
 
         return RankedShop(
           uid: uid,
+          rating: ShopRating.fromShopData(data),
           suppliedCategories: RankedShop.readList(data['suppliedCategories']),
           description: asString(data['description']),
           businessHours: asString(data['businessHours']),
@@ -68,10 +70,24 @@ class ShopRankingService {
           quotationCount: count,
         );
       }).toList()
+        // Rated shops first, best first. A builder choosing who to canvass
+        // cares what other builders thought, not how many quotes a shop has
+        // fired off. Unrated shops keep their place below rather than being
+        // hidden, otherwise a new shop could never earn its first rating.
         ..sort((a, b) {
-          final byCount = b.quotationCount.compareTo(a.quotationCount);
-          return byCount != 0
-              ? byCount
+          if (a.rating.hasRatings != b.rating.hasRatings) {
+            return a.rating.hasRatings ? -1 : 1;
+          }
+          final byRating = b.rating.average.compareTo(a.rating.average);
+          if (byRating != 0) return byRating;
+
+          // Same score: more ratings is the more trustworthy one.
+          final byVolume = b.rating.count.compareTo(a.rating.count);
+          if (byVolume != 0) return byVolume;
+
+          final byQuotes = b.quotationCount.compareTo(a.quotationCount);
+          return byQuotes != 0
+              ? byQuotes
               : a.shopName.toLowerCase().compareTo(b.shopName.toLowerCase());
         });
 

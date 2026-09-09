@@ -8,6 +8,8 @@ import 'package:iconstruct/core/state/user_state/user_provider.dart';
 import 'package:iconstruct/features/auth/presentation/screens/saved_projects.dart';
 import 'package:iconstruct/features/auth/presentation/screens/profile_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/top_shops_screen.dart';
+import 'package:iconstruct/features/auth/presentation/widgets/shop_storefront_sheet.dart';
+import 'package:iconstruct/features/auth/presentation/widgets/shop_rating_stars.dart';
 import 'package:iconstruct/features/auth/presentation/screens/home_screen.dart';
 import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
 import 'package:iconstruct/features/auth/presentation/services/shop_ranking_service.dart';
@@ -504,6 +506,12 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
+/// First letter of a shop's name for the card medallion.
+String _shopInitial(String name) {
+  final trimmed = name.trim();
+  return trimmed.isEmpty ? '?' : trimmed.characters.first.toUpperCase();
+}
+
 class _TopShopsSection extends StatefulWidget {
   const _TopShopsSection();
 
@@ -546,11 +554,11 @@ class _TopShopsSectionState extends State<_TopShopsSection> {
         children: [
           Row(
             children: [
-              const Icon(Icons.emoji_events_rounded, color: cream, size: 28),
+              const Icon(Icons.storefront_rounded, color: cream, size: 28),
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  'Top Hardware Shops',
+                  'Hardware Shops',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 21,
@@ -610,14 +618,11 @@ class _TopShopsSectionState extends State<_TopShopsSection> {
 
               final shops = snapshot.data ?? [];
 
-              final displayShops = shops
-                  .where((shop) => shop.quotationCount > 0)
-                  .take(5)
-                  .toList();
+              final displayShops = shops.take(5).toList();
 
               if (displayShops.isEmpty) {
                 return Text(
-                  'No submitted quotations yet.',
+                  'No hardware shops are listed yet.',
                   style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 13,
@@ -632,7 +637,9 @@ class _TopShopsSectionState extends State<_TopShopsSection> {
                   final shop = entry.value;
                   final isTop3 = index < 3;
 
-                  return Container(
+                  return GestureDetector(
+                    onTap: () => showShopStorefrontSheet(context, shop),
+                    child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
@@ -657,7 +664,7 @@ class _TopShopsSectionState extends State<_TopShopsSection> {
                             shape: BoxShape.circle,
                           ),
                           child: Text(
-                            '${index + 1}',
+                            _shopInitial(shop.shopName),
                             style: TextStyle(
                               fontFamily: 'Poppins',
                               fontWeight: FontWeight.bold,
@@ -694,6 +701,14 @@ class _TopShopsSectionState extends State<_TopShopsSection> {
                                   color: darkBlue.withValues(alpha: 0.7),
                                 ),
                               ),
+                              const SizedBox(height: 5),
+                              ShopRatingStars(
+                                rating: shop.rating,
+                                size: 13,
+                                color: Colors.amber.shade700,
+                                emptyColor: darkBlue.withValues(alpha: 0.25),
+                                textColor: darkBlue,
+                              ),
                               if (shop.subscriptionPlan != null &&
                                   shop.subscriptionPlan!.isNotEmpty) ...[
                                 const SizedBox(height: 4),
@@ -715,14 +730,15 @@ class _TopShopsSectionState extends State<_TopShopsSection> {
 
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               '${shop.quotationCount}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: 'Poppins',
-                                fontSize: 18,
+                                fontSize: 15,
                                 fontWeight: FontWeight.bold,
-                                color: darkBlue,
+                                color: darkBlue.withValues(alpha: 0.75),
                               ),
                             ),
                             Text(
@@ -733,9 +749,16 @@ class _TopShopsSectionState extends State<_TopShopsSection> {
                                 color: darkBlue.withValues(alpha: 0.6),
                               ),
                             ),
+                            const SizedBox(height: 4),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 18,
+                              color: darkBlue.withValues(alpha: 0.5),
+                            ),
                           ],
                         ),
                       ],
+                    ),
                     ),
                   );
                 }).toList(),

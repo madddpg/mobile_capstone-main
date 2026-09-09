@@ -1,3 +1,10 @@
+// Golden images are platform-specific: this one was generated on Windows,
+// and font rendering and antialiasing differ enough on a Linux CI runner to
+// fail a perfectly correct build. Tagged so CI can skip it while it stays
+// useful locally for reviewing the drawings.
+@Tags(['golden'])
+library;
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';

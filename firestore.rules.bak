@@ -189,14 +189,6 @@ service cloud.firestore {
         && shopIsApproved(request.auth.uid);
     }
 
-    // AI usage counters. Written only by Cloud Functions through the Admin
-    // SDK, which bypasses rules entirely. Clients get no access at all: a
-    // client that could read its own counter learns the limit, and one that
-    // could write it has no limit.
-    match /ai_usage/{userId} {
-      allow read, write: if false;
-    }
-
     // Template references used by the Flutter planner
     match /renovation_templates/{templateId} {
       allow read: if signedIn();
@@ -234,12 +226,7 @@ service cloud.firestore {
         || isPostOwner(resource.data)
         || isApprovedShop();
 
-      // Shops quote estimates; they do not raise them. Without this an
-      // approved shop could post an estimate, name itself the selected
-      // supplier, and then leave itself a five-star rating, because the rating
-      // rule trusts exactly those two facts.
       allow create: if signedIn()
-        && !isApprovedShop()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.projectName is string
         && request.resource.data.projectName.size() > 0
@@ -258,27 +245,7 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(["quotationCount", "updatedAt"]))
         || (isPostOwner(resource.data)
-            && request.resource.data.userId == resource.data.userId
-            // The create rule keeps prices off a posted estimate; the update
-            // rule has to keep them off too, or they can simply be added the
-            // moment after it is created.
-            && !request.resource.data.diff(resource.data).affectedKeys()
-                 .hasAny(['price', 'unitPrice', 'catalogPrice',
-                          'estimatedTotal', 'listPrice'])
-            // Once a shop has quoted, the material list is what they quoted
-            // against. Letting it change afterwards leaves quotations
-            // describing a list that no longer exists, with neither side able
-            // to tell.
-            && (resource.data.get('quotationCount', 0) == 0
-                || request.resource.data.materials == resource.data.materials)
-            // A shop can only become the selected supplier if it actually
-            // quoted. Quotation documents are keyed by shop id, so this is one
-            // cheap existence check rather than a scan.
-            && (!request.resource.data.diff(resource.data).affectedKeys()
-                  .hasAny(['selectedShopId'])
-                || (exists(/databases/$(database)/documents/projectPosts/$(postId)/quotations/$(request.resource.data.selectedQuotationId))
-                    && get(/databases/$(database)/documents/projectPosts/$(postId)/quotations/$(request.resource.data.selectedQuotationId)).data.shopId
-                       == request.resource.data.selectedShopId)));
+            && request.resource.data.userId == resource.data.userId);
 
       allow delete: if isAdmin() || isPostOwner(resource.data);
 
@@ -301,24 +268,11 @@ service cloud.firestore {
           && request.resource.data.status == 'submitted';
 
         allow update: if isAdmin()
-          // A shop may revise its own offer while it is still open. Once the
-          // builder has decided, the quotation stops being an offer and starts
-          // being the record of what was agreed, so the shop can no longer
-          // touch it. Without this a shop could raise the price after
-          // acceptance, or turn back on the lines the builder unticked, and
-          // the document would simply claim that was the deal.
           || (signedIn()
               && resource.data.shopId == request.auth.uid
               && shopIsApproved(request.auth.uid)
               && request.resource.data.shopId == resource.data.shopId
-              && request.resource.data.postId == resource.data.postId
-              && !(resource.data.get('status', 'submitted') in
-                   ['accepted', 'partially_accepted', 'rejected'])
-              // Recording an acceptance is the builder's act, not the shop's.
-              && !(request.resource.data.get('status', 'submitted') in
-                   ['accepted', 'partially_accepted'])
-              && !request.resource.data.diff(resource.data).affectedKeys()
-                   .hasAny(['acceptedTotal', 'acceptedAt']))
+              && request.resource.data.postId == resource.data.postId)
           // The builder may accept a quotation whole or line by line. Partial
           // acceptance rewrites the items array with an `accepted` flag on each
           // entry and records what the kept lines come to, so those two fields

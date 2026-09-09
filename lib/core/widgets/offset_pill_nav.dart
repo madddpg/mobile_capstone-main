@@ -61,96 +61,85 @@ class OffsetPillNav extends StatelessWidget {
               ),
             ],
           ),
-          child: StreamBuilder<int>(
-            stream: unreadNotificationCountStream(),
-            builder: (context, snapshot) {
-              final unread = snapshot.data ?? 0;
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (activeTab == OffsetNavTab.home)
+                const _ActiveNavChip(
+                  icon: Icons.home_rounded,
+                  label: 'Home',
+                )
+              else
+                _NavIcon(
+                  icon: Icons.home_rounded,
+                  onTap: () {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MainHomeScreen(),
+                      ),
+                      (route) => false,
+                    );
+                  },
+                ),
+              const SizedBox(width: 10),
+              if (activeTab == OffsetNavTab.bidding)
+                _ActiveNavChip(
+                  imagePath: 'assets/images/hammer.png',
+                  label: 'Bidding',
+                )
+              else
+                _NavIcon(
+                  imagePath: 'assets/images/hammer.png',
+                  onTap: () => handleHammerTap(context),
+                ),
+              const SizedBox(width: 10),
+              StreamBuilder<int>(
+                stream: _chatUnreadStream(),
+                builder: (context, chatSnap) {
+                  final unreadChats = chatSnap.data ?? 0;
 
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (activeTab == OffsetNavTab.home)
-                    const _ActiveNavChip(
-                      icon: Icons.home_rounded,
-                      label: 'Home',
-                    )
-                  else
-                    _NavIcon(
-                      icon: Icons.home_rounded,
-                      onTap: () {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const MainHomeScreen(),
-                          ),
-                          (route) => false,
-                        );
-                      },
-                    ),
-                  const SizedBox(width: 10),
-                  if (activeTab == OffsetNavTab.bidding)
-                    _ActiveNavChip(
-                      imagePath: 'assets/images/hammer.png',
-                      label: 'Bidding',
-                      badgeCount: unread,
-                    )
-                  else
-                    _NavIcon(
-                      imagePath: 'assets/images/hammer.png',
-                      badgeCount: unread,
-                      onTap: () => handleHammerTap(context),
-                    ),
-                  const SizedBox(width: 10),
-                  StreamBuilder<int>(
-                    stream: _chatUnreadStream(),
-                    builder: (context, chatSnap) {
-                      final unreadChats = chatSnap.data ?? 0;
-
-                      if (activeTab == OffsetNavTab.chat) {
-                        return _ActiveNavChip(
-                          icon: Icons.chat_bubble_rounded,
-                          label: 'Chat',
-                          badgeCount: unreadChats,
-                        );
-                      }
-                      return _NavIcon(
-                        icon: Icons.chat_bubble_rounded,
-                        badgeCount: unreadChats,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ChatInboxScreen(),
-                            ),
-                          );
-                        },
+                  if (activeTab == OffsetNavTab.chat) {
+                    return _ActiveNavChip(
+                      icon: Icons.chat_bubble_rounded,
+                      label: 'Chat',
+                      badgeCount: unreadChats,
+                    );
+                  }
+                  return _NavIcon(
+                    icon: Icons.chat_bubble_rounded,
+                    badgeCount: unreadChats,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ChatInboxScreen(),
+                        ),
                       );
                     },
-                  ),
-                  const SizedBox(width: 10),
-                  if (activeTab == OffsetNavTab.files)
-                    _ActiveNavChip(
-                      icon: Icons.folder_rounded,
-                      label: 'Files',
-                      badgeCount: unread,
-                    )
-                  else
-                    _NavIcon(
-                      icon: Icons.folder_rounded,
-                      badgeCount: unread,
-                      onTap: () {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SavedProjectsScreen(),
-                          ),
-                          (route) => false,
-                        );
-                      },
-                    ),
-                ],
-              );
-            },
+                  );
+                },
+              ),
+              const SizedBox(width: 10),
+              if (activeTab == OffsetNavTab.files)
+                _ActiveNavChip(
+                  icon: Icons.folder_rounded,
+                  label: 'Files',
+                )
+              else
+                _NavIcon(
+                  icon: Icons.folder_rounded,
+                  onTap: () {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SavedProjectsScreen(),
+                      ),
+                      (route) => false,
+                    );
+                  },
+                ),
+            ],
           ),
         ),
       ),

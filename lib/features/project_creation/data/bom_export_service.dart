@@ -75,7 +75,7 @@ class BomExportService {
   }) async {
     final palette = forImage ? _imagePalette : _appPalette;
     final doc = pw.Document(
-      title: '${data.estimateName} — Material Canvass Sheet',
+      title: pdfSafe('${data.estimateName} - Material Canvass Sheet'),
       author: 'iConstruct',
     );
 
@@ -268,7 +268,7 @@ class BomExportService {
             ),
           ),
           pw.Text(
-            'Material Canvass Sheet · continued',
+            'Material Canvass Sheet - continued',
             style: pw.TextStyle(fontSize: 9, color: p.muted),
           ),
         ],

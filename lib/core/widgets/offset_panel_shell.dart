@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:iconstruct/core/services/unread_notifications.dart';
+import 'package:iconstruct/features/notifications/screens/notifications_screen.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_pill_nav.dart';
 import 'package:iconstruct/core/widgets/user_avatar.dart';
@@ -254,26 +256,61 @@ class OffsetPanelHeaders {
               );
             },
           ),
-          SizedBox(
-            width: 28,
-            height: 28,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Container(
-                  width: 18,
-                  height: 2.4,
-                  color: IConstructPanel.darkBlue,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // The notifications screen was written but unreachable: nothing
+              // navigated to it, so the unread count could only ever grow.
+              // The bell is the entry, and carries the badge itself rather
+              // than leaving it on unrelated navigation tabs.
+              Semantics(
+                button: true,
+                label: 'Notifications',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotificationsScreen(),
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: UnreadNotificationsBadge(
+                      child: Icon(
+                        Icons.notifications_none_rounded,
+                        size: 24,
+                        color: IConstructPanel.darkBlue,
+                      ),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Container(
-                  width: 14,
-                  height: 2.4,
-                  color: IConstructPanel.darkBlue,
+              ),
+              const SizedBox(width: 14),
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      width: 18,
+                      height: 2.4,
+                      color: IConstructPanel.darkBlue,
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: 14,
+                      height: 2.4,
+                      color: IConstructPanel.darkBlue,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

@@ -160,7 +160,13 @@ class AiMaterialConsultantService {
       return 'The AI took too long to respond. Try again in a moment.';
     }
     if (code == 'resource-exhausted') {
-      return 'The AI is over its usage limit right now. Try again later.';
+      // The server says which limit was hit, when it resets, and that the
+      // templates are still available. Replacing that with a vague line loses
+      // the only part the builder can act on.
+      final detail = (e.message ?? '').trim();
+      return detail.isEmpty
+          ? 'The AI is over its usage limit right now. Try again later.'
+          : detail;
     }
     if (code == 'internal') {
       return 'The AI service hit an error. Try again in a moment.';

@@ -6,9 +6,12 @@
   "storage": {
     "rules": "storage.rules"
   },
-  "functions": {
-    "source": "functions"
-  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "builder"
+    }
+  ],
   "emulators": {
     "functions": {
       "port": 5001

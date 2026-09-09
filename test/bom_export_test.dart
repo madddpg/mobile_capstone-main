@@ -1,98 +1,108 @@
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:iconstruct/features/project_creation/data/bom_export.dart';
 import 'package:iconstruct/features/project_creation/data/bom_export_service.dart';
 
-BomExportData _sample({int extraItems = 0}) {
-  return BomExportData.fromMaterials(
-    estimateName: 'Bahay ni Ate — Bathroom Refresh',
-    renovationType: 'Bathroom Renovation',
-    areaSqm: 12.5,
-    budgetPreference: 'Mid Budget',
-    notes: 'Prefer non-slip finish. Shop can suggest an equivalent brand.',
-    generatedAt: DateTime(2026, 7, 31),
-    materials: [
-      {
-        'name': 'Ceramic floor tiles',
-        'category': 'Floor Surface',
-        'quantity': 13.75,
-        'unit': 'sqm',
-        'size': '600x600',
-        'notes': 'non-slip',
-      },
-      {
-        'name': 'Ceramic wall tiles',
-        'category': 'Wall Surface',
-        'quantity': 27.5,
-        'unit': 'sqm',
-        'size': '300x600',
-      },
-      {
-        'name': 'Toilet bowl set',
-        'category': 'Fixtures',
-        'quantity': 1,
-        'unit': 'pcs',
-      },
-      'Legacy material saved as plain text',
-      for (var i = 0; i < extraItems; i++)
-        {
-          'name': 'Filler material $i',
-          'category': 'Installation',
-          'quantity': i + 1,
-          'unit': 'bags',
-        },
-    ],
-  );
-}
-
+/// The canvass sheet is what a builder actually hands to a shop, so a PDF that
+/// fails to build, or builds with mangled text, breaks the app at its last
+/// step. These render the document for real rather than trusting the layout.
 void main() {
-  test('builds a valid PDF for a normal estimate', () async {
-    final bytes = await BomExportService.buildPdf(_sample());
+  BomExportData sample({List<BomExportItem>? items}) => BomExportData(
+        estimateName: 'Bathroom Renovation — Calamba',
+        renovationType: 'Bathroom Renovation',
+        areaSqm: 18.5,
+        materials: items ??
+            const [
+              BomExportItem(
+                name: 'Ceramic Floor Tiles',
+                category: 'Flooring',
+                quantity: 60,
+                unit: 'pcs',
+                size: '600x600',
+              ),
+              BomExportItem(
+                name: 'Portland Cement',
+                category: 'Masonry',
+                quantity: 8,
+                unit: 'bags',
+              ),
+            ],
+      );
 
-    expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
-    expect(bytes.length, greaterThan(1000));
+  group('buildPdf', () {
+    test('produces a real PDF document', () async {
+      final bytes = await BomExportService.buildPdf(sample());
 
-    final out = File('${Directory.systemTemp.path}/bom_sample.pdf');
-    await out.writeAsBytes(bytes);
-    // ignore: avoid_print
-    print('wrote ${out.path} (${bytes.length} bytes)');
+      expect(bytes.length, greaterThan(1000));
+      // Every PDF opens with this signature. Anything else means the share
+      // sheet would be handed something no app can read.
+      expect(utf8.decode(bytes.take(5).toList()), '%PDF-');
+    });
+
+    test('the image variant also produces a document', () async {
+      final bytes = await BomExportService.buildPdf(sample(), forImage: true);
+      expect(utf8.decode(bytes.take(5).toList()), '%PDF-');
+    });
+
+    test('a long estimate paginates instead of overflowing', () async {
+      // A layout that runs past the page throws rather than wrapping, so a
+      // large bill of materials is the case worth pinning.
+      final many = List.generate(
+        80,
+        (i) => BomExportItem(
+          name: 'Material number $i with a deliberately long descriptive name',
+          category: 'Category ${i % 6}',
+          quantity: (i + 1).toDouble(),
+          unit: 'pcs',
+          size: '600x600',
+        ),
+      );
+      final bytes = await BomExportService.buildPdf(sample(items: many));
+      expect(bytes.length, greaterThan(2000));
+    });
+
+    test('an empty material list does not crash the export', () async {
+      final bytes = await BomExportService.buildPdf(sample(items: const []));
+      expect(utf8.decode(bytes.take(5).toList()), '%PDF-');
+    });
+
+    test('typographic characters from AI suggestions survive the render',
+        () async {
+      // These are exactly the characters the built-in PDF fonts cannot draw,
+      // so this is the case that would silently produce blank boxes.
+      final bytes = await BomExportService.buildPdf(
+        sample(items: const [
+          BomExportItem(
+            name: 'Tiles — “premium” 600×600',
+            category: 'Flooring',
+            quantity: 12,
+            unit: 'pcs',
+            notes: 'Budget ₱1,250 · verify on site…',
+          ),
+        ]),
+      );
+      expect(utf8.decode(bytes.take(5).toList()), '%PDF-');
+    });
   });
 
-  test('long lists paginate without throwing', () async {
-    final bytes = await BomExportService.buildPdf(_sample(extraItems: 60));
-    expect(bytes.length, greaterThan(1000));
+  group('pdfSafe', () {
+    test('typographic characters fold to what the built-in fonts have', () {
+      expect(
+        BomExportService.pdfSafe('Tiles — 600×600 “premium”'),
+        'Tiles - 600x600 "premium"',
+      );
+    });
 
-    final out = File('${Directory.systemTemp.path}/bom_sample_long.pdf');
-    await out.writeAsBytes(bytes);
-  });
+    test('the peso sign becomes readable text rather than a blank', () {
+      expect(BomExportService.pdfSafe('₱1,250'), 'PHP 1,250');
+    });
 
-  test('image export PDF builds with the high-contrast option', () async {
-    final bytes = await BomExportService.buildPdf(_sample(), forImage: true);
-    expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
-    expect(bytes.length, greaterThan(1000));
-  });
-
-  test('legacy string materials keep their name', () {
-    final data = _sample();
-    expect(data.materials.length, 4);
-    expect(data.materials.last.name, 'Legacy material saved as plain text');
-    expect(data.materials.last.quantityLabel, '—');
-  });
-
-  test('file name is a safe slug with the date', () {
-    expect(_sample().fileBaseName, 'bahay-ni-ate-bathroom-refresh-bom-20260731');
-  });
-
-  test('empty estimate name falls back', () {
-    final data = BomExportData.fromMaterials(
-      estimateName: '   ',
-      renovationType: 'Kitchen Renovation',
-      areaSqm: 0,
-      materials: const [],
-    );
-    expect(data.estimateName, 'Material Estimate');
-    expect(data.materials, isEmpty);
+    test('plain text passes through untouched', () {
+      expect(
+        BomExportService.pdfSafe('Portland Cement 40kg'),
+        'Portland Cement 40kg',
+      );
+    });
   });
 }

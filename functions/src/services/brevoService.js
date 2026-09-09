@@ -5,7 +5,11 @@ const axios = require("axios");
 async function sendBrevoEmail({ to, subject, htmlContent, textContent }) {
   const apiKey = process.env.BREVO_API_KEY;
   if (!apiKey) {
-    throw new Error("BREVO_API_KEY is missing in process.env");
+    throw new Error(
+      "BREVO_API_KEY is missing. One-time codes cannot be sent, so " +
+        "registration and password reset will both fail. Set it with " +
+        "firebase functions:secrets:set BREVO_API_KEY, or in functions/.env."
+    );
   }
 
   try {
@@ -14,7 +18,10 @@ async function sendBrevoEmail({ to, subject, htmlContent, textContent }) {
       {
         sender: {
           name: process.env.BREVO_SENDER_NAME || "iConstruct",
-          email: process.env.BREVO_SENDER_EMAIL || "ahmadpaguta2005@gmail.com",
+          // No personal address as a fallback. A one-time code arriving from
+          // someone's Gmail looks like a phishing attempt, and it puts a
+          // student's private address on every message the system sends.
+          email: process.env.BREVO_SENDER_EMAIL || "no-reply@iconstruct.app",
         },
         to: [{ email: to }],
         subject,

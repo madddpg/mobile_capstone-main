@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
 import 'package:iconstruct/features/auth/presentation/services/shop_ranking_service.dart';
+import 'package:iconstruct/features/auth/presentation/widgets/shop_rating_stars.dart';
 import 'package:iconstruct/features/auth/presentation/widgets/shop_storefront_sheet.dart';
 
 class TopShopsScreen extends StatefulWidget {
@@ -29,7 +30,7 @@ class _TopShopsScreenState extends State<TopShopsScreen> {
       backgroundColor: cream,
       appBar: AppBar(
         title: const Text(
-          'Top Hardware Shops',
+          'Hardware Shops',
           style: TextStyle(
             fontFamily: 'Poppins',
             fontWeight: FontWeight.w700,
@@ -140,6 +141,14 @@ class _TopShopsScreenState extends State<TopShopsScreen> {
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 5),
+                          ShopRatingStars(
+                            rating: shop.rating,
+                            size: 14,
+                            color: Colors.amber.shade700,
+                            emptyColor: darkBlue.withValues(alpha: 0.25),
+                            textColor: darkBlue,
                           ),
                           if (shop.hasStorefront) ...[
                             const SizedBox(height: 4),

@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
+import 'package:iconstruct/features/auth/presentation/widgets/shop_rating_stars.dart';
+import 'package:iconstruct/features/auth/presentation/widgets/rate_shop_sheet.dart';
 
 /// Labels for the category keys the shop's dashboard stores.
 ///
@@ -105,6 +107,14 @@ class _StorefrontSheet extends StatelessWidget {
                     ),
                   ),
                 ],
+                const SizedBox(height: 10),
+                ShopRatingStars(
+                  rating: shop.rating,
+                  size: 17,
+                  color: Colors.amber.shade600,
+                  emptyColor: AppColors.cream.withValues(alpha: 0.3),
+                  textColor: Colors.white,
+                ),
                 if (shop.description.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text(
@@ -175,6 +185,28 @@ class _StorefrontSheet extends StatelessWidget {
                     ),
                   ),
                 ],
+                const SizedBox(height: 20),
+                OutlinedButton.icon(
+                  onPressed: () => showRateShopSheet(context, shop),
+                  icon: const Icon(Icons.star_outline_rounded, size: 18),
+                  label: Text(
+                    'Rate this shop',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.cream,
+                    side: BorderSide(
+                      color: AppColors.cream.withValues(alpha: 0.45),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                ),
                 if (!shop.hasStorefront) ...[
                   const SizedBox(height: 16),
                   Text(

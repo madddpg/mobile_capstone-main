@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 const logger = require("firebase-functions/logger");
 const { onCall, HttpsError, onRequest } = require("firebase-functions/v2/https");
-const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { defineSecret } = require("firebase-functions/params");
 const { Timestamp } = require("firebase-admin/firestore");
@@ -18,6 +18,14 @@ setGlobalOptions({
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
+// Brevo sends every one-time code, so registration and password reset both
+// depend on it. It used to arrive through a dotenv file in the functions
+// directory, which meant the key lived only on whichever machine last
+// deployed. Cloning the repository elsewhere and deploying silently dropped
+// it, and the symptom was "registration is broken" with nothing to point at.
+// As a secret it survives deploys and is not tied to a working tree.
+const BREVO_API_KEY = defineSecret("BREVO_API_KEY");
+
 const {
   ICONSTRUCT_SYSTEM_SCOPE,
   resolveGeminiKey,
@@ -26,10 +34,13 @@ const {
   runMaterialConsult,
 } = require("./src/services/iconstructAi");
 
-const { app: apiApp } = require("./api");
-
-// Deploy as an Express-wrapped Cloud Function
-exports.api = onRequest({ cors: true }, apiApp);
+const { recomputeShopRating } = require("./src/services/shopRatings");
+const { consumeAiCall } = require("./src/services/aiQuota");
+const {
+  recipientFor,
+  previewFor,
+  senderLabelFor,
+} = require("./src/services/chatNotify");
 
 const db = admin.firestore();
 const auth = admin.auth();
@@ -51,6 +62,10 @@ const OTP_IP_LIMIT_COLLECTION = "otp_send_ip";
 const publicAuthCallable = {
   enforceAppCheck: false,
   consumeAppCheckToken: false,
+  // A v2 secret only reaches process.env if the function asks for it. Three of
+  // the four functions using these options send mail; the fourth is bound too
+  // rather than splitting the options object for one case.
+  secrets: [BREVO_API_KEY],
 };
 
 
@@ -898,6 +913,11 @@ exports.consultAIMaterials = onCall(
         "You must be signed in to use the iConstruct AI consultant."
       );
     }
+
+    // Counted before the model call, so a burst cannot slip past while
+    // earlier requests are still in flight.
+    await consumeAiCall(db, request.auth.uid);
+
     return runMaterialConsult({
       ...(request.data || {}),
       geminiSecret: GEMINI_API_KEY,
@@ -913,6 +933,8 @@ exports.generateAIBOM = onCall(
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be signed in to use the AI Planner.");
   }
+
+  await consumeAiCall(db, request.auth.uid);
 
   // Backward-compatible consult path (deployed name already exists in production)
   if ((request.data || {}).mode === "consult") {
@@ -1007,5 +1029,126 @@ Rules:
     "internal",
     "AI service is currently unavailable. Set GEMINI_API_KEY or OPENAI_API_KEY."
   );
+  }
+);
+
+/**
+ * Keeps a shop's rating summary in step with its rating documents.
+ *
+ * Fires on create, edit and delete, so a builder changing their mind or
+ * withdrawing a rating moves the average the same way leaving one does.
+ */
+exports.onShopRatingWritten = onDocumentWritten(
+  "shops/{shopId}/ratings/{builderId}",
+  async (event) => {
+    const shopId = event.params.shopId;
+    try {
+      const summary = await recomputeShopRating(db, shopId);
+      logger.info(
+        `Shop ${shopId} rating recomputed: ${summary.rating} from ${summary.ratingCount}`
+      );
+    } catch (error) {
+      logger.error("Failed to recompute shop rating:", error);
+    }
+    return null;
+  }
+);
+
+/**
+ * Notifies the other side of a conversation when a message arrives.
+ *
+ * Replaces onChatMessageCreated, which was deployed from the shop dashboard
+ * and removed when this repository deployed over the shared project. Only one
+ * repository may own this trigger: if the dashboard restores its own, every
+ * message will send two pushes.
+ */
+exports.onChatMessageCreated = onDocumentCreated(
+  "conversations/{conversationId}/messages/{messageId}",
+  async (event) => {
+    const message = event.data?.data();
+    if (!message) return null;
+
+    const conversationId = event.params.conversationId;
+
+    try {
+      const convSnap = await db
+        .collection("conversations")
+        .doc(conversationId)
+        .get();
+      if (!convSnap.exists) return null;
+
+      const conversation = convSnap.data() || {};
+      const recipient = recipientFor(conversation, message);
+      if (!recipient) return null;
+
+      const title = senderLabelFor(conversation, recipient.audience);
+      const body = previewFor(message);
+
+      // The in-app feed gets the notification whether or not a push lands, so
+      // a device with notifications switched off still has a record of it.
+      const notificationRef = db.collection("notifications").doc();
+      await notificationRef.set({
+        type: "chat_message",
+        conversationId: conversationId,
+        recipientId: recipient.uid,
+        title: title,
+        message: body,
+        isRead: false,
+        createdAt: Timestamp.now(),
+      });
+
+      const userSnap = await db.collection("users").doc(recipient.uid).get();
+      if (!userSnap.exists) return null;
+
+      const raw = (userSnap.data() || {}).fcmTokens;
+      const fcmTokens = Array.isArray(raw)
+        ? [...new Set(raw.filter((t) => typeof t === "string" && t.trim() !== ""))]
+        : [];
+      if (fcmTokens.length === 0) return null;
+
+      const response = await admin.messaging().sendEachForMulticast({
+        notification: { title, body },
+        data: {
+          conversationId: String(conversationId),
+          notificationId: String(notificationRef.id),
+          type: "chat_message",
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "iconstruct_bids",
+            priority: "high",
+            defaultSound: true,
+          },
+        },
+        apns: { payload: { aps: { sound: "default", badge: 1 } } },
+        tokens: fcmTokens,
+      });
+
+      // Drop invalid tokens so future pushes stay reliable.
+      const staleTokens = [];
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          const code = resp.error && resp.error.code;
+          if (
+            code === "messaging/registration-token-not-registered" ||
+            code === "messaging/invalid-registration-token"
+          ) {
+            staleTokens.push(fcmTokens[idx]);
+          }
+        }
+      });
+      if (staleTokens.length > 0) {
+        await db.collection("users").doc(recipient.uid).set(
+          { fcmTokens: admin.firestore.FieldValue.arrayRemove(...staleTokens) },
+          { merge: true }
+        );
+      }
+    } catch (error) {
+      logger.error("Error notifying chat message:", error);
+    }
+
+    return null;
   }
 );

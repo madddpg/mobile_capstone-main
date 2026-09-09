@@ -37,7 +37,12 @@ String quotationShopId(Map<String, dynamic> data, String documentId) {
   return documentId.trim();
 }
 
-/// Marks a quotation accepted so the web Cloud Function can open chat.
+/// Marks a quotation accepted and opens the chat thread.
+///
+/// A Cloud Function used to create the conversation on acceptance. It was
+/// deleted, so the client now always creates it through
+/// [ChatService.waitOrEnsureConversation], which was written as the fallback
+/// for that function and is now the only path.
 class QuotationAcceptService {
   QuotationAcceptService({
     FirebaseFirestore? firestore,

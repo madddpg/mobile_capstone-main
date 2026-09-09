@@ -195,11 +195,38 @@ class ChatAttachmentService {
         sizeBytes: picked.sizeBytes,
       );
     } on FirebaseException catch (e) {
-      debugPrint('Attachment upload failed: ${e.code} ${e.message}');
-      throw ChatAttachmentException(
-        'That attachment did not upload. Check your connection and try again.',
-      );
+      debugPrint('Attachment upload failed: ${e.code} — ${e.message}');
+      throw ChatAttachmentException(uploadFailureMessage(e.code));
     }
+  }
+
+
+  /// Turns a Cloud Storage error code into something worth reading.
+  ///
+  /// These are separated out because the failures have completely different
+  /// fixes and lumping them together as "check your connection" sent people
+  /// looking in the wrong place. `unauthorized` in particular means the
+  /// Storage rules are missing or not deployed, which no amount of retrying
+  /// will solve.
+  static String uploadFailureMessage(String code) {
+    return switch (code) {
+      'unauthorized' || 'permission-denied' =>
+        'The app is not allowed to upload attachments yet. Storage rules need '
+            'to be deployed: run firebase deploy --only storage.',
+      'unauthenticated' =>
+        'You have been signed out. Sign in again and resend.',
+      'object-not-found' || 'bucket-not-found' || 'project-not-found' =>
+        'Cloud Storage is not set up for this project yet. Open Storage in the '
+            'Firebase console once to create the bucket.',
+      'quota-exceeded' =>
+        'This project has run out of storage. Contact whoever manages the '
+            'Firebase project.',
+      'retry-limit-exceeded' =>
+        'The upload kept timing out. Check your connection and try again.',
+      'canceled' => 'That upload was cancelled.',
+      _ => 'That attachment did not upload ($code). Try again, and send this '
+          'code on if it keeps happening.',
+    };
   }
 
   /// Storage object names travel in URLs, so anything awkward is flattened.

@@ -1,3 +1,5 @@
+import 'package:iconstruct/features/auth/presentation/models/shop_rating.dart';
+
 /// A hardware shop as the builder sees it.
 ///
 /// The storefront fields below are written by the shop's web dashboard. The
@@ -27,6 +29,9 @@ class RankedShop {
   /// Longer About text, shown on Pro and Business plans.
   final String storefrontAbout;
 
+  /// Builder rating, aggregated server-side onto the shop document.
+  final ShopRating rating;
+
   RankedShop({
     required this.uid,
     required this.shopName,
@@ -40,6 +45,7 @@ class RankedShop {
     this.businessHours = '',
     this.coverageCities = const [],
     this.storefrontAbout = '',
+    this.rating = ShopRating.none,
   });
 
   /// Whether there is enough here to be worth opening a profile for.

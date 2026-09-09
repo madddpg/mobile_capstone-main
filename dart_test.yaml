@@ -1,0 +1,5 @@
+# Declares tags used by the test suite so the runner does not warn about an
+# unrecognised one. Golden tests are platform-specific and excluded in CI.
+tags:
+  golden:
+    description: Renders widgets to images; only valid on the platform that generated them
