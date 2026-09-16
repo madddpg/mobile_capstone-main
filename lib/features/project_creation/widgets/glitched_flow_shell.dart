@@ -104,26 +104,28 @@ class GlitchedPillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      height: 40,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: GlitchedFlowShell.cream,
-          foregroundColor: GlitchedFlowShell.navyCard,
-          disabledBackgroundColor:
-              GlitchedFlowShell.cream.withValues(alpha: 0.4),
-          shape: const StadiumBorder(),
-          elevation: 6,
-          shadowColor: Colors.black.withAlpha(100),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
+    // Minimum size, not a fixed one: the label grows with the screen and the
+    // phone's font setting, and a fixed 40px height cut it off inside the
+    // button, where no overflow warning is ever raised.
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: GlitchedFlowShell.cream,
+        foregroundColor: GlitchedFlowShell.navyCard,
+        disabledBackgroundColor: GlitchedFlowShell.cream.withValues(alpha: 0.4),
+        minimumSize: Size(width, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: const StadiumBorder(),
+        elevation: 6,
+        shadowColor: Colors.black.withAlpha(100),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: GoogleFonts.poppins(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

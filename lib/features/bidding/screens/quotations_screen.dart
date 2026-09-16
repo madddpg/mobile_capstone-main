@@ -590,9 +590,13 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                   top: false,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 48,
+                    // Minimum height, not fixed: the label wraps and grows
+                    // with the text scale.
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: double.infinity,
+                        minHeight: 48,
+                      ),
                       child: ElevatedButton.icon(
                         onPressed:
                             canCompare ? () => _openCompare(quotes) : null,

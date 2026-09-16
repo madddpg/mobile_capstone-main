@@ -128,3 +128,68 @@ List<Map<String, dynamic>> quotationItems(Map<String, dynamic> data) {
   }
   return const [];
 }
+
+/// The name on a quoted or estimated line, from whichever field holds it.
+/// Empty when the line has none.
+String quotedItemName(Map<String, dynamic> item) {
+  return (item['name'] ??
+          item['material'] ??
+          item['materialName'] ??
+          item['productName'] ??
+          item['itemName'] ??
+          item['item'] ??
+          '')
+      .toString()
+      .trim();
+}
+
+/// What a builder took and left on a quotation, read back from the document.
+class AcceptanceSummary {
+  /// Lines the builder took from this shop.
+  final List<Map<String, dynamic>> kept;
+
+  /// Lines the builder left, to buy elsewhere.
+  final List<Map<String, dynamic>> dropped;
+
+  /// What the kept lines come to.
+  final double keptTotal;
+
+  const AcceptanceSummary({
+    required this.kept,
+    required this.dropped,
+    required this.keptTotal,
+  });
+
+  int get totalCount => kept.length + dropped.length;
+
+  bool get isPartial => kept.isNotEmpty && dropped.isNotEmpty;
+}
+
+/// Reads which lines of an accepted quotation the builder kept.
+///
+/// The per-line `accepted` flags are written by the builder's acceptance, so
+/// they only mean something on a quotation marked `partially_accepted`. On any
+/// other quotation every line counts as kept, whatever flags the document
+/// carries: a shop could have put them on its own open offer.
+AcceptanceSummary readAcceptance(Map<String, dynamic> data) {
+  final partial = (data['status'] ?? '').toString().trim().toLowerCase() ==
+      AcceptanceOutcome.statusPartiallyAccepted;
+
+  final kept = <Map<String, dynamic>>[];
+  final dropped = <Map<String, dynamic>>[];
+  for (final item in quotationItems(data)) {
+    if (partial && item['accepted'] == false) {
+      dropped.add(item);
+    } else {
+      kept.add(item);
+    }
+  }
+
+  final stored = data['acceptedTotal'];
+  var keptTotal = partial && stored is num
+      ? stored.toDouble()
+      : kept.fold<double>(0, (sum, item) => sum + lineTotalOf(item));
+  keptTotal = (keptTotal * 100).round() / 100;
+
+  return AcceptanceSummary(kept: kept, dropped: dropped, keptTotal: keptTotal);
+}

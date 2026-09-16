@@ -1,7 +1,8 @@
 # Adding photographs manually
 
-How to drop in the material and template photographs by hand. Two folders, two
-naming rules, and one line of code to register each file.
+How to drop in material photographs by hand. One folder, one naming rule, and
+one line of code to register each file. Renovation templates have no
+photographs.
 
 Nothing here needs a rebuild of the estimating logic. A photo that is named
 correctly and registered will replace the drawn placeholder for that material
@@ -117,83 +118,20 @@ Thirty-two remain. The key is on the left; what to photograph is on the right.
 | `area_goods.jpg` | Vinyl plank flooring |
 | `generic.jpg` | Generic boxed hardware item, used as a last-resort fallback |
 
-## Template photographs
+## Templates have no photographs
 
-These are the pictures on the template picker and the area screen. This is what
-was showing park scenery before, because the app was pulling random stock
-photos from the internet. It no longer does. A renovation type with no bundled
-photo now shows a labelled card instead, which is why some types look plain.
+Renovation templates no longer show pictures. They are chosen by name, style
+and material list. The photos only ever covered two of seven renovation types
+and added about 13 MB to the app, so they were removed along with the
+`assets/images/templates/` folder. Do not add template photos back; material
+photos are the ones that help a builder at the counter.
 
-**Folder:** `assets/images/templates/`
-**Format:** `.png`
-**Name:** `<type>_<style>.png`
-**Size:** landscape, about 640 by 480 pixels.
+## Where the app declares the folder
 
-`<type>` is the renovation type's key and `<style>` is one of `modern`,
-`minimalist`, `traditional`. Each type needs all three.
-
-### Step 1 — add the file
-
-Save as `assets/images/templates/laundry_modern.png`, and so on.
-
-### Step 2 — register the key
-
-Open `lib/features/project_creation/data/renovation_templates.dart` and add the
-name, without the extension, to `_bundledTemplatePhotos`:
-
-```dart
-static const Set<String> _bundledTemplatePhotos = {
-  'bathroom_modern',
-  'kitchen_modern',
-  'laundry_modern',   // <- the line you add
-  ...
-};
-```
-
-### Step 3 — check it
-
-```bash
-flutter test test/renovation_templates_test.dart
-```
-
-Three tests guard this: the photo must belong to the type and style its name
-claims, the file must exist, and no template may point at a random photo
-service.
-
-### Already done
-
-`bathroom_modern`, `bathroom_minimalist`, `bathroom_traditional`,
-`kitchen_modern`, `kitchen_minimalist`, `kitchen_traditional`
-
-### Still needed
-
-Twenty-four files, three per type:
-
-| Type key | Renovation type on the home screen |
-|---|---|
-| `floor` | Floor Renovation |
-| `roof` | Roof Repair |
-| `painting` | Interior Painting |
-| `living` | Living Room Renovation |
-| `bedroom` | Bedroom Renovation |
-| `laundry` | Laundry Renovation |
-| `dining` | Dining Room Renovation |
-| `wall` | Wall Finishing |
-
-So `floor_modern.png`, `floor_minimalist.png`, `floor_traditional.png`, and the
-same three for each remaining type.
-
-If you only have one photo for a type, use it for all three styles rather than
-leaving two blank. A slightly generic picture of the right room beats an empty
-card.
-
-## Where the app declares the folders
-
-Both folders are already declared in `pubspec.yaml`:
+The materials folder is declared in `pubspec.yaml`:
 
 ```yaml
 assets:
-  - assets/images/templates/
   - assets/images/materials/
 ```
 

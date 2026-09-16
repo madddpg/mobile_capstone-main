@@ -245,9 +245,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 44),
                           Center(
-                            child: SizedBox(
-                              width: 164,
-                              height: 48,
+                            // Minimum size, not a fixed one: a fixed height
+                            // cropped the label once text scaled up.
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                minWidth: 164,
+                                minHeight: 48,
+                              ),
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF26394D),

@@ -356,9 +356,13 @@ class _ForgotPasswordOtpScreenState extends State<ForgotPasswordOtpScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 16),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 48,
+                                // Minimum height, not fixed: the label grows
+                                // with the text scale.
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minWidth: double.infinity,
+                                    minHeight: 48,
+                                  ),
                                   child: DecoratedBox(
                                     decoration: BoxDecoration(
                                       color: const Color(0xFF263646),
@@ -426,9 +430,14 @@ class _OtpBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 44,
-      height: 52,
+    // Fixed width so the six boxes line up, minimum height so an enlarged
+    // digit is not cropped.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: 44,
+        maxWidth: 44,
+        minHeight: 52,
+      ),
       child: TextField(
         controller: controller,
         focusNode: focusNode,

@@ -12,15 +12,28 @@ void main() {
       expect(r.count, 12);
     });
 
-    test('accepts the other spellings the dashboard may have written', () {
+    test('ignores other spellings a shop could have written on itself', () {
+      // Only the Cloud Function writes rating and ratingCount. A score under
+      // any other name came from somewhere untrusted and must not be shown.
       for (final pair in [
-        {'averageRating': 4.0, 'ratingsCount': 3},
-        {'ratingAverage': 4.0, 'reviewCount': 3},
+        {'averageRating': 5.0, 'ratingsCount': 999},
+        {'ratingAverage': 5.0, 'reviewCount': 999},
       ]) {
         final r = ShopRating.fromShopData(pair);
-        expect(r.average, 4.0, reason: 'failed for ${pair.keys}');
-        expect(r.count, 3);
+        expect(r.hasRatings, isFalse, reason: 'trusted ${pair.keys}');
+        expect(r.summaryLabel, 'New shop');
       }
+    });
+
+    test('a fallback spelling does not override the real summary', () {
+      final r = ShopRating.fromShopData({
+        'rating': 3.5,
+        'ratingCount': 4,
+        'averageRating': 5.0,
+        'reviewCount': 999,
+      });
+      expect(r.average, 3.5);
+      expect(r.count, 4);
     });
 
     test('a shop nobody has rated is unrated, not zero stars', () {

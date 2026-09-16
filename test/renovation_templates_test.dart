@@ -48,86 +48,13 @@ void main() {
     }
   });
 
-  test('a template photo always matches its renovation type and style', () {
-    // The picker used to fill empty slots from a random stock-photo service,
-    // which put park scenery on a Laundry Renovation. A photo must now name
-    // the type and style it belongs to, or there must be no photo at all.
-    for (final type in [...renovationTypes, 'Bedroom Renovation', 'Laundry Renovation']) {
-      final templates = RenovationTemplatesCatalog.threeForType(type);
-      final key = RenovationTemplatesCatalog.photoKeyForType(type);
-      for (final t in templates) {
-        final asset = (t.imageAsset ?? '').trim();
-        if (asset.isEmpty) continue; // no photo yet is allowed
-        expect(
-          asset,
-          startsWith('assets/images/templates/${key}_'),
-          reason: 'photo for $type / ${t.style} does not belong to $key',
-        );
-        expect(
-          asset,
-          endsWith('_${RenovationTemplatesCatalog.styleKey(t.style)}.png'),
-          reason: 'photo for $type / ${t.style} is the wrong style',
-        );
-      }
-    }
-  });
-
-  test('no template points at a random stock-photo service', () {
-    for (final type in [...renovationTypes, 'Laundry Renovation', 'Dining Room Renovation']) {
-      for (final t in RenovationTemplatesCatalog.threeForType(type)) {
-        final url = (t.imageUrl ?? '').toLowerCase();
-        expect(url.contains('loremflickr'), isFalse);
-        expect(url.contains('picsum'), isFalse);
-        expect(url.contains('unsplash'), isFalse);
-      }
-    }
-  });
-
-  test('a bundled photo exists on disk for every key the catalog claims', () {
-    for (final type in renovationTypes) {
-      for (final t in RenovationTemplatesCatalog.threeForType(type)) {
-        final asset = (t.imageAsset ?? '').trim();
-        if (asset.isEmpty) continue;
-        expect(File(asset).existsSync(), isTrue,
-            reason: 'missing bundled file: $asset');
-      }
-    }
-  });
-
-  test('a type with no bundled photo carries no image rather than a wrong one', () {
-    // Interior Painting ships no artwork yet. The picker draws its labelled
-    // card, which is honest; a stand-in photo of someone else's room is not.
-    final templates = RenovationTemplatesCatalog.threeForType('Interior Painting');
-    for (final t in templates) {
-      expect((t.imageAsset ?? '').isEmpty, isTrue);
-      expect((t.imageUrl ?? '').isEmpty, isTrue);
-    }
-  });
-
-  test('a template keeps its own imageUrl instead of the catalog fallback', () {
-    const remote = RenovationTemplate(
-      id: 'remote_modern_kitchen',
-      renovationType: 'Kitchen Renovation',
-      style: 'modern',
-      name: 'Shop Modern Kitchen',
-      description: 'Remote package',
-      imageUrl: 'https://cdn.example.com/kitchen.jpg',
-      items: [
-        RenovationTemplateItem(
-          name: 'Floor Tiles',
-          category: 'Flooring',
-          unit: 'sqm',
-          defaultQuantity: 1,
-        ),
-      ],
-    );
-
-    // A curated remote photo from Firestore is never overwritten by the
-    // generic bundled one for its type.
-    final filled = remote
-        .withReferenceAsset('assets/images/templates/kitchen_modern.png');
-    expect(filled.imageUrl, 'https://cdn.example.com/kitchen.jpg');
-    expect((filled.imageAsset ?? '').isEmpty, isTrue);
+  test('template photos are no longer bundled with the app', () {
+    // Templates are chosen by name, style and material list. The photos only
+    // existed for two of seven renovation types and added about 13 MB to the
+    // app. Material photos stay: those help a builder match goods at a counter.
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    expect(pubspec.contains('assets/images/templates/'), isFalse);
+    expect(pubspec.contains('assets/images/materials/'), isTrue);
   });
 
   test('remote templates win per style and gaps fall back to the catalog', () {

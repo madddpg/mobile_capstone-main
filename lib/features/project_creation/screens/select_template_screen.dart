@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'package:iconstruct/core/widgets/app_image.dart';
 import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
-import 'package:iconstruct/features/project_creation/data/renovation_template_service.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
 
@@ -24,15 +22,6 @@ class SelectTemplateScreen extends StatefulWidget {
 }
 
 class _SelectTemplateScreenState extends State<SelectTemplateScreen> {
-  final _service = RenovationTemplateService();
-  late Future<List<RenovationTemplate>> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _service.fetchTemplatesForType(widget.projectName);
-  }
-
   void _openTemplate(RenovationTemplate template) {
     Navigator.push(
       context,
@@ -57,24 +46,12 @@ class _SelectTemplateScreenState extends State<SelectTemplateScreen> {
       subtitle: typeLabel,
       instruction:
           'Three reference styles for $typeLabel.\nQuantities scale from the area you enter next.',
-      body: FutureBuilder<List<RenovationTemplate>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: GlitchedFlowShell.cream,
-                ),
-              ),
-            );
-          }
-
-          final templates = snapshot.data ??
-              RenovationTemplatesCatalog.threeForType(typeLabel);
+      body: Builder(
+        builder: (context) {
+          // Templates are fixed in the app. Firestore templates used to win
+          // over these, and the seeded ones carried no per-sqm rates, so a
+          // kitchen backsplash came out at 2,113 subway tiles.
+          final templates = RenovationTemplatesCatalog.threeForType(typeLabel);
 
           if (templates.isEmpty) {
             return Text(
@@ -143,22 +120,23 @@ class _GlitchedTemplateTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _TemplatePreview(template: template),
-              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    // Wrap, not Row: on a narrow phone the style badge drops
+                    // under the name instead of running past the tile edge.
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Expanded(
-                          child: Text(
-                            template.name,
-                            style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
+                        Text(
+                          template.name,
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
                           ),
                         ),
                         _StyleBadge(style: template.style),
@@ -197,92 +175,6 @@ class _GlitchedTemplateTile extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _TemplatePreview extends StatelessWidget {
-  final RenovationTemplate template;
-
-  const _TemplatePreview({required this.template});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: SizedBox(
-        width: 72,
-        height: 72,
-        child: _buildImage(),
-      ),
-    );
-  }
-
-  Widget _buildImage() {
-    final asset = template.imageAsset?.trim();
-    final url = template.imageUrl?.trim();
-
-    if (asset != null && asset.isNotEmpty) {
-      return Builder(
-        builder: (context) => AppImage.asset(
-          context,
-          asset,
-          width: 72,
-          height: 72,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _fallback(),
-        ),
-      );
-    }
-
-    if (url != null && url.isNotEmpty) {
-      return Builder(
-        builder: (context) => AppImage.network(
-          context,
-          url,
-          width: 72,
-          height: 72,
-          fit: BoxFit.cover,
-          error: _fallback(),
-        ),
-      );
-    }
-
-    return _fallback();
-  }
-
-  Widget _fallback() {
-    final key = RenovationTemplatesCatalog.styleKey(template.style);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            _styleAccent(key).withValues(alpha: 0.35),
-            GlitchedFlowShell.navyCard,
-          ],
-        ),
-      ),
-      child: Center(
-        child: Icon(
-          _styleIcon(key),
-          size: 30,
-          color: GlitchedFlowShell.cream,
-        ),
-      ),
-    );
-  }
-
-  IconData _styleIcon(String styleKey) {
-    switch (styleKey) {
-      case 'minimalist':
-        return Icons.crop_square_rounded;
-      case 'traditional':
-        return Icons.villa_outlined;
-      case 'modern':
-      default:
-        return Icons.auto_awesome_mosaic_outlined;
-    }
   }
 }
 

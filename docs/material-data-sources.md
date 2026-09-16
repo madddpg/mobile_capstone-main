@@ -64,7 +64,9 @@ Three origins, in order of precedence.
    offers three style variants. The item lists were assembled from the DPWH
    work items that apply to that trade, plus the auxiliary consumables a
    foreman orders alongside them but which no specification lists, such as
-   tile spacers, teflon tape, and masking tape.
+   tile spacers, teflon tape, and masking tape. The templates are fixed in the
+   app. Nothing reads them from Firestore, so no database record can replace a
+   template with a different item list.
 
 2. **Supplier catalogue records** from Firestore, which carry real products
    from participating hardware stores. These are supplier-supplied data, not
@@ -92,8 +94,8 @@ now shows both, in the form `Material spec: ... | Quantity: ...`.
 | Quantity | Coefficient | Source of the coefficient |
 |---|---|---|
 | Floor and wall tile pieces | Area divided by tile face area, plus 8% | Geometry from the size the user selects, waste allowance per Fajardo |
-| Tile adhesive | 1 bag of 25 kg per 4.5 sq.m at 6 mm notch | Manufacturer published coverage |
-| Tile grout | 0.12 to 0.30 kg per sq.m by tile size | Joint volume from tile size, manufacturer coverage |
+| Tile adhesive | 1 bag of 25 kg per 4.5 sq.m at 6 mm notch, over floor plus wall tile area | Manufacturer published coverage |
+| Tile grout | 0.12 to 0.30 kg per sq.m by tile size, summed over each tile line's own area | Joint volume from tile size, manufacturer coverage |
 | Mortar bedding | 25 mm Class B 1:3 | Fajardo |
 | Paint | 1 primer coat plus 2 topcoats | Manufacturer spreading rate; coat count per DPWH Item 1032 |
 | Skim coat | 1 bag of 20 kg per 10 sq.m | Manufacturer published coverage |
@@ -102,9 +104,49 @@ now shows both, in the form `Material spec: ... | Quantity: ...`.
 | Structural concrete | 9.0 bags cement, 0.50 cu.m sand, 1.00 cu.m gravel per cu.m | Fajardo, Class A 1:2:4 mix |
 | Rebar mass | W = D squared divided by 162.2 kg per metre | Nominal mass formula; bar sizes to PNS 49:2020 |
 | Rebar spacing | 4.28 linear metres per sq.m of wall, plus 5% | NSCP detailing for CHB wall reinforcement |
-| Roofing | 10% side and end lap allowance | Trade practice for rib-type sheets |
+| Extension slab and walls | 100 mm slab on grade over the floor area; new wall area of 2.2 x floor area in 4 in CHB | App assumption, stated on the BOM. Footings, columns, beams and roofing come from the structural plan |
+| Roof area | Floor area x 1.15 | Geometry of a roof at about 30 degrees pitch (1 / cos 30) |
+| Rib-type roofing | 1.0 m effective cover per sheet, plus 10% side and end lap, ordered by the linear metre | Trade practice for rib-type sheets |
+| Concrete roof tiles | 10.5 pcs per sq.m of roof plus 5% breakage; ridge tiles 3 per linear metre | Typical manufacturer coverage; clay tiles run about 16 per sq.m |
+| Ridge length | Square root of floor area, plus 10% lap | App assumption; the formula tells the builder to measure the real ridge |
+| Tekscrews | 8 per sq.m of roof | Trade practice, purlins at 600 mm fastened every second rib |
+| Roof sealant | 1 L can per 15 sq.m of roof | Trade practice |
 
 Rates live in `lib/features/project_creation/data/ph_renovation_rates.dart`.
+
+### Measured rooms
+
+Room renovations (bathroom, laundry, kitchen, living room, bedroom, dining
+room, floor, painting and wall finishing) start from a site-details step
+instead of a single area. The builder enters length, width, ceiling height,
+doors and windows by size and count, how high the wall tiles go, and whether
+the old floor tiles come off. Each material is then sized from the surface it
+actually covers. Roofing, electrical and plumbing keep a single area.
+
+| Surface | Rule | Source |
+|---|---|---|
+| Floor | Length x width | Geometry |
+| Walls | Perimeter x ceiling height, less every door and window | Geometry |
+| Full-height wall tile | The net wall area | Geometry |
+| Half-wall tile | Perimeter x 1.50 m, less doorways up to that height; windows assumed above the tile line | Common wet-area practice |
+| Backsplash | Counter length x 0.60 m | Common kitchen practice |
+| Paint | Net wall not tiled, plus the ceiling if chosen | Geometry |
+| Waterproofing | Floor plus a 0.30 m upturn round the walls, 0.8 L per sq.m for two coats, plus 8% | App assumption for the upturn; coverage per template rate |
+| Skirting | Perimeter less doorway widths, plus 5% for corners | Geometry, trade allowance |
+| Countertop | Counter length x 0.60 m depth, plus 8% | Standard counter depth |
+| New screed after tile removal | 25 mm Class B 1:3 over the floor | Fajardo, as mortar bedding above |
+| Extension CHB walls | Measured net wall area, replacing 2.2 x floor | Geometry |
+
+The measured room also fits the template to the job: a painting job drops the
+floor finish, choosing no wall tiles drops the wall-tile line, bare walls get
+paint and primer, a wet room gets waterproofing, and removing old tiles adds
+screed cement and sand. Every formula on the review screen starts with the
+measurement it came from. Door and window presets are standard ready-made
+sizes (0.70, 0.80 and 0.90 x 2.10 m doors; 0.60 x 0.60 to 1.50 x 1.20 m
+windows); any other size can be typed in.
+
+The model is in `lib/features/project_creation/data/site_details.dart`, and
+the saved estimate and post carry it as `siteDetails`.
 
 ## Layer 3 — the identification content
 
@@ -222,6 +264,9 @@ in `test/material_kind_test.dart`.
   labels these so a user knows to check the bag.
 - The trade practice layer reflects CALABARZON hardware retail and may differ
   by province and by store. It is not claimed to hold outside Region IV-A.
+- A measured room is treated as a rectangle. An L-shaped room, a sloped
+  ceiling or a wall only partly tiled should be entered as the nearest
+  rectangle and the quantities checked, or split into two estimates.
 - The system estimates materials for canvassing and quotation. It does not
   perform structural design, and it does not replace a licensed engineer where
   the NSCP requires one.

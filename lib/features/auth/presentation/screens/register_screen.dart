@@ -437,9 +437,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                         const SizedBox(height: 18),
 
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
+                        // Minimum height, not fixed: the label grows with
+                        // the text scale.
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            minWidth: double.infinity,
+                            minHeight: 52,
+                          ),
                           child: TextButton(
                             style: TextButton.styleFrom(
                               backgroundColor: _acceptedTerms
@@ -496,9 +500,11 @@ class _TermsAndConditionsDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+        // Up to 560 tall, never more than the screen allows: a fixed 560 plus
+        // the dialog's own margins did not fit on a 640-tall phone.
         child: SizedBox(
           width: double.infinity,
-          height: 560,
+          height: (MediaQuery.sizeOf(context).height * 0.75).clamp(320.0, 560.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -591,9 +597,11 @@ class _TermsAndConditionsDialog extends StatelessWidget {
 
               const SizedBox(height: 14),
 
-              SizedBox(
-                width: double.infinity,
-                height: 46,
+              ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minWidth: double.infinity,
+                  minHeight: 46,
+                ),
                 child: TextButton(
                   onPressed: () => Navigator.of(context).pop(true),
                   style: TextButton.styleFrom(

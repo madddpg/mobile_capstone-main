@@ -61,84 +61,92 @@ class OffsetPillNav extends StatelessWidget {
               ),
             ],
           ),
+          // Every slot is Flexible so the active chip can shorten its label on
+          // a narrow phone with large text, instead of pushing the row past
+          // the edge of the pill.
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (activeTab == OffsetNavTab.home)
-                const _ActiveNavChip(
-                  icon: Icons.home_rounded,
-                  label: 'Home',
-                )
-              else
-                _NavIcon(
-                  icon: Icons.home_rounded,
-                  onTap: () {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const MainHomeScreen(),
+              Flexible(
+                child: activeTab == OffsetNavTab.home
+                    ? const _ActiveNavChip(
+                        icon: Icons.home_rounded,
+                        label: 'Home',
+                      )
+                    : _NavIcon(
+                        icon: Icons.home_rounded,
+                        onTap: () {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const MainHomeScreen(),
+                            ),
+                            (route) => false,
+                          );
+                        },
                       ),
-                      (route) => false,
-                    );
-                  },
-                ),
-              const SizedBox(width: 10),
-              if (activeTab == OffsetNavTab.bidding)
-                _ActiveNavChip(
-                  imagePath: 'assets/images/hammer.png',
-                  label: 'Bidding',
-                )
-              else
-                _NavIcon(
-                  imagePath: 'assets/images/hammer.png',
-                  onTap: () => handleHammerTap(context),
-                ),
-              const SizedBox(width: 10),
-              StreamBuilder<int>(
-                stream: _chatUnreadStream(),
-                builder: (context, chatSnap) {
-                  final unreadChats = chatSnap.data ?? 0;
-
-                  if (activeTab == OffsetNavTab.chat) {
-                    return _ActiveNavChip(
-                      icon: Icons.chat_bubble_rounded,
-                      label: 'Chat',
-                      badgeCount: unreadChats,
-                    );
-                  }
-                  return _NavIcon(
-                    icon: Icons.chat_bubble_rounded,
-                    badgeCount: unreadChats,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ChatInboxScreen(),
-                        ),
-                      );
-                    },
-                  );
-                },
               ),
               const SizedBox(width: 10),
-              if (activeTab == OffsetNavTab.files)
-                _ActiveNavChip(
-                  icon: Icons.folder_rounded,
-                  label: 'Files',
-                )
-              else
-                _NavIcon(
-                  icon: Icons.folder_rounded,
-                  onTap: () {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SavedProjectsScreen(),
+              Flexible(
+                child: activeTab == OffsetNavTab.bidding
+                    ? const _ActiveNavChip(
+                        imagePath: 'assets/images/hammer.png',
+                        label: 'Bidding',
+                      )
+                    : _NavIcon(
+                        imagePath: 'assets/images/hammer.png',
+                        onTap: () => handleHammerTap(context),
                       ),
-                      (route) => false,
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: StreamBuilder<int>(
+                  stream: _chatUnreadStream(),
+                  builder: (context, chatSnap) {
+                    final unreadChats = chatSnap.data ?? 0;
+
+                    if (activeTab == OffsetNavTab.chat) {
+                      return _ActiveNavChip(
+                        icon: Icons.chat_bubble_rounded,
+                        label: 'Chat',
+                        badgeCount: unreadChats,
+                      );
+                    }
+                    return _NavIcon(
+                      icon: Icons.chat_bubble_rounded,
+                      badgeCount: unreadChats,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ChatInboxScreen(),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: activeTab == OffsetNavTab.files
+                    ? const _ActiveNavChip(
+                        icon: Icons.folder_rounded,
+                        label: 'Files',
+                      )
+                    : _NavIcon(
+                        icon: Icons.folder_rounded,
+                        onTap: () {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SavedProjectsScreen(),
+                            ),
+                            (route) => false,
+                          );
+                        },
+                      ),
+              ),
             ],
           ),
         ),
@@ -169,6 +177,7 @@ class _ActiveNavChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(30),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           if (imagePath != null)
             Image.asset(
@@ -180,12 +189,17 @@ class _ActiveNavChip extends StatelessWidget {
           else
             Icon(icon, color: IConstructPanel.cream, size: 18),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: IConstructPanel.cream,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: IConstructPanel.cream,
+              ),
             ),
           ),
         ],

@@ -1120,9 +1120,12 @@ class ProjectCard extends StatelessWidget {
             const SizedBox(height: 16),
 
             if (emphasizePost) ...[
-              SizedBox(
-                width: double.infinity,
-                height: 44,
+              // Minimum height, not fixed: the label grows with the text scale.
+              ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minWidth: double.infinity,
+                  minHeight: 44,
+                ),
                 child: ElevatedButton.icon(
                   onPressed: () => _handlePostProject(context),
                   style: ElevatedButton.styleFrom(

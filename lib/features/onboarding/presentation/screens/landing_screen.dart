@@ -189,108 +189,137 @@ class _LandingCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(45),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Spacer(),
-              const Text(
-                'Create an\nAccount',
-                style: TextStyle(
-                  fontFamily: 'Bungee-Regular',
-                  fontSize: 45,
-                  height: 1.2,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF2F3E4F),
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Your projects starts with us.',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF5B6E80),
-                ),
-              ),
-              const SizedBox(height: 36),
-              Align(
-                alignment: Alignment.center,
-                child: FractionallySizedBox(
-                  widthFactor: 0.75,
-                  child: SizedBox(
-                    height: 55,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        elevation: 0,
-                        padding: EdgeInsets.zero,
-                        shadowColor: Colors.transparent,
-                        backgroundColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
+          // Fills the card when there is room and scrolls when there is not,
+          // as on a small phone with large text, instead of pushing the
+          // buttons off the bottom of the card.
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Spacer(),
+                      // The display title is sized for impact, not to wrap. It
+                      // scales down to the card's width rather than overflow.
+                      const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Create an\nAccount',
+                          style: TextStyle(
+                            fontFamily: 'Bungee-Regular',
+                            fontSize: 45,
+                            height: 1.2,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF2F3E4F),
+                          ),
                         ),
                       ),
-                      onPressed: onGetStarted,
-                      child: Ink(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                            colors: [
-                              Color(0xE6EDE4D4), // #EDE4D4 @ 90%
-                              Color(0xB3FFFFFF), // #FFFFFF @ 70%
-                              Color(0xFF648DB6), // #648DB6 @ 100%
-                            ],
-                            stops: [0.0, 0.5, 1.0],
-                          ),
-                          borderRadius: BorderRadius.circular(50),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Your projects starts with us.',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: Color(0xFF5B6E80),
                         ),
-                        child: const Center(
-                          child: Text(
-                            'Get Started',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF2C3E50),
+                      ),
+                      const SizedBox(height: 36),
+                      Align(
+                        alignment: Alignment.center,
+                        child: FractionallySizedBox(
+                          widthFactor: 0.75,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 55),
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                elevation: 0,
+                                padding: EdgeInsets.zero,
+                                shadowColor: Colors.transparent,
+                                backgroundColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                              ),
+                              onPressed: onGetStarted,
+                              child: Ink(
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                    colors: [
+                                      Color(0xE6EDE4D4), // #EDE4D4 @ 90%
+                                      Color(0xB3FFFFFF), // #FFFFFF @ 70%
+                                      Color(0xFF648DB6), // #648DB6 @ 100%
+                                    ],
+                                    stops: [0.0, 0.5, 1.0],
+                                  ),
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 14,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Get Started',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF2C3E50),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 20),
+                      // Wraps onto a second line when the sentence and the
+                      // link do not fit side by side.
+                      SizedBox(
+                        width: double.infinity,
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            const Text(
+                              'Already have an account? ',
+                              style: TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 15,
+                                color: Color(0xFF2C3E50),
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: onLogin,
+                              child: const Text(
+                                'Login',
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 15,
+                                  color: Color(0xFF2C3E50),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Already have an account? ',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 15,
-                        color: Color(0xFF2C3E50),
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: onLogin,
-                      child: const Text(
-                        'Login',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 15,
-                          color: Color(0xFF2C3E50),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -6,7 +6,7 @@ enum RenovationScope {
   ),
   extension(
     'Extension',
-    'New space — includes structural concrete, CHB masonry, rebar & roof',
+    'New space — adds slab concrete, CHB walls, rebar & formwork',
   );
 
   final String label;

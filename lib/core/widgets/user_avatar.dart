@@ -23,9 +23,14 @@ class UserAvatar extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Consumer<UserProvider>(
-        builder: (context, userProvider, child) {
-          final profileUrl = userProvider.currentUser?.profileImageUrl;
+      child: Builder(
+        builder: (context) {
+          // Nullable lookup: the app always provides UserProvider, but layout
+          // tests render the shared panel header without Firebase behind it.
+          // A missing provider shows the default person icon instead of
+          // failing the whole screen.
+          final profileUrl =
+              context.watch<UserProvider?>()?.currentUser?.profileImageUrl;
 
           Widget content;
           if (profileUrl != null && profileUrl.isNotEmpty) {

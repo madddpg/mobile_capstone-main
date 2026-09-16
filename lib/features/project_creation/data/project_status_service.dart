@@ -101,4 +101,44 @@ class ProjectStatusService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
+
+  /// Detaches saved estimates from a bidding post that can no longer be read.
+  ///
+  /// A post can disappear or change hands outside the app, through the
+  /// Firebase console or the shop dashboard writing with the Admin SDK. The
+  /// saved project then keeps pointing at it: its card still says it is
+  /// waiting for quotations, and every tap ends at the same error. This clears
+  /// the link and returns the project to planning, keeping its materials, so
+  /// the builder can post it again.
+  ///
+  /// Matches on the stored postId rather than on a project id, because the
+  /// unreadable post is where that project id would otherwise have come from.
+  /// Returns how many saved projects were updated.
+  Future<int> unlinkPost({
+    required String userId,
+    required String postId,
+  }) async {
+    final matches = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('saved_projects')
+        .where('postId', isEqualTo: postId)
+        .get();
+    if (matches.docs.isEmpty) return 0;
+
+    final batch = _firestore.batch();
+    for (final doc in matches.docs) {
+      batch.update(doc.reference, {
+        'postId': FieldValue.delete(),
+        'postedAt': FieldValue.delete(),
+        'selectedShopName': FieldValue.delete(),
+        'supplierSelectedAt': FieldValue.delete(),
+        'status': ProjectLifecycle.planning,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      _applied.removeWhere((key) => key.startsWith('$userId/${doc.id}:'));
+    }
+    await batch.commit();
+    return matches.docs.length;
+  }
 }

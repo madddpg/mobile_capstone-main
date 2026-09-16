@@ -6,9 +6,11 @@ import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 
 import 'package:iconstruct/features/auth/presentation/screens/material_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
+import 'package:iconstruct/features/project_creation/data/bom_sections.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
+import 'package:iconstruct/features/project_creation/data/site_details.dart';
 import 'package:iconstruct/features/project_creation/widgets/material_id_sheet.dart';
 import 'package:iconstruct/features/project_creation/widgets/material_swatch.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
@@ -32,6 +34,10 @@ class CostEstimationScreen extends StatefulWidget {
   /// Budget preference collected during AI consultation (Low / Medium / High).
   final String? budgetPreference;
 
+  /// The measured room, when there is one. Quantities, swaps and formulas are
+  /// all sized from it, and the list is grouped into floor, walls and the rest.
+  final SiteTakeoff? takeoff;
+
   const CostEstimationScreen({
     super.key,
     required this.projectName,
@@ -41,6 +47,7 @@ class CostEstimationScreen extends StatefulWidget {
     this.projectAreaSqm,
     this.scope = RenovationScope.fullRenovation,
     this.budgetPreference,
+    this.takeoff,
   });
 
   @override
@@ -65,9 +72,15 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   }
 
   void _seedFromTemplate(RenovationTemplate template) {
-    _templateItems = template.items
-        .map(BomQuantityEstimator.ensureSwappable)
-        .toList();
+    // An AI BOM is exactly what the builder confirmed in consultation, and
+    // buildConsultationTemplate strips its chips on purpose. Running it through
+    // ensureSwappable here would add them straight back.
+    final items = template.id == 'ai_consultation_bom'
+        ? List.of(template.items)
+        : template.items.map(BomQuantityEstimator.ensureSwappable).toList();
+    // A measured room's list reads the way the job is walked: floor, walls,
+    // tile setting, then what goes in the room.
+    _templateItems = widget.takeoff == null ? items : sortBySection(items);
     _rebuildSelectionsFromTemplateItems();
   }
 
@@ -102,24 +115,55 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   /// carrying the previous size's piece count.
   void _swapTemplateItem(int index, MaterialAlternative alternative) {
     if (index < 0 || index >= _templateItems.length) return;
-    final current = _templateItems[index];
-    final area = widget.projectAreaSqm ?? 1.0;
-
-    var swapped = BomQuantityEstimator.ensureSwappable(
-      current.copyWith(
-        name: alternative.name,
-        size: alternative.size ?? current.size,
-      ),
+    final swapped = BomQuantityEstimator.applyAlternative(
+      item: _templateItems[index],
+      alternative: alternative,
+      areaSqm: widget.projectAreaSqm ?? 1.0,
+      takeoff: widget.takeoff,
     );
-    final recomputed =
-        BomQuantityEstimator.estimateQuantity(item: swapped, areaSqm: area);
-    swapped = swapped.copyWith(defaultQuantity: recomputed);
 
     setState(() {
       _templateItems[index] = swapped;
       _selectedProducts[index].qtyController.dispose();
       _selectedProducts[index] = _selectionForItem(swapped);
+      if (BomQuantityEstimator.affectsTileSetting(swapped)) {
+        _resyncTileSetting();
+      }
     });
+  }
+
+  /// Re-sizes the adhesive and grout lines after the tiles they serve change,
+  /// so a new tile face or a removed wall-tile line shows up in both at once.
+  /// Call inside setState.
+  void _resyncTileSetting() {
+    final settled = BomQuantityEstimator.requantifyTileSetting(
+      _templateItems,
+      widget.projectAreaSqm ?? 1.0,
+      takeoff: widget.takeoff,
+    );
+    for (var i = 0; i < settled.length; i++) {
+      final next = settled[i];
+      if (identical(next, _templateItems[i])) continue;
+      _templateItems[i] = next;
+
+      final selection = _selectedProducts[i];
+      if (next.unit != selection.unit) {
+        selection.qtyController.dispose();
+        _selectedProducts[i] = _selectionForItem(next);
+      } else {
+        selection.quantity = next.defaultQuantity;
+        selection.qtyController.text = _formatQty(next.defaultQuantity);
+      }
+    }
+  }
+
+  /// Whether row [index] opens a new section. Only a measured room's list is
+  /// grouped; any other list keeps its template's order.
+  bool _startsSection(int index) {
+    if (widget.takeoff == null) return false;
+    if (index == 0) return true;
+    return bomSectionOf(_templateItems[index - 1]) !=
+        bomSectionOf(_templateItems[index]);
   }
 
   /// True only when there is at least one line and every line has a finite,
@@ -153,54 +197,13 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
       header: OffsetPanelHeaders.avatarAndMenu(context),
       contentPadding:
           IConstructPanel.contentPaddingOf(context).copyWith(bottom: 20),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            titleText,
-            style: GoogleFonts.poppins(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Divider(color: Color(0xFFEDE4D4), thickness: 1),
-          const SizedBox(height: 10),
-          Text(
-            widget.template?.id == 'ai_consultation_bom'
-                ? 'Your AI material list — quantities scaled from area & scope.\nEdit a quantity or remove an item you don\'t need.'
-                : 'Reference package — quantities scaled from area.\nEdit qty, remove items, or drag a type onto its matching material only.',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: const Color(0xFFE0D7C9),
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(color: Color(0xFFEDE4D4), thickness: 1),
-          const SizedBox(height: 12),
-          Expanded(child: _buildTemplateBomBody(context)),
-        ],
-      ),
+      body: _buildTemplateBomBody(context, titleText),
     );
   }
 
-  Widget _buildTemplateBomBody(BuildContext context) {
-    if (_templateItems.isEmpty || _selectedProducts.isEmpty) {
-      return Align(
-        alignment: Alignment.topLeft,
-        child: Text(
-          'All reference materials were removed.\nGo back and pick another template, or continue with AI.',
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            color: const Color(0xFFE0D7C9),
-            height: 1.4,
-          ),
-        ),
-      );
-    }
-
+  /// Title, instructions and notes shown above the material rows.
+  Widget _buildBomHeader(BuildContext context, String titleText) {
+    final hasRows = _templateItems.isNotEmpty && _selectedProducts.isNotEmpty;
     final areaLabel = widget.projectAreaSqm != null
         ? '${widget.projectAreaSqm!.toStringAsFixed(1)} sqm'
         : null;
@@ -208,7 +211,42 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (areaLabel != null) ...[
+        Text(
+          titleText,
+          style: GoogleFonts.poppins(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Divider(color: Color(0xFFEDE4D4), thickness: 1),
+        const SizedBox(height: 10),
+        Text(
+          widget.template?.id == 'ai_consultation_bom'
+              ? 'Your AI material list — quantities scaled from area & scope.\nEdit a quantity or remove an item you don\'t need.'
+              : 'Reference package — quantities scaled from area.\nEdit qty, remove items, or drag a type onto its matching material only.',
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: const Color(0xFFE0D7C9),
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Divider(color: Color(0xFFEDE4D4), thickness: 1),
+        const SizedBox(height: 12),
+        if (hasRows && widget.takeoff != null) ...[
+          Text(
+            'Measured room: ${widget.takeoff!.summary}. Every quantity is sized '
+            'from these measurements; open View Formula on a line to see how.',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              color: const Color(0xFF8FB2D4),
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ] else if (hasRows && areaLabel != null) ...[
           Text(
             'Quantities auto-estimated for $areaLabel. Drag a type onto its own material only.',
             style: GoogleFonts.poppins(
@@ -219,11 +257,56 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
           ),
           const SizedBox(height: 12),
         ],
+        // An AI BOM holds only what the builder picked, so the package this
+        // note describes was never added to it.
+        if (hasRows &&
+            widget.scope.includesStructural &&
+            widget.template?.id != 'ai_consultation_bom') ...[
+          Text(
+            BomQuantityEstimator.extensionCoverageNoteFor(widget.takeoff),
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              color: const Color(0xFFFFC98A),
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTemplateBomBody(BuildContext context, String titleText) {
+    // The header scrolls with the rows. Pinned above them, it filled the panel
+    // on a small phone with large text and left the materials no room at all.
+    final header = _buildBomHeader(context, titleText);
+
+    if (_templateItems.isEmpty || _selectedProducts.isEmpty) {
+      return ListView(
+        children: [
+          header,
+          Text(
+            'All reference materials were removed.\nGo back and pick another template, or continue with AI.',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: const Color(0xFFE0D7C9),
+              height: 1.4,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Expanded(
           child: ListView.builder(
             controller: _materialsScrollController,
-            itemCount: _templateItems.length,
-            itemBuilder: (context, index) {
+            itemCount: _templateItems.length + 1,
+            itemBuilder: (context, listIndex) {
+              if (listIndex == 0) return header;
+              final index = listIndex - 1;
               final item = _templateItems[index];
               final selected = _selectedProducts[index];
 
@@ -233,6 +316,8 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (_startsSection(index))
+                      _SectionLabel(bomSectionOf(item).label),
                     if (item.alternatives.isNotEmpty) ...[
                       Text(
                         'Available types',
@@ -325,49 +410,30 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                               item: item,
                               areaSqm: widget.projectAreaSqm ?? 1.0,
                               currentQty: selected.quantity,
+                              bom: _templateItems,
+                              takeoff: widget.takeoff,
                             ),
                             onSizeChanged: item.availableSizes.isEmpty
                                 ? null
                                 : (newSize) {
                                     if (newSize == null || newSize.isEmpty) return;
-                                    final area = widget.projectAreaSqm ?? 1.0;
                                     final result = BomQuantityEstimator.recalculateForSize(
                                       item: item,
                                       newSize: newSize,
-                                      areaSqm: area,
+                                      areaSqm: widget.projectAreaSqm ?? 1.0,
+                                      takeoff: widget.takeoff,
                                     );
                                     setState(() {
                                       selected.size = newSize;
                                       selected.quantity = result.newQty;
                                       selected.qtyController.text =
-                                          result.newQty.toInt() == result.newQty
-                                              ? result.newQty.toInt().toString()
-                                              : result.newQty.toStringAsFixed(1);
+                                          _formatQty(result.newQty);
                                       _templateItems[index] = item.copyWith(
                                         size: newSize,
                                         defaultQuantity: result.newQty,
                                       );
-
-                                      // Also check and update linked items (e.g. tile grout)
-                                      for (var i = 0; i < _templateItems.length; i++) {
-                                        final linkedItem = _templateItems[i];
-                                        final linkedSel = _selectedProducts[i];
-                                        if (linkedItem.name.toLowerCase().contains('grout') ||
-                                            linkedItem.name.toLowerCase().contains('adhesive')) {
-                                          final linkedRes = BomQuantityEstimator.recalculateForSize(
-                                            item: linkedItem,
-                                            newSize: newSize,
-                                            areaSqm: area,
-                                          );
-                                          linkedSel.quantity = linkedRes.newQty;
-                                          linkedSel.qtyController.text =
-                                              linkedRes.newQty.toInt() == linkedRes.newQty
-                                                  ? linkedRes.newQty.toInt().toString()
-                                                  : linkedRes.newQty.toStringAsFixed(1);
-                                          _templateItems[i] = linkedItem.copyWith(
-                                            defaultQuantity: linkedRes.newQty,
-                                          );
-                                        }
+                                      if (BomQuantityEstimator.affectsTileSetting(item)) {
+                                        _resyncTileSetting();
                                       }
                                     });
                                   },
@@ -391,6 +457,9 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                                 final removed =
                                     _selectedProducts.removeAt(index);
                                 removed.qtyController.dispose();
+                                if (BomQuantityEstimator.affectsTileSetting(item)) {
+                                  _resyncTileSetting();
+                                }
                               });
                             },
                           ),
@@ -477,11 +546,37 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
           aiBudget: widget.budgetPreference,
           scope: widget.scope,
           lockEstimateDetails: true,
+          siteDetails: widget.takeoff?.details.toMap(),
         ),
       ),
     );
   }
 
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+
+  const _SectionLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      header: true,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 10),
+        child: Text(
+          label.toUpperCase(),
+          style: GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.1,
+            color: const Color(0xFFFFC98A),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _SlotAlternative {

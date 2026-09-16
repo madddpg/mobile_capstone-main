@@ -39,6 +39,10 @@ class MaterialEstimatorScreen extends StatefulWidget {
   /// When true, estimate name, renovation type, area, and budget are read-only.
   final bool lockEstimateDetails;
 
+  /// Room measurements the quantities were sized from. Saved with the estimate
+  /// and the post, so the builder and the shops can see what was measured.
+  final Map<String, dynamic>? siteDetails;
+
   const MaterialEstimatorScreen({
     super.key,
     required this.projectName,
@@ -52,6 +56,7 @@ class MaterialEstimatorScreen extends StatefulWidget {
     this.projectNotes,
     this.scope = RenovationScope.fullRenovation,
     this.lockEstimateDetails = false,
+    this.siteDetails,
   });
 
   @override
@@ -327,15 +332,19 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           const SizedBox(height: 20),
           Row(
             children: [
-              Text(
-                'Bill of Materials',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+              // Expanded so the heading gives way to the item count on a
+              // narrow phone instead of pushing it out of the panel.
+              Expanded(
+                child: Text(
+                  'Bill of Materials',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 '$_materialCount items',
                 style: GoogleFonts.poppins(
@@ -783,6 +792,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         'materials': materialsList,
         'materialsCount': materialsList.length,
         'totalAreaSqm': _projectArea,
+        if (widget.siteDetails != null) 'siteDetails': widget.siteDetails,
         'status': widget.existingProject?.status ?? ProjectLifecycle.draft,
         'updatedAt': FieldValue.serverTimestamp(),
         if (widget.existingProject == null)
@@ -991,6 +1001,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         'materials': materialsList,
         'materialsCount': materialsList.length,
         'totalAreaSqm': _projectArea,
+        if (widget.siteDetails != null) 'siteDetails': widget.siteDetails,
         'budget': costLevel,
         'status': 'open',
         'quotationCount': 0,
@@ -1008,6 +1019,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         'materials': materialsList,
         'materialsCount': materialsList.length,
         'totalAreaSqm': _projectArea,
+        if (widget.siteDetails != null) 'siteDetails': widget.siteDetails,
         'status': ProjectLifecycle.waitingForQuotations,
         'postId': newPostRef.id,
         'postedAt': FieldValue.serverTimestamp(),
@@ -1123,7 +1135,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
   Widget _buildDropdownField({bool readOnly = false}) {
     return Container(
-      height: 48,
+      // Minimum height, not fixed: the value grows with the text scale.
+      constraints: const BoxConstraints(minHeight: 48),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: readOnly

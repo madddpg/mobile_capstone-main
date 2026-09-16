@@ -65,12 +65,31 @@ service cloud.firestore {
       allow read: if isOwner(shopId) || isAdmin()
                   || (signedIn() && resource.data.status == "approved");
 
+      // The rating summary. Only the Cloud Function writes it, from the
+      // builders' own rating documents. A shop owner could otherwise give
+      // their shop any score and climb the Top Shops list. The alternative
+      // spellings are listed too, so no reader can be fed a score under a
+      // name it might fall back to.
+      function ratingFields() {
+        return [
+          "rating",
+          "ratingCount",
+          "ratingUpdatedAt",
+          "averageRating",
+          "ratingAverage",
+          "ratingsCount",
+          "reviewCount",
+        ];
+      }
+
       allow create: if isOwner(shopId)
         && request.resource.data.subscriptionPlan == "basic"
-        && request.resource.data.status == "pending";
+        && request.resource.data.status == "pending"
+        && !request.resource.data.keys().hasAny(ratingFields());
 
-      // Owners may edit profile fields only — not plan, approval, or billing.
-      // Cloud Functions (Admin SDK) bypass rules for PayMongo activation.
+      // Owners may edit profile fields only — not plan, approval, billing, or
+      // rating. Cloud Functions (Admin SDK) bypass rules for PayMongo
+      // activation and the rating summary.
       allow update: if isAdmin() || (
         isOwner(shopId)
         && !request.resource.data.diff(resource.data).affectedKeys()
@@ -80,6 +99,8 @@ service cloud.firestore {
               "subscriptionExpiry",
               "status",
             ])
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(ratingFields())
       ) || (
         isOwner(shopId)
         && request.resource.data.diff(resource.data).affectedKeys()
@@ -290,15 +311,27 @@ service cloud.firestore {
             || request.auth.uid == quotationId
           ));
 
+        // A quotation starts life as an open offer from the shop that sent
+        // it, on an estimate that exists and has not chosen a supplier. It
+        // cannot arrive already decided, carry an accepted total, sit under
+        // another id, or use another shop's name. Any one of those would put a
+        // decision on the builder's screen that the builder never made.
         allow create: if signedIn()
-          && request.resource.data.keys().hasAll(["shopId"])
-          && request.resource.data.shopId == request.auth.uid
           && request.auth.uid == quotationId
+          && request.resource.data.shopId == request.auth.uid
           && shopIsApproved(request.auth.uid)
+          && request.resource.data.postId == postId
+          && exists(/databases/$(database)/documents/projectPosts/$(postId))
+          && postDoc(postId).get('selectedQuotationId', null) == null
+          && !(postDoc(postId).get('status', 'open') in
+               ['offer_accepted', 'awarded', 'closed', 'cancelled', 'withdrawn'])
+          && request.resource.data.status == 'submitted'
           && request.resource.data.estimatedTotal is number
           && request.resource.data.estimatedTotal >= 0
-          && request.resource.data.postId == postId
-          && request.resource.data.status == 'submitted';
+          && !request.resource.data.keys().hasAny(['acceptedTotal', 'acceptedAt'])
+          && (!('shopName' in request.resource.data)
+              || request.resource.data.shopName
+                   == get(/databases/$(database)/documents/shops/$(request.auth.uid)).data.get('shopName', null));
 
         allow update: if isAdmin()
           // A shop may revise its own offer while it is still open. Once the
@@ -314,11 +347,17 @@ service cloud.firestore {
               && request.resource.data.postId == resource.data.postId
               && !(resource.data.get('status', 'submitted') in
                    ['accepted', 'partially_accepted', 'rejected'])
-              // Recording an acceptance is the builder's act, not the shop's.
-              && !(request.resource.data.get('status', 'submitted') in
-                   ['accepted', 'partially_accepted'])
+              // Any decision, accepting or rejecting, is the builder's act. A
+              // shop's revision stays an open offer.
+              && request.resource.data.get('status', 'submitted') == 'submitted'
+              && request.resource.data.estimatedTotal is number
+              && request.resource.data.estimatedTotal >= 0
               && !request.resource.data.diff(resource.data).affectedKeys()
-                   .hasAny(['acceptedTotal', 'acceptedAt']))
+                   .hasAny(['acceptedTotal', 'acceptedAt'])
+              && (!request.resource.data.diff(resource.data).affectedKeys()
+                     .hasAny(['shopName'])
+                  || request.resource.data.shopName
+                       == get(/databases/$(database)/documents/shops/$(request.auth.uid)).data.get('shopName', null)))
           // The builder may accept a quotation whole or line by line. Partial
           // acceptance rewrites the items array with an `accepted` flag on each
           // entry and records what the kept lines come to, so those two fields
@@ -359,6 +398,13 @@ service cloud.firestore {
 
     // Collection-group queries used by the web shop dashboard.
     // Builders only see quotes on their own posts; shops only see their own.
+    //
+    // Read only. A query never writes, and the create this block used to hold
+    // matched every quotation path in the database. Rules allow a write when
+    // any matching rule does, so it let an approved shop skip every check in
+    // the per-post rule: a quotation already marked accepted, any number of
+    // quotations per estimate, quotations on estimates that do not exist, and
+    // "quotations" collections anywhere at all.
     match /{path=**}/quotations/{quotationId} {
       allow read: if isAdmin()
         || (signedIn() && resource.data.shopId == request.auth.uid)
@@ -366,11 +412,6 @@ service cloud.firestore {
              resource.data.userId == request.auth.uid
              || resource.data.builderId == request.auth.uid
            ));
-
-      allow create: if signedIn()
-        && request.resource.data.keys().hasAll(["shopId"])
-        && request.resource.data.shopId == request.auth.uid
-        && shopIsApproved(request.auth.uid);
     }
 
     // Builder ↔ shop chat. Unlocks after a quotation is accepted.
@@ -389,7 +430,10 @@ service cloud.firestore {
         return request.resource.data.projectId is string
           && request.resource.data.quotationId is string
           && exists(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId))
-          && get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.status == 'accepted'
+          // A builder who kept only some lines is still buying from this shop
+          // and needs to talk to them about delivery and the dropped lines.
+          && get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.status
+               in ['accepted', 'partially_accepted']
           && (
                get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.shopId == request.resource.data.shopId
                || request.resource.data.quotationId == request.resource.data.shopId

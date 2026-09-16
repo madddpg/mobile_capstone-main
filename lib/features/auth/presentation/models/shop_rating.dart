@@ -30,11 +30,14 @@ class ShopRating {
   /// Short summary for a card: "4.5 (12)", or a word when there is nothing yet.
   String get summaryLabel => hasRatings ? '$averageLabel ($count)' : 'New shop';
 
-  /// Reads whatever the shop document holds.
+  /// Reads the summary the Cloud Function computes from builder ratings.
   ///
-  /// Older shop records, and any created before ratings existed, simply have
-  /// neither field. Field names vary because the web dashboard wrote some of
-  /// these records, so the common spellings are all accepted.
+  /// Only `rating` and `ratingCount` are trusted, because only the function
+  /// can write them. This used to fall back to other spellings
+  /// (`averageRating`, `reviewCount` and so on) in case the web dashboard had
+  /// written them. A shop owner could fill those in on their own document, and
+  /// the app would show and rank by the made-up score. Records with neither
+  /// field, including shops nobody has rated, show as a new shop.
   factory ShopRating.fromShopData(Map<String, dynamic> data) {
     double asDouble(Object? v) {
       if (v is num) return v.toDouble();
@@ -46,12 +49,8 @@ class ShopRating {
       return int.tryParse('${v ?? ''}') ?? 0;
     }
 
-    final average = asDouble(
-      data['rating'] ?? data['averageRating'] ?? data['ratingAverage'],
-    );
-    final count = asInt(
-      data['ratingCount'] ?? data['ratingsCount'] ?? data['reviewCount'],
-    );
+    final average = asDouble(data['rating']);
+    final count = asInt(data['ratingCount']);
 
     // A stored average outside 1 to 5 means something wrote a bad value; show
     // the shop as unrated rather than drawing six stars.

@@ -210,42 +210,48 @@ class _OtpDialogState extends State<OtpDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: List.generate(6, (index) {
-                return SizedBox(
-                  width: 36,
-                  height: 48,
-                  child: TextFormField(
-                    controller: _otpControllers[index],
-                    focusNode: _otpFocusNodes[index],
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    maxLength: 1,
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF24384C),
+                // Up to 36 wide, narrower when the dialog is: six fixed 36px
+                // boxes did not fit inside the dialog on a 320px phone.
+                return Flexible(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 36,
+                      minHeight: 48,
                     ),
-                    decoration: InputDecoration(
-                      counterText: '',
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: EdgeInsets.zero,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Colors.black12),
+                    child: TextFormField(
+                      controller: _otpControllers[index],
+                      focusNode: _otpFocusNodes[index],
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      maxLength: 1,
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF24384C),
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Colors.black12),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF24384C),
-                          width: 1.5,
+                      decoration: InputDecoration(
+                        counterText: '',
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: EdgeInsets.zero,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Colors.black12),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Colors.black12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF24384C),
+                            width: 1.5,
+                          ),
                         ),
                       ),
+                      onChanged: (value) => _onOtpChanged(index, value),
                     ),
-                    onChanged: (value) => _onOtpChanged(index, value),
                   ),
                 );
               }),
@@ -317,9 +323,12 @@ class _OtpDialogState extends State<OtpDialog> {
               ],
             ),
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
+            // Minimum height, not fixed: the label grows with the text scale.
+            ConstrainedBox(
+              constraints: const BoxConstraints(
+                minWidth: double.infinity,
+                minHeight: 48,
+              ),
               child: ElevatedButton(
                 onPressed: _checkingVerification ? null : _checkVerification,
                 style: ElevatedButton.styleFrom(

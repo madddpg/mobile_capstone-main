@@ -617,19 +617,33 @@ class _LifecycleTimeline extends StatelessWidget {
           }),
         ),
         const SizedBox(height: 8),
+        // Each label gets an equal share of the row and may wrap. Spaced
+        // apart at their natural width, the six labels ran past the card on
+        // a narrow phone once the text scaled up.
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final label in ProjectLifecycle.shortLabels) _miniLabel(label),
+            for (var i = 0; i < ProjectLifecycle.shortLabels.length; i++)
+              Expanded(
+                child: _miniLabel(
+                  ProjectLifecycle.shortLabels[i],
+                  align: i == 0
+                      ? TextAlign.left
+                      : i == ProjectLifecycle.shortLabels.length - 1
+                          ? TextAlign.right
+                          : TextAlign.center,
+                ),
+              ),
           ],
         ),
       ],
     );
   }
 
-  Widget _miniLabel(String text) {
+  Widget _miniLabel(String text, {TextAlign align = TextAlign.center}) {
     return Text(
       text,
+      textAlign: align,
       style: GoogleFonts.poppins(
         fontSize: 9,
         fontWeight: FontWeight.w500,

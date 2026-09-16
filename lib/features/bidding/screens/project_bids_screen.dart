@@ -11,6 +11,11 @@ import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
 import 'package:iconstruct/features/bidding/data/quotation_accept_service.dart';
+import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
+import 'package:iconstruct/features/bidding/data/quotation_status.dart';
+import 'package:iconstruct/features/bidding/widgets/accepted_lines_panel.dart';
+import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
+import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.dart';
 import 'package:iconstruct/features/bidding/widgets/line_selection_sheet.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
 import 'package:iconstruct/features/chat/screens/chat_thread_screen.dart';
@@ -46,10 +51,28 @@ class ProjectBidsScreen extends StatelessWidget {
             );
           }
 
-          if (projectSnapshot.hasError ||
-              !projectSnapshot.hasData ||
-              !projectSnapshot.data!.exists) {
-            return _PanelMessage('Could not load this estimate.');
+          // One message used to cover being offline, a deleted post and a post
+          // this account cannot read. They need different ways out, so the
+          // screen now says which one happened.
+          final outcome = classifyPostLoad(
+            hasError: projectSnapshot.hasError || !projectSnapshot.hasData,
+            errorCode: firestoreErrorCode(projectSnapshot.error),
+            exists: projectSnapshot.data?.exists ?? false,
+          );
+          if (outcome != PostLoadOutcome.loaded) {
+            return EstimateUnavailableView(
+              outcome: outcome,
+              postId: postId,
+              onRetry: () => Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProjectBidsScreen(
+                    postId: postId,
+                    projectName: projectName,
+                  ),
+                ),
+              ),
+            );
           }
 
           final projectData =
@@ -125,7 +148,13 @@ class ProjectBidsScreen extends StatelessWidget {
                       final data = doc.data() as Map<String, dynamic>;
                       return _ShopOffer(
                         quote: BidQuote.fromMap(doc.id, data),
-                        status: (data['status'] ?? 'pending').toString(),
+                        // Acceptance is taken from this estimate, not from
+                        // what the quotation says about itself.
+                        status: displayQuotationStatus(
+                          rawStatus: data['status']?.toString(),
+                          quotationId: doc.id,
+                          selectedQuotationId: selectedQuotationId,
+                        ),
                         shopId: quotationShopId(data, doc.id),
                       );
                     }).toList();
@@ -169,6 +198,14 @@ class ProjectBidsScreen extends StatelessWidget {
                                 quotes.length > 1,
                             isSelected: selectedQuotationId == shop.quote.id,
                             hasAcceptedOffer: selectedQuotationId != null,
+                            postId: postId,
+                            quotationData: snapshot.data!.docs
+                                .firstWhere((d) => d.id == shop.quote.id)
+                                .data() as Map<String, dynamic>,
+                            remainderPostId:
+                                (projectData['remainderPostId'] ?? '')
+                                    .toString()
+                                    .trim(),
                             onAccept: () => _confirmAccept(context, shop),
                             onMessage: () => _openShopChat(context, shop),
                           ),
@@ -674,6 +711,13 @@ class _ShopSummaryCard extends StatelessWidget {
   final bool hasAcceptedOffer;
   final VoidCallback onAccept;
   final VoidCallback onMessage;
+  final String postId;
+
+  /// The quotation document as stored, for reading back which lines were kept.
+  final Map<String, dynamic> quotationData;
+
+  /// Post id of the estimate re-canvassing the dropped lines, or empty.
+  final String remainderPostId;
 
   const _ShopSummaryCard({
     required this.shop,
@@ -684,6 +728,9 @@ class _ShopSummaryCard extends StatelessWidget {
     required this.hasAcceptedOffer,
     required this.onAccept,
     required this.onMessage,
+    required this.postId,
+    required this.quotationData,
+    required this.remainderPostId,
   });
 
   @override
@@ -832,9 +879,12 @@ class _ShopSummaryCard extends StatelessWidget {
           ],
           const SizedBox(height: 14),
           if (canAccept)
-            SizedBox(
-              width: double.infinity,
-              height: 44,
+            // Minimum height, not fixed: the label grows with the text scale.
+            ConstrainedBox(
+              constraints: const BoxConstraints(
+                minWidth: double.infinity,
+                minHeight: 44,
+              ),
               child: ElevatedButton(
                 onPressed: onAccept,
                 style: ElevatedButton.styleFrom(
@@ -868,10 +918,28 @@ class _ShopSummaryCard extends StatelessWidget {
                 ),
               ),
             ),
+            // What was actually agreed, and a way to canvass the rest. The
+            // status here already comes from this estimate's own selection, so
+            // a quotation cannot show a partial agreement the builder never made.
+            if (shop.status == 'partially_accepted' &&
+                readAcceptance(quotationData).isPartial) ...[
+              const SizedBox(height: 10),
+              AcceptedLinesPanel(
+                summary: readAcceptance(quotationData),
+                quotedTotal: shop.quote.estimatedTotal,
+                postId: postId,
+                quotationId: shop.quote.id,
+                shopName: shop.quote.shopName,
+                remainderPostId:
+                    remainderPostId.isEmpty ? null : remainderPostId,
+              ),
+            ],
             const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              height: 44,
+            ConstrainedBox(
+              constraints: const BoxConstraints(
+                minWidth: double.infinity,
+                minHeight: 44,
+              ),
               child: ElevatedButton(
                 onPressed: onMessage,
                 style: ElevatedButton.styleFrom(
@@ -1092,18 +1160,23 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final key = status.toLowerCase();
-    final bg = key == 'accepted'
+    // A partly accepted quotation is a purchase, not an open offer. It used to
+    // fall through to "Pending".
+    final isAccepted = key == 'accepted' || key == 'partially_accepted';
+    final bg = isAccepted
         ? const Color(0xFFD1FAE5)
         : key == 'rejected'
         ? const Color(0xFFFECACA)
         : const Color(0xFFFEF3C7);
-    final fg = key == 'accepted'
+    final fg = isAccepted
         ? const Color(0xFF065F46)
         : key == 'rejected'
         ? const Color(0xFF991B1B)
         : const Color(0xFF92400E);
     final label = key == 'accepted'
         ? 'Accepted'
+        : key == 'partially_accepted'
+        ? 'Partly accepted'
         : key == 'rejected'
         ? 'Rejected'
         : 'Pending';

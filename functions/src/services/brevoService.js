@@ -50,38 +50,40 @@ async function sendBrevoEmail({ to, subject, htmlContent, textContent }) {
   }
 }
 
-exports.sendOtpEmail = async (email, otp) => {
+const {
+  otpEmail,
+  welcomeEmail,
+  passwordChangedEmail,
+} = require("./emailTemplates");
+
+function sendTemplate(to, message) {
   return sendBrevoEmail({
-    to: email,
-    subject: "Your iConstruct OTP Code",
-    htmlContent: `<p>Your OTP code is <b>${otp}</b></p>`,
-    textContent: `Your OTP code is ${otp}`,
+    to,
+    subject: message.subject,
+    htmlContent: message.html,
+    textContent: message.text,
   });
+}
+
+/** [expiresMinutes] should be the server's own code lifetime. */
+exports.sendOtpEmail = async (email, otp, expiresMinutes) => {
+  return sendTemplate(
+    email,
+    otpEmail({ code: otp, purpose: "registration", expiresMinutes })
+  );
 };
 
-exports.sendForgotPasswordEmail = async (email, otp) => {
-  return sendBrevoEmail({
-    to: email,
-    subject: "Reset your iConstruct password",
-    htmlContent: `<p>Your password reset code is <b>${otp}</b></p>`,
-    textContent: `Your password reset code is ${otp}`,
-  });
+exports.sendForgotPasswordEmail = async (email, otp, expiresMinutes) => {
+  return sendTemplate(
+    email,
+    otpEmail({ code: otp, purpose: "password_reset", expiresMinutes })
+  );
 };
 
 exports.sendWelcomeEmail = async (email) => {
-  return sendBrevoEmail({
-    to: email,
-    subject: "Welcome to iConstruct!",
-    htmlContent: `<p>Welcome to iConstruct! We're glad to have you.</p>`,
-    textContent: `Welcome to iConstruct! We're glad to have you.`,
-  });
+  return sendTemplate(email, welcomeEmail());
 };
 
 exports.sendPasswordResetSuccessEmail = async (email) => {
-  return sendBrevoEmail({
-    to: email,
-    subject: "Password Reset Successful",
-    htmlContent: `<p>Your iConstruct password has been reset successfully.</p>`,
-    textContent: `Your iConstruct password has been reset successfully.`,
-  });
+  return sendTemplate(email, passwordChangedEmail({ changedAt: new Date() }));
 };

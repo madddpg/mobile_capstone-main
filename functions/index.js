@@ -263,11 +263,15 @@ exports.sendEmailOtp = onCall(publicAuthCallable, async (request) => {
 
   const { sendOtpEmail, sendForgotPasswordEmail } = require("./src/services/brevoService");
 
+  // The email states the code's lifetime, so it reads the same setting that
+  // expires the code rather than repeating the number.
+  const expiresMinutes = OTP_TTL_MS / 60000;
+
   try {
     if (request.data?.purpose === "password_reset") {
-      await sendForgotPasswordEmail(email, otp);
+      await sendForgotPasswordEmail(email, otp, expiresMinutes);
     } else {
-      await sendOtpEmail(email, otp);
+      await sendOtpEmail(email, otp, expiresMinutes);
     }
     logger.info("OTP email sent via Brevo", { email });
   } catch (error) {

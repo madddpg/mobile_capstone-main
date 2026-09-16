@@ -31,52 +31,64 @@ class SelectPlanningMethodScreen extends StatelessWidget {
       subtitle: displayName,
       instruction:
           'Template = pre-defined materials.\nAI Planner = custom material list.',
-      body: Column(
-        children: [
-          Expanded(
-            child: _MethodTile(
-              title: 'Plan with AI Planner',
-              subtitle:
-                  'Chat with the AI consultant to generate a custom Bill of Materials.',
-              icon: Icons.auto_awesome,
-              accent: const Color(0xFFC4B5FD),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AIConsultationScreen(
-                      projectName: projectName,
-                      customProjectName: customProjectName,
-                      projectNotes: projectNotes,
+      // The two tiles share the panel height when there is room. When there
+      // is not, as on a small phone with large text, they keep their natural
+      // height and the panel scrolls instead of clipping them.
+      body: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: Column(
+                children: [
+                  Expanded(
+                    child: _MethodTile(
+                      title: 'Plan with AI Planner',
+                      subtitle:
+                          'Chat with the AI consultant to generate a custom Bill of Materials.',
+                      icon: Icons.auto_awesome,
+                      accent: const Color(0xFFC4B5FD),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AIConsultationScreen(
+                              projectName: projectName,
+                              customProjectName: customProjectName,
+                              projectNotes: projectNotes,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 14),
-          Expanded(
-            child: _MethodTile(
-              title: 'Use Renovation Template',
-              subtitle:
-                  'Pick a style template with pre-defined materials, then edit quantities or remove items.',
-              icon: Icons.grid_view_rounded,
-              accent: const Color(0xFF6EE7B7),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SelectTemplateScreen(
-                      projectName: projectName,
-                      customProjectName: customProjectName,
-                      projectNotes: projectNotes,
+                  const SizedBox(height: 14),
+                  Expanded(
+                    child: _MethodTile(
+                      title: 'Use Renovation Template',
+                      subtitle:
+                          'Pick a style template with pre-defined materials, then edit quantities or remove items.',
+                      icon: Icons.grid_view_rounded,
+                      accent: const Color(0xFF6EE7B7),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SelectTemplateScreen(
+                              projectName: projectName,
+                              customProjectName: customProjectName,
+                              projectNotes: projectNotes,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                );
-              },
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

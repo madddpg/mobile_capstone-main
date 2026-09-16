@@ -7,6 +7,8 @@ import 'package:iconstruct/core/navigation/planning_nav.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
 import 'package:iconstruct/features/chat/screens/chat_inbox_screen.dart';
 import 'package:iconstruct/features/chat/screens/chat_thread_screen.dart';
+import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
+import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.dart';
 import 'quotations_screen.dart';
 
 class PostedProjectDetailsScreen extends StatelessWidget {
@@ -31,6 +33,41 @@ class PostedProjectDetailsScreen extends StatelessWidget {
             .doc(postId)
             .snapshots(),
         builder: (context, snapshot) {
+          // An errored snapshot has no data, so errors used to fall into the
+          // loading branch below and the screen spun forever without saying
+          // anything. Errors and missing posts are handled first now.
+          if (snapshot.hasError ||
+              (snapshot.hasData && !snapshot.data!.exists)) {
+            final outcome = classifyPostLoad(
+              hasError: snapshot.hasError,
+              errorCode: firestoreErrorCode(snapshot.error),
+              exists: snapshot.data?.exists ?? false,
+            );
+            return Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [blueGradientTop, blueGradientBottom],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+              child: SafeArea(
+                child: EstimateUnavailableView(
+                  outcome: outcome,
+                  postId: postId,
+                  showBackButton: true,
+                  onRetry: () => Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          PostedProjectDetailsScreen(postId: postId),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
           if (!snapshot.hasData) {
             return Container(
               decoration: const BoxDecoration(
@@ -44,10 +81,6 @@ class PostedProjectDetailsScreen extends StatelessWidget {
                 child: CircularProgressIndicator(color: creamBg),
               ),
             );
-          }
-
-          if (!snapshot.data!.exists) {
-            return const Center(child: Text("Project not found."));
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
@@ -185,14 +218,19 @@ class PostedProjectDetailsScreen extends StatelessWidget {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  "Quotations Received",
-                                  style: GoogleFonts.poppins(
-                                    color: textLight,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w400,
+                                // Expanded so the label wraps instead of
+                                // pushing the bid count out of the card.
+                                Expanded(
+                                  child: Text(
+                                    "Quotations Received",
+                                    style: GoogleFonts.poppins(
+                                      color: textLight,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w400,
+                                    ),
                                   ),
                                 ),
+                                const SizedBox(width: 8),
                                 Text(
                                   quoteCount == 0
                                       ? "0 bids"

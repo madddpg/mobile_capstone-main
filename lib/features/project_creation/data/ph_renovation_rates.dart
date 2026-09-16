@@ -108,17 +108,21 @@ class PhRenovationRates {
 
   /// Tile grout (2kg packs): Scales with perimeter joint line length per sqm
   static double calculateTileGroutPacks(double areaSqm, String sizeKey) {
-    double kgPerSqm = 0.18; // Default for 400x400 or 600x600
-    if (sizeKey == '75x300') {
-      kgPerSqm = 0.30; // High joint frequency
-    } else if (sizeKey == '300x300' || sizeKey == '200x200') {
-      kgPerSqm = 0.25;
-    } else if (sizeKey == '600x1200') {
-      kgPerSqm = 0.12; // Low joint frequency
-    }
-    final totalKg = areaSqm * kgPerSqm;
-    final packs = (totalKg / 2.0).ceilToDouble(); // 2kg per commercial pack
-    return math.max(1.0, packs);
+    return groutPacksForKg(areaSqm * groutKgPerSqm(sizeKey));
+  }
+
+  /// Grout consumed per sq.m of tiled face. A smaller face has more joint line
+  /// per sq.m, so it takes more grout.
+  static double groutKgPerSqm(String sizeKey) {
+    if (sizeKey == '75x300') return 0.30; // High joint frequency
+    if (sizeKey == '300x300' || sizeKey == '200x200') return 0.25;
+    if (sizeKey == '600x1200') return 0.12; // Low joint frequency
+    return 0.18; // Default for 400x400 or 600x600
+  }
+
+  /// Whole 2 kg commercial packs needed for [kg] of grout, at least one.
+  static double groutPacksForKg(double kg) {
+    return math.max(1.0, (kg / 2.0).ceilToDouble());
   }
 
   static String tileGroutFormulaString(double areaSqm, String sizeKey, double resultPacks) {
@@ -287,6 +291,108 @@ class PhRenovationRates {
     );
     return '${wallAreaSqm.toStringAsFixed(1)} sq.m wall × 4.28 m/sq.m = ${(wallAreaSqm * 4.28).toStringAsFixed(1)} lm ÷ 6.0m bar = $bars pcs (${rebarSpec.label} - 6.0m Commercial Length)\n(Material spec: DPWH Vol. III Item 902 Reinforcing Steel; bars to PNS 49:2020 | Quantity: W = D²/162.2 nominal mass, spacing per NSCP detailing)';
   }
+
+  // ---------------------------------------------------------------------------
+  // 7b. ROOFING (Roof Repair — sized from the floor/plan area)
+  // ---------------------------------------------------------------------------
+  //
+  // Builders know the floor area of the house, not the sloped surface of the
+  // roof, so quantities start from plan area and apply a slope factor.
+
+  /// Sloped roof area per sq.m of plan: 1 / cos 30° ≈ 1.155, a common pitch.
+  static const double roofSlopeFactor = 1.15;
+
+  /// Width a rib-type sheet covers after its side lap.
+  static const double ribTypeEffectiveWidthM = 1.0;
+
+  /// Standard concrete roof tile coverage. Clay tiles run about 16 per sq.m.
+  static const double concreteRoofTilesPerSqm = 10.5;
+  static const double roofTileBreakageFactor = 0.05;
+  static const double ridgeTilesPerMeter = 3.0;
+
+  /// Purlins at 600 mm, fastened every second rib.
+  static const double tekscrewsPerSqm = 8.0;
+  static const double roofSqmPerSealantCan = 15.0;
+  static const double ridgeMetersPerCementBag = 6.0;
+
+  static double roofAreaFromPlan(double planAreaSqm) =>
+      planAreaSqm * roofSlopeFactor;
+
+  /// Ridge length, taking the plan as square, plus lap. Rough by nature: the
+  /// formula text tells the builder to measure the real ridge.
+  static double ridgeLengthM(double planAreaSqm) =>
+      (math.sqrt(planAreaSqm) * (1.0 + roofingWasteFactor)).ceilToDouble();
+
+  static double calculateRibTypeLinearMeters(double planAreaSqm) =>
+      (roofAreaFromPlan(planAreaSqm) /
+              ribTypeEffectiveWidthM *
+              (1.0 + roofingWasteFactor))
+          .ceilToDouble();
+
+  static double calculateRoofTilePieces(double planAreaSqm) =>
+      (roofAreaFromPlan(planAreaSqm) *
+              concreteRoofTilesPerSqm *
+              (1.0 + roofTileBreakageFactor))
+          .ceilToDouble();
+
+  static double calculateRidgeTilePieces(double planAreaSqm) =>
+      (ridgeLengthM(planAreaSqm) * ridgeTilesPerMeter).ceilToDouble();
+
+  static double calculateTekscrews(double planAreaSqm) =>
+      (roofAreaFromPlan(planAreaSqm) * tekscrewsPerSqm).ceilToDouble();
+
+  static double calculateRoofSealantCans(double planAreaSqm) => math.max(
+      1.0, (roofAreaFromPlan(planAreaSqm) / roofSqmPerSealantCan).ceilToDouble());
+
+  static double calculateRidgeCementBags(double planAreaSqm) => math.max(
+      1.0, (ridgeLengthM(planAreaSqm) / ridgeMetersPerCementBag).ceilToDouble());
+
+  static String roofAreaLine(double planAreaSqm) =>
+      '${planAreaSqm.toStringAsFixed(1)} sq.m floor × $roofSlopeFactor slope '
+      'factor (about 30° pitch) = '
+      '${roofAreaFromPlan(planAreaSqm).toStringAsFixed(1)} sq.m roof';
+
+  static String ribTypeFormulaString(double planAreaSqm, double lnM) =>
+      '${roofAreaLine(planAreaSqm)}\n'
+      '${roofAreaFromPlan(planAreaSqm).toStringAsFixed(1)} sq.m ÷ '
+      '$ribTypeEffectiveWidthM m effective width × 1.10 lap = ${lnM.toInt()} ln.m\n'
+      '(Quantity: rib-type sheet covers 1.0 m of width after the side lap, plus '
+      '10% side and end lap | order as sheets cut to your rafter length)';
+
+  static String roofTileFormulaString(double planAreaSqm, double pcs) =>
+      '${roofAreaLine(planAreaSqm)}\n'
+      '${roofAreaFromPlan(planAreaSqm).toStringAsFixed(1)} sq.m × '
+      '$concreteRoofTilesPerSqm pcs/sq.m × 1.05 breakage = ${pcs.toInt()} pcs\n'
+      '(Quantity: standard concrete roof tile coverage; clay tiles run about '
+      '16 pcs/sq.m, so confirm the coverage printed by the supplier)';
+
+  static String ridgeFormulaString(double planAreaSqm, double qty, String unit) {
+    final ridge = ridgeLengthM(planAreaSqm);
+    final perMeter = unit.toLowerCase().contains('pc')
+        ? ' × $ridgeTilesPerMeter pcs/ln.m = ${qty.toInt()} pcs'
+        : '';
+    return '√${planAreaSqm.toStringAsFixed(1)} sq.m × 1.10 lap = '
+        '${ridge.toInt()} ln.m ridge$perMeter\n'
+        '(Quantity: ridge taken from a square plan; measure the actual ridge '
+        'before ordering)';
+  }
+
+  static String tekscrewFormulaString(double planAreaSqm, double pcs) =>
+      '${roofAreaLine(planAreaSqm)}\n'
+      '${roofAreaFromPlan(planAreaSqm).toStringAsFixed(1)} sq.m × '
+      '$tekscrewsPerSqm pcs/sq.m = ${pcs.toInt()} pcs\n'
+      '(Quantity: purlins at 600 mm, fastened every second rib)';
+
+  static String roofSealantFormulaString(double planAreaSqm, double cans) =>
+      '${roofAreaLine(planAreaSqm)}\n'
+      '${roofAreaFromPlan(planAreaSqm).toStringAsFixed(1)} sq.m ÷ '
+      '$roofSqmPerSealantCan sq.m per 1 L can = ${cans.toInt()} cans\n'
+      '(Quantity: laps, screw heads and flashing joints)';
+
+  static String ridgeCementFormulaString(double planAreaSqm, double bags) =>
+      '${ridgeLengthM(planAreaSqm).toInt()} ln.m ridge ÷ '
+      '$ridgeMetersPerCementBag ln.m per 40 kg bag = ${bags.toInt()} bags\n'
+      '(Quantity: mortar bedding under the ridge tiles)';
 
   // ---------------------------------------------------------------------------
   // 8. MASTER FOREMAN AUXILIARY & CONSUMABLE ITEMS

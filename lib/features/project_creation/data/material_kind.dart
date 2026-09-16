@@ -162,6 +162,12 @@ MaterialKind classifyMaterialParts({
     return MaterialKind.areaGoods;
   }
 
+  // Clay and concrete roof tiles contain 'tile', and without this guard they
+  // were counted as 600x600 floor tile, with adhesive, grout and spacers.
+  if (hasAny(['roof tile', 'roofing tile', 'ridge tile'])) {
+    return MaterialKind.roofingSheet;
+  }
+
   // ── Tiles (priced as pieces) ───────────────────────────────────────────
   final looksLikeTile = has('tile') ||
       c.contains('wall surface') ||
@@ -315,4 +321,15 @@ MaterialKind classifyMaterialParts({
   // ── Fallback ────────────────────────────────────────────────────────
   if (unitIsArea) return MaterialKind.areaGoods;
   return MaterialKind.genericConsumable;
+}
+
+/// Area goods laid as the floor finish, such as vinyl, SPC or laminate
+/// planks. Countertops and underlayment are also sold by the sq.m but are not
+/// a floor finish and cannot stand in for one.
+bool isFloorFinishGoods(RenovationTemplateItem item) {
+  if (classifyMaterial(item) != MaterialKind.areaGoods) return false;
+  final name = item.name.toLowerCase();
+  return ['vinyl', 'plank', 'spc', 'laminate floor', 'flooring']
+          .any(name.contains) &&
+      !name.contains('counter');
 }

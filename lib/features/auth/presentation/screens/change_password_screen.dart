@@ -280,8 +280,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 },
               ),
               const SizedBox(height: 48),
-              SizedBox(
-                height: 54,
+              // Minimum height, not fixed: the label grows with the text scale.
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 54),
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: darkBlue,

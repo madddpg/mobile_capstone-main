@@ -137,12 +137,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        Text(
-                          'Edit Profile',
-                          style: GoogleFonts.poppins(
-                            color: creamBg,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
+                        Expanded(
+                          child: Text(
+                            'Edit Profile',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              color: creamBg,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -198,9 +202,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                           const SizedBox(height: 50),
 
-                          SizedBox(
-                            width: double.infinity,
-                            height: 54,
+                          // Minimum height, not fixed: the label grows with
+                          // the text scale.
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              minWidth: double.infinity,
+                              minHeight: 54,
+                            ),
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : _saveProfile,
                               style: ElevatedButton.styleFrom(
@@ -259,7 +267,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Widget _buildTextField(String hintText, {TextEditingController? controller}) {
     return Container(
-      height: 52,
+      // Minimum height, not fixed: the typed text grows with the text scale.
+      constraints: const BoxConstraints(minHeight: 52),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),

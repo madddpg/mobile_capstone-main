@@ -148,8 +148,6 @@ class RenovationTemplate {
   final String description;
   final List<RenovationTemplateItem> items;
   final int order;
-  final String? imageAsset;
-  final String? imageUrl;
 
   const RenovationTemplate({
     required this.id,
@@ -159,8 +157,6 @@ class RenovationTemplate {
     required this.description,
     required this.items,
     this.order = 1,
-    this.imageAsset,
-    this.imageUrl,
   });
 
   factory RenovationTemplate.fromMap(String id, Map<String, dynamic> data) {
@@ -186,8 +182,6 @@ class RenovationTemplate {
       description: (data['description'] ?? '').toString(),
       items: items,
       order: (data['order'] is num) ? (data['order'] as num).toInt() : 1,
-      imageAsset: data['imageAsset']?.toString(),
-      imageUrl: data['imageUrl']?.toString(),
     );
   }
 
@@ -200,8 +194,6 @@ class RenovationTemplate {
         'isActive': true,
         'order': order,
         'items': items.map((e) => e.toMap()).toList(),
-        if (imageAsset != null && imageAsset!.isNotEmpty) 'imageAsset': imageAsset,
-        if (imageUrl != null && imageUrl!.isNotEmpty) 'imageUrl': imageUrl,
       };
 
   RenovationTemplate copyWithItems(List<RenovationTemplateItem> newItems) {
@@ -213,32 +205,6 @@ class RenovationTemplate {
       description: description,
       items: newItems,
       order: order,
-      imageAsset: imageAsset,
-      imageUrl: imageUrl,
-    );
-  }
-
-  /// Returns a copy with [imageAsset] filled in when the template carries no
-  /// artwork of its own. A template that already has a bundled asset, or a
-  /// remote [imageUrl] from Firestore, is returned untouched — a curated photo
-  /// always wins over the generic one for its type.
-  ///
-  /// Passing `null` is a no-op, so a renovation type with no bundled photo
-  /// keeps an empty image slot and the picker renders its labelled card.
-  RenovationTemplate withReferenceAsset(String? asset) {
-    if (asset == null || asset.trim().isEmpty) return this;
-    if (imageAsset != null && imageAsset!.trim().isNotEmpty) return this;
-    if (imageUrl != null && imageUrl!.trim().isNotEmpty) return this;
-    return RenovationTemplate(
-      id: id,
-      renovationType: renovationType,
-      style: style,
-      name: name,
-      description: description,
-      items: items,
-      order: order,
-      imageAsset: asset,
-      imageUrl: imageUrl,
     );
   }
 }
@@ -276,60 +242,6 @@ class RenovationTemplatesCatalog {
     return '${key[0].toUpperCase()}${key.substring(1)}';
   }
 
-  /// Bundled reference photo for a renovation type + style, or `null`.
-  ///
-  /// This used to return a `loremflickr.com` link, which is a *random* stock
-  /// photo service keyed on loose tags. It put park scenery and unrelated
-  /// interiors on the template picker, needed a live connection, and returned
-  /// something different as the service's pool changed. A planning tool cannot
-  /// show a photo that does not match the job it claims to describe.
-  ///
-  /// Now it only ever returns a real bundled asset. A type with no photo yet
-  /// returns `null`, and the picker draws its labelled card instead — an
-  /// honest blank beats a misleading picture.
-  ///
-  /// To add one: drop a photo at
-  /// `assets/images/templates/<type>_<style>.png` and add the key below.
-  /// `<type>` is the lower-cased first word of the renovation type
-  /// ("Laundry Renovation" -> `laundry`), `<style>` is modern, minimalist or
-  /// traditional. The folder is already declared in pubspec.yaml, so no
-  /// pubspec change is needed.
-  static const Set<String> _bundledTemplatePhotos = {
-    'bathroom_modern',
-    'bathroom_minimalist',
-    'bathroom_traditional',
-    'kitchen_modern',
-    'kitchen_minimalist',
-    'kitchen_traditional',
-  };
-
-  /// Photo key for a renovation type: the first meaningful word, lower-cased.
-  /// "Laundry Renovation" -> laundry, "Roof Repair" -> roof.
-  static String photoKeyForType(String renovationType) {
-    final t = normalizeType(renovationType).toLowerCase();
-    if (t.contains('kitchen')) return 'kitchen';
-    if (t.contains('bath') || t.contains('toilet') || t.contains('cr')) {
-      return 'bathroom';
-    }
-    if (t.contains('laundry')) return 'laundry';
-    if (t.contains('living')) return 'living';
-    if (t.contains('bedroom')) return 'bedroom';
-    if (t.contains('dining')) return 'dining';
-    if (t.contains('floor')) return 'floor';
-    if (t.contains('roof')) return 'roof';
-    if (t.contains('paint')) return 'painting';
-    if (t.contains('wall')) return 'wall';
-    if (t.contains('electric') || t.contains('wiring')) return 'electrical';
-    if (t.contains('plumb') || t.contains('pipe')) return 'plumbing';
-    return 'general';
-  }
-
-  static String? referenceAssetFor(String renovationType, String style) {
-    final key = '${photoKeyForType(renovationType)}_${styleKey(style)}';
-    if (!_bundledTemplatePhotos.contains(key)) return null;
-    return 'assets/images/templates/$key.png';
-  }
-
   static List<RenovationTemplate> forType(String renovationType) {
     final label = normalizeType(renovationType);
     final key = label.toLowerCase();
@@ -360,8 +272,7 @@ class RenovationTemplatesCatalog {
 
   /// Normalizes [candidates] into one template per style, in [styles] order.
   ///
-  /// Earlier candidates win, so callers can pass remote templates ahead of the
-  /// built-in ones. Missing styles are derived from whatever is available so the
+  /// Earlier candidates win. Missing styles are derived from whatever is available so the
   /// picker always offers the same three choices.
   static List<RenovationTemplate> threeFrom(
     List<RenovationTemplate> candidates,
@@ -427,9 +338,6 @@ class RenovationTemplatesCatalog {
           : base.description,
       items: base.items,
       order: order,
-      imageAsset:
-          renamed ? referenceAssetFor(type, style) : base.imageAsset,
-      imageUrl: renamed ? null : base.imageUrl,
     );
   }
 
@@ -464,16 +372,19 @@ class RenovationTemplatesCatalog {
         isSwappable: true,
         alternatives: _tileAlts,
       ),
+      // Floor bedding, not masonry. Filed under Masonry, the cement read as CHB
+      // mortar, which a full renovation drops, and the BOM kept the sand
+      // without the cement to mix it with.
       RenovationTemplateItem(
         name: 'Portland Cement',
-        category: 'Masonry',
+        category: 'Floor Preparation',
         unit: 'bags',
         defaultQuantity: 1,
         qtyPerSqm: 0.5,
       ),
       RenovationTemplateItem(
         name: 'Washed Sand',
-        category: 'Masonry',
+        category: 'Floor Preparation',
         unit: 'cu.m',
         defaultQuantity: 1,
         qtyPerSqm: 0.05,
@@ -506,7 +417,6 @@ class RenovationTemplatesCatalog {
           description: 'Essential materials package — reference only.',
           items: items,
           order: i + 1,
-          imageAsset: referenceAssetFor(renovationType, styles[i]),
         ),
     ];
   }
@@ -519,11 +429,7 @@ class RenovationTemplatesCatalog {
         ..._painting,
         ..._electrical,
         ..._plumbing,
-      ]
-          .map((t) => t.withReferenceAsset(
-                referenceAssetFor(t.renovationType, t.style),
-              ))
-          .toList();
+      ];
 
   static const _tileAlts = [
     MaterialAlternative(name: 'Ceramic Floor Tiles', size: '600x600'),
@@ -546,7 +452,6 @@ class RenovationTemplatesCatalog {
       name: 'Modern Kitchen',
       description: 'Essential modern kitchen materials — use as a reference.',
       order: 1,
-      imageAsset: 'assets/images/templates/kitchen_modern.png',
       items: [
         RenovationTemplateItem(
           name: 'Floor Tiles',
@@ -617,7 +522,6 @@ class RenovationTemplatesCatalog {
       name: 'Minimalist Kitchen',
       description: 'Lean essential package — reference for a simple kitchen.',
       order: 2,
-      imageAsset: 'assets/images/templates/kitchen_minimalist.png',
       items: [
         RenovationTemplateItem(
           name: 'Vinyl Flooring',
@@ -670,7 +574,6 @@ class RenovationTemplatesCatalog {
       name: 'Traditional Kitchen',
       description: 'Classic essential materials — reference package.',
       order: 3,
-      imageAsset: 'assets/images/templates/kitchen_traditional.png',
       items: [
         RenovationTemplateItem(
           name: 'Ceramic Floor Tiles',
@@ -736,7 +639,6 @@ class RenovationTemplatesCatalog {
       name: 'Modern Bathroom',
       description: 'Essential wet-area materials — reference only.',
       order: 1,
-      imageAsset: 'assets/images/templates/bathroom_modern.png',
       items: [
         RenovationTemplateItem(
           name: 'Floor Tiles',
@@ -790,7 +692,6 @@ class RenovationTemplatesCatalog {
       name: 'Minimalist Bathroom',
       description: 'Basic bathroom essentials — reference package.',
       order: 2,
-      imageAsset: 'assets/images/templates/bathroom_minimalist.png',
       items: [
         RenovationTemplateItem(
           name: 'Floor Tiles',
@@ -837,7 +738,6 @@ class RenovationTemplatesCatalog {
       name: 'Traditional Bathroom',
       description: 'Standard bathroom essentials — reference package.',
       order: 3,
-      imageAsset: 'assets/images/templates/bathroom_traditional.png',
       items: [
         RenovationTemplateItem(
           name: 'Ceramic Floor Tiles',
@@ -1004,10 +904,12 @@ class RenovationTemplatesCatalog {
       description: 'Essential roofing materials — reference.',
       order: 1,
       items: [
-        RenovationTemplateItem(name: 'Roofing Sheets', category: 'Roofing', unit: 'pcs', defaultQuantity: 12, qtyPerSqm: 0.35),
-        RenovationTemplateItem(name: 'Fasteners', category: 'Installation', unit: 'box', defaultQuantity: 2),
-        RenovationTemplateItem(name: 'Roof Sealant', category: 'Waterproofing', unit: 'pcs', defaultQuantity: 4),
-        RenovationTemplateItem(name: 'Ridge Cap', category: 'Roofing', unit: 'pcs', defaultQuantity: 6, qtyPerSqm: 0.15),
+        // Rib-type is cut to order and sold by the linear metre, so a piece
+        // count with no length is not something a shop can quote.
+        RenovationTemplateItem(name: 'Pre-painted Rib-type Roofing Ga.26', category: 'Roofing', unit: 'ln.m', defaultQuantity: 1),
+        RenovationTemplateItem(name: 'Ridge Roll (Pre-painted)', category: 'Roofing', unit: 'ln.m', defaultQuantity: 1),
+        RenovationTemplateItem(name: 'Tekscrew with Rubber Washer', category: 'Roof Installation', unit: 'pcs', defaultQuantity: 1),
+        RenovationTemplateItem(name: 'Roof Sealant (1 L can)', category: 'Roofing', unit: 'cans', defaultQuantity: 1),
       ],
     ),
     RenovationTemplate(
@@ -1020,7 +922,7 @@ class RenovationTemplatesCatalog {
       items: [
         RenovationTemplateItem(name: 'Patch Sheets', category: 'Roofing', unit: 'pcs', defaultQuantity: 6),
         RenovationTemplateItem(name: 'Waterproofing Membrane', category: 'Waterproofing', unit: 'roll', defaultQuantity: 2),
-        RenovationTemplateItem(name: 'Roof Sealant', category: 'Waterproofing', unit: 'pcs', defaultQuantity: 3),
+        RenovationTemplateItem(name: 'Roof Sealant (1 L can)', category: 'Roofing', unit: 'cans', defaultQuantity: 1),
       ],
     ),
     RenovationTemplate(
@@ -1031,9 +933,10 @@ class RenovationTemplatesCatalog {
       description: 'Tile roof essentials — reference.',
       order: 3,
       items: [
-        RenovationTemplateItem(name: 'Roof Tiles', category: 'Roofing', unit: 'pcs', defaultQuantity: 40, qtyPerSqm: 1.2),
-        RenovationTemplateItem(name: 'Mortar Mix', category: 'Installation', unit: 'bags', defaultQuantity: 4),
-        RenovationTemplateItem(name: 'Roof Sealant', category: 'Waterproofing', unit: 'pcs', defaultQuantity: 3),
+        RenovationTemplateItem(name: 'Concrete Roof Tiles', category: 'Roofing', unit: 'pcs', defaultQuantity: 1),
+        RenovationTemplateItem(name: 'Ridge Tiles', category: 'Roofing', unit: 'pcs', defaultQuantity: 1),
+        RenovationTemplateItem(name: 'Portland Cement - Ridge Bedding (40 kg)', category: 'Roof Installation', unit: 'bags', defaultQuantity: 1),
+        RenovationTemplateItem(name: 'Roof Sealant (1 L can)', category: 'Roofing', unit: 'cans', defaultQuantity: 1),
       ],
     ),
   ];

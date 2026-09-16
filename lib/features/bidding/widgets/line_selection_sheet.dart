@@ -199,7 +199,7 @@ class _LineSelectionSheetState extends State<_LineSelectionSheet> {
                 const SizedBox(height: 4),
                 Text(
                   'Untick anything you would rather buy elsewhere. '
-                  'You can accept part of an offer.',
+                  'You can canvass the unticked lines as a new estimate after.',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: IConstructPanel.creamSoft,

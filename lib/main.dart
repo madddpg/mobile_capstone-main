@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:iconstruct/core/firebase/app_check_gate.dart';
+import 'package:iconstruct/core/layout/app_scale.dart';
 import 'package:iconstruct/core/services/fcm_service.dart';
 import 'package:iconstruct/core/state/user_state/user_provider.dart';
 import 'firebase_options.dart';
@@ -112,17 +113,10 @@ class MyApp extends StatelessWidget {
       title: 'iConstruct',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      // Cap runaway system font scaling so estimate tables stay readable while
-      // still honouring a user's accessibility preference.
+      // Scales text from the screen width (times the phone's font setting,
+      // capped) and centers a phone-width column on tablets. See AppScale.
       builder: (context, child) {
-        final media = MediaQuery.of(context);
-        return MediaQuery(
-          data: media.copyWith(
-            textScaler: media.textScaler.clamp(
-              minScaleFactor: 1.0,
-              maxScaleFactor: 1.3,
-            ),
-          ),
+        return ResponsiveFrame(
           child: OfflineBannerHost(child: child ?? const SizedBox.shrink()),
         );
       },
