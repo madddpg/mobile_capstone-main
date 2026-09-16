@@ -297,11 +297,22 @@ String unitPriceLabel(QuotedLine line, {QuotedLine? bom}) {
   return '${formatBidMoney(unitPrice)} / $unit';
 }
 
+/// Pesos the way a quotation is read aloud: grouped thousands, and centavos
+/// only when there are any. "₱23146.18" is a number to decode; "₱23,146.18" is
+/// a price.
 String formatBidMoney(double amount) {
-  if (amount == amount.roundToDouble()) {
-    return '₱${amount.toStringAsFixed(0)}';
-  }
-  return '₱${amount.toStringAsFixed(2)}';
+  final isNegative = amount < 0;
+  final value = isNegative ? -amount : amount;
+  final text = value == value.roundToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toStringAsFixed(2);
+  final parts = text.split('.');
+  final grouped = parts.first.replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+$)'),
+    (match) => '${match[1]},',
+  );
+  final centavos = parts.length > 1 ? '.${parts[1]}' : '';
+  return '${isNegative ? '-' : ''}₱$grouped$centavos';
 }
 
 /// One estimate line a shop skipped that another shop did bid.

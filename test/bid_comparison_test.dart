@@ -237,4 +237,26 @@ void main() {
       expect(advice.detail, contains('full estimate'));
     });
   });
+
+  group('formatBidMoney', () {
+    test('groups thousands, the way a price is read', () {
+      expect(formatBidMoney(23146.18), '₱23,146.18');
+      expect(formatBidMoney(1250), '₱1,250');
+      expect(formatBidMoney(1234567.5), '₱1,234,567.50');
+    });
+
+    test('centavos appear only when there are any', () {
+      expect(formatBidMoney(900), '₱900');
+      expect(formatBidMoney(900.4), '₱900.40');
+    });
+
+    test('small amounts and zero are left alone', () {
+      expect(formatBidMoney(0), '₱0');
+      expect(formatBidMoney(75.5), '₱75.50');
+    });
+
+    test('a negative amount keeps its sign outside the peso mark', () {
+      expect(formatBidMoney(-2500), '-₱2,500');
+    });
+  });
 }

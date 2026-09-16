@@ -204,4 +204,50 @@ class QuotationAcceptService {
       builderName: builderName,
     );
   }
+
+  /// Finishes an acceptance that only half landed.
+  ///
+  /// Acceptance writes the estimate's `selectedQuotationId` and the
+  /// quotation's `status` in one transaction, but an estimate accepted some
+  /// other way — an older build, the web dashboard, a transaction that failed
+  /// partway — can end up selected on the estimate and still "submitted" on
+  /// the quotation. Chat is gated on the quotation's own status, so the
+  /// builder is refused permission to message the shop they just chose.
+  ///
+  /// Returns true when the status was written. Does nothing unless the
+  /// estimate really does name this quotation, which is also what the rules
+  /// check before allowing the write.
+  Future<bool> repairAcceptedStatus({
+    required String postId,
+    required String quotationId,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+
+    final projectRef = _db.collection('projectPosts').doc(postId);
+    final projectSnap = await projectRef.get();
+    if (!projectSnap.exists) return false;
+
+    final projectData = projectSnap.data() ?? <String, dynamic>{};
+    if (!isPostedEstimateOwner(projectData, user.uid)) return false;
+    final selected =
+        (projectData['selectedQuotationId'] ?? '').toString().trim();
+    if (selected.isEmpty || selected != quotationId) return false;
+
+    final quotationRef = projectRef.collection('quotations').doc(quotationId);
+    final quotationSnap = await quotationRef.get();
+    if (!quotationSnap.exists) return false;
+
+    final status = (quotationSnap.data()?['status'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (status == 'accepted' || status == 'partially_accepted') return false;
+
+    await quotationRef.update({
+      'status': 'accepted',
+      'acceptedAt': FieldValue.serverTimestamp(),
+    });
+    return true;
+  }
 }

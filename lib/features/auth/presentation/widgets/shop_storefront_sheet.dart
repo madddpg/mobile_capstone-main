@@ -12,16 +12,25 @@ import 'package:iconstruct/features/auth/presentation/widgets/rate_shop_sheet.da
 /// differently. An unknown key is shown tidied up rather than hidden, since a
 /// category the builder cannot see is worse than one phrased awkwardly.
 const Map<String, String> kSupplyCategoryLabels = {
+  // The eleven keys the dashboard's category picker writes.
+  'cement_aggregates': 'Cement & aggregates',
+  'steel_rebar': 'Steel & rebar',
+  'lumber': 'Lumber & plywood',
+  'roofing': 'Roofing',
+  'electrical': 'Electrical',
+  'plumbing': 'Plumbing',
+  'hardware_fasteners': 'Hardware & fasteners',
+  'paint_finishing': 'Paint & finishes',
+  'tiles_masonry_finish': 'Tiles & masonry',
+  'doors_windows': 'Doors & windows',
+  'tools_equipment': 'Tools & equipment',
+  // Shorter keys older shop records were saved with.
   'tiles': 'Tiles',
   'cement': 'Cement & aggregates',
   'aggregates': 'Sand & gravel',
   'steel': 'Steel & rebar',
   'masonry': 'CHB & masonry',
-  'roofing': 'Roofing',
-  'lumber': 'Lumber & plywood',
   'paint': 'Paint & finishes',
-  'plumbing': 'Plumbing',
-  'electrical': 'Electrical',
   'hardware': 'General hardware',
   'tools': 'Tools',
   'waterproofing': 'Waterproofing',
