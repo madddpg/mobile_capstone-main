@@ -45,7 +45,7 @@ class CostEstimationScreen extends StatefulWidget {
     this.projectNotes,
     this.template,
     this.projectAreaSqm,
-    this.scope = RenovationScope.fullRenovation,
+    this.scope = RenovationScope.cosmetic,
     this.budgetPreference,
     this.takeoff,
   });
@@ -263,7 +263,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
             widget.scope.includesStructural &&
             widget.template?.id != 'ai_consultation_bom') ...[
           Text(
-            BomQuantityEstimator.extensionCoverageNoteFor(widget.takeoff),
+            BomQuantityEstimator.structuralNoteFor(widget.takeoff),
             style: GoogleFonts.poppins(
               fontSize: 11,
               color: const Color(0xFFFFC98A),

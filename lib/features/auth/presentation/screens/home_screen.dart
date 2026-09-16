@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'package:iconstruct/features/project_creation/screens/create_project_screen.dart';
+import 'package:iconstruct/features/project_creation/screens/select_renovation_type_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -83,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => CreateProjectScreen(renovationType: selected),
+        builder: (_) => SelectRenovationTypeScreen(renovationType: selected),
       ),
     );
   }

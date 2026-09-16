@@ -32,6 +32,7 @@ const {
   callGeminiJson,
   callOpenAiJson,
   runMaterialConsult,
+  runMaterialRecommend,
 } = require("./src/services/iconstructAi");
 
 const { recomputeShopRating } = require("./src/services/shopRatings");
@@ -943,6 +944,16 @@ exports.generateAIBOM = onCall(
   // Backward-compatible consult path (deployed name already exists in production)
   if ((request.data || {}).mode === "consult") {
     return runMaterialConsult({
+      ...(request.data || {}),
+      geminiSecret: GEMINI_API_KEY,
+    });
+  }
+
+  // One recommended list from the builder's own description. The app sends
+  // the same description in additionalNotes, so a copy of this function
+  // deployed before this mode existed still returns a usable list.
+  if ((request.data || {}).mode === "recommend") {
+    return runMaterialRecommend({
       ...(request.data || {}),
       geminiSecret: GEMINI_API_KEY,
     });

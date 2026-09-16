@@ -54,7 +54,7 @@ class MaterialEstimatorScreen extends StatefulWidget {
     this.aiBudget,
     this.customProjectName,
     this.projectNotes,
-    this.scope = RenovationScope.fullRenovation,
+    this.scope = RenovationScope.cosmetic,
     this.lockEstimateDetails = false,
     this.siteDetails,
   });

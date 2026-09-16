@@ -4,6 +4,8 @@
 /// (sqm). Swappable slots (e.g. tiles) expose alternatives the builder can pick.
 library;
 
+import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
+
 class MaterialAlternative {
   final String name;
   final String? size;
@@ -143,20 +145,21 @@ class RenovationTemplateItem {
 class RenovationTemplate {
   final String id;
   final String renovationType;
-  final String style;
+
+  /// Cosmetic, structural or functional. One template exists for each type a
+  /// project offers.
+  final RenovationScope scope;
   final String name;
   final String description;
   final List<RenovationTemplateItem> items;
-  final int order;
 
   const RenovationTemplate({
     required this.id,
     required this.renovationType,
-    required this.style,
+    this.scope = RenovationScope.cosmetic,
     required this.name,
     required this.description,
     required this.items,
-    this.order = 1,
   });
 
   factory RenovationTemplate.fromMap(String id, Map<String, dynamic> data) {
@@ -164,9 +167,7 @@ class RenovationTemplate {
     final items = <RenovationTemplateItem>[];
     if (rawItems is List) {
       for (final item in rawItems) {
-        if (item is Map<String, dynamic>) {
-          items.add(RenovationTemplateItem.fromMap(item));
-        } else if (item is Map) {
+        if (item is Map) {
           items.add(
             RenovationTemplateItem.fromMap(Map<String, dynamic>.from(item)),
           );
@@ -177,22 +178,18 @@ class RenovationTemplate {
     return RenovationTemplate(
       id: id,
       renovationType: (data['renovationType'] ?? '').toString(),
-      style: (data['style'] ?? '').toString(),
+      scope: RenovationScope.fromString(data['scope']?.toString()),
       name: (data['name'] ?? '').toString(),
       description: (data['description'] ?? '').toString(),
       items: items,
-      order: (data['order'] is num) ? (data['order'] as num).toInt() : 1,
     );
   }
 
   Map<String, dynamic> toMap() => {
         'renovationType': renovationType,
-        'style': style,
+        'scope': scope.label,
         'name': name,
-        'name_lower': name.toLowerCase(),
         'description': description,
-        'isActive': true,
-        'order': order,
         'items': items.map((e) => e.toMap()).toList(),
       };
 
@@ -200,21 +197,35 @@ class RenovationTemplate {
     return RenovationTemplate(
       id: id,
       renovationType: renovationType,
-      style: style,
+      scope: scope,
       name: name,
       description: description,
       items: newItems,
-      order: order,
     );
   }
 }
 
-/// Built-in essential templates — reference packages only.
+/// Built-in templates: one material list for each project and renovation type.
+///
+/// A template is a starting list, not a survey. Quantities come later, from
+/// the measured room or the entered area, and the builder can still remove any
+/// line before requesting quotations.
 class RenovationTemplatesCatalog {
   RenovationTemplatesCatalog._();
 
-  /// The three reference styles offered for every renovation type.
-  static const List<String> styles = ['modern', 'minimalist', 'traditional'];
+  /// The projects offered on the home screen, in the same order.
+  static const List<String> projectTypes = [
+    'Bathroom Renovation',
+    'Kitchen Renovation',
+    'Floor Renovation',
+    'Roof Repair',
+    'Interior Painting',
+    'Living Room Renovation',
+    'Bedroom Renovation',
+    'Laundry Renovation',
+    'Dining Room Renovation',
+    'Wall Finishing',
+  ];
 
   static String normalizeType(String renovationType) {
     return renovationType
@@ -223,123 +234,62 @@ class RenovationTemplatesCatalog {
         .trim();
   }
 
-  /// Maps any free-form style label onto one of [styles].
-  static String styleKey(String style) {
-    final value = style.toLowerCase().trim();
-    if (value.contains('minimal') || value.contains('basic')) {
-      return 'minimalist';
-    }
-    if (value.contains('tradition') ||
-        value.contains('classic') ||
-        value.contains('standard')) {
-      return 'traditional';
-    }
-    return 'modern';
-  }
+  static String _key(String renovationType) =>
+      normalizeType(renovationType).toLowerCase();
 
-  static String styleLabel(String style) {
-    final key = styleKey(style);
-    return '${key[0].toUpperCase()}${key.substring(1)}';
-  }
+  /// Painting has nothing structural or functional to change, and a floor or a
+  /// wall on its own has no plumbing or wiring. Every other project can be any
+  /// of the three.
+  static const Map<String, List<RenovationScope>> _scopesByType = {
+    'floor renovation': [RenovationScope.cosmetic, RenovationScope.structural],
+    'wall finishing': [RenovationScope.cosmetic, RenovationScope.structural],
+    'interior painting': [RenovationScope.cosmetic],
+  };
 
-  static List<RenovationTemplate> forType(String renovationType) {
-    final label = normalizeType(renovationType);
-    final key = label.toLowerCase();
-    final matched = allTemplates
-        .where((t) => t.renovationType.toLowerCase() == key)
-        .toList()
-      ..sort((a, b) => a.order.compareTo(b.order));
+  /// The renovation types [renovationType] can be.
+  static List<RenovationScope> scopesFor(String renovationType) =>
+      _scopesByType[_key(renovationType)] ?? RenovationScope.values;
 
-    if (matched.isNotEmpty) return matched;
+  static bool offers(String renovationType, RenovationScope scope) =>
+      scopesFor(renovationType).contains(scope);
 
-    // Match "Bathroom" → "Bathroom Renovation", etc.
-    final loose = allTemplates
-        .where((t) {
-          final type = t.renovationType.toLowerCase();
-          return type.contains(key) || key.contains(type.split(' ').first);
-        })
-        .toList()
-      ..sort((a, b) => a.order.compareTo(b.order));
-    if (loose.isNotEmpty) return loose;
-
-    return _generalFor(label.isEmpty ? 'Renovation' : label);
-  }
-
-  /// Exactly three templates for [renovationType] — one per entry in [styles].
-  static List<RenovationTemplate> threeForType(String renovationType) {
-    return threeFrom(forType(renovationType), renovationType);
-  }
-
-  /// Normalizes [candidates] into one template per style, in [styles] order.
-  ///
-  /// Earlier candidates win. Missing styles are derived from whatever is available so the
-  /// picker always offers the same three choices.
-  static List<RenovationTemplate> threeFrom(
-    List<RenovationTemplate> candidates,
+  /// Why [scope] is not offered for [renovationType].
+  static String unavailableReason(
     String renovationType,
+    RenovationScope scope,
   ) {
-    final label = normalizeType(renovationType);
-    final byStyle = <String, RenovationTemplate>{};
-    final spares = <RenovationTemplate>[];
-
-    for (final template in candidates) {
-      if (template.items.isEmpty) continue;
-      final key = styleKey(template.style);
-      if (byStyle.containsKey(key)) {
-        spares.add(template);
-      } else {
-        byStyle[key] = template;
-      }
-    }
-
-    final pool = byStyle.values.toList()..addAll(spares);
-    if (pool.isEmpty) {
-      pool.addAll(_generalFor(label.isEmpty ? 'Renovation' : label));
-      for (final template in pool) {
-        byStyle.putIfAbsent(styleKey(template.style), () => template);
-      }
-    }
-
-    final result = <RenovationTemplate>[];
-    for (var i = 0; i < styles.length; i++) {
-      final style = styles[i];
-      final existing = byStyle[style];
-      final base =
-          existing ?? (spares.isNotEmpty ? spares.first : pool.first);
-      if (existing == null) {
-        spares.remove(base);
-      }
-      result.add(_asStyle(base, style, label, i + 1));
-    }
-    return result;
+    final type = normalizeType(renovationType);
+    return switch (scope) {
+      RenovationScope.structural => '$type does not change the structure.',
+      RenovationScope.functional => '$type has no plumbing or wiring to upgrade.',
+      RenovationScope.cosmetic => '$type is not a finishing job.',
+    };
   }
 
-  static RenovationTemplate _asStyle(
-    RenovationTemplate base,
-    String style,
+  /// The template for [renovationType] done as a [scope] renovation.
+  static RenovationTemplate forProject(
     String renovationType,
-    int order,
+    RenovationScope scope,
   ) {
-    final type = renovationType.isEmpty ? base.renovationType : renovationType;
-    if (styleKey(base.style) == style &&
-        base.renovationType == type &&
-        base.order == order) {
-      return base;
-    }
-
-    final renamed = styleKey(base.style) != style;
+    final type = normalizeType(renovationType).isEmpty
+        ? 'Renovation'
+        : normalizeType(renovationType);
+    final key = type.toLowerCase();
     return RenovationTemplate(
-      id: renamed ? '${_idPrefix(type)}_$style' : base.id,
+      id: '${_idPrefix(type)}_${scope.name}',
       renovationType: type,
-      style: style,
-      name: renamed ? '${styleLabel(style)} ${_shortType(type)}' : base.name,
-      description: renamed
-          ? '${styleLabel(style)} take on the essentials — reference only.'
-          : base.description,
-      items: base.items,
-      order: order,
+      scope: scope,
+      name: '${scope.label} ${_shortType(type)}',
+      description: _descriptionFor(key, scope),
+      items: _itemsFor(key, scope),
     );
   }
+
+  /// Every template the app offers.
+  static List<RenovationTemplate> get allTemplates => [
+        for (final type in projectTypes)
+          for (final scope in scopesFor(type)) forProject(type, scope),
+      ];
 
   static String _idPrefix(String renovationType) {
     return renovationType
@@ -360,717 +310,819 @@ class RenovationTemplatesCatalog {
     return trimmed.isEmpty ? renovationType : trimmed;
   }
 
-  /// Last-resort package for renovation types without a curated template.
-  static List<RenovationTemplate> _generalFor(String renovationType) {
-    const items = [
-      RenovationTemplateItem(
-        name: 'Floor Tiles',
-        category: 'Floor Surface',
-        unit: 'sqm',
-        defaultQuantity: 1,
-        qtyPerSqm: 1.0,
-        isSwappable: true,
-        alternatives: _tileAlts,
-      ),
-      // Floor bedding, not masonry. Filed under Masonry, the cement read as CHB
-      // mortar, which a full renovation drops, and the BOM kept the sand
-      // without the cement to mix it with.
-      RenovationTemplateItem(
-        name: 'Portland Cement',
-        category: 'Floor Preparation',
-        unit: 'bags',
-        defaultQuantity: 1,
-        qtyPerSqm: 0.5,
-      ),
-      RenovationTemplateItem(
-        name: 'Washed Sand',
-        category: 'Floor Preparation',
-        unit: 'cu.m',
-        defaultQuantity: 1,
-        qtyPerSqm: 0.05,
-      ),
-      RenovationTemplateItem(
-        name: 'Interior Paint',
-        category: 'Wall Finishing',
-        unit: 'gal',
-        defaultQuantity: 1,
-        qtyPerSqm: 0.1,
-      ),
-      RenovationTemplateItem(
-        name: 'Assorted Fasteners',
-        category: 'Installation',
-        unit: 'box',
-        defaultQuantity: 1,
-      ),
-    ];
+  static const String _engineerNote =
+      'Walls, slab and reinforcement for a changed layout or a bigger room. '
+      'Structural work, including foundation repair and underpinning, follows a '
+      'plan signed by a licensed civil engineer; footings, columns and beams '
+      'come from that plan.';
 
-    final prefix = _idPrefix(renovationType);
-    final short = _shortType(renovationType);
+  static const String _electricianNote =
+      'Wiring, devices and a breaker for the room. Electrical work is done by a '
+      'licensed electrician to the Philippine Electrical Code.';
 
-    return [
-      for (var i = 0; i < styles.length; i++)
-        RenovationTemplate(
-          id: '${prefix}_${styles[i]}',
-          renovationType: renovationType,
-          style: styles[i],
-          name: '${styleLabel(styles[i])} $short',
-          description: 'Essential materials package — reference only.',
-          items: items,
-          order: i + 1,
-        ),
-    ];
+  static String _descriptionFor(String key, RenovationScope scope) {
+    if (key.contains('roof')) {
+      return switch (scope) {
+        RenovationScope.cosmetic =>
+          'Repaint and reseal an existing metal roof.',
+        RenovationScope.structural =>
+          'Replace the roofing sheets and purlins. Trusses and rafters come from '
+              'the structural plan.',
+        RenovationScope.functional =>
+          'New gutters and downspouts to carry rainwater off the roof.',
+      };
+    }
+    if (key.contains('floor')) {
+      return scope == RenovationScope.structural
+          ? 'Break out and recast a damaged or uneven floor slab, then retile.'
+          : 'Retile the floor and replace the skirting.';
+    }
+    if (key.contains('paint')) {
+      return 'Skim coat, primer and two coats of paint on walls and ceiling.';
+    }
+    if (key.contains('wall')) {
+      return scope == RenovationScope.structural
+          ? 'Rebuild or add a CHB wall, then plaster and paint it. $_engineerNote'
+          : 'Skim coat, primer and paint, with wall tiles if you choose them.';
+    }
+    final wet = key.contains('bath') || key.contains('laundry');
+    return switch (scope) {
+      RenovationScope.cosmetic => wet
+          ? 'New tiles, waterproofing, paint and fixtures.'
+          : key.contains('kitchen')
+              ? 'New tiles, backsplash, countertop, paint and sink.'
+              : 'New floor tiles, skirting and paint.',
+      RenovationScope.structural => _engineerNote,
+      RenovationScope.functional => key.contains('bath')
+          ? 'New water supply and drainage lines for one water closet, one '
+              'lavatory and one shower.'
+          : key.contains('kitchen') || key.contains('laundry')
+              ? 'New water and drain lines, plus wiring for appliances. '
+                  '$_electricianNote'
+              : _electricianNote,
+    };
   }
 
-  static List<RenovationTemplate> get allTemplates => [
-        ..._kitchen,
-        ..._bathroom,
-        ..._floor,
-        ..._roof,
-        ..._painting,
-        ..._electrical,
-        ..._plumbing,
-      ];
+  static List<RenovationTemplateItem> _itemsFor(
+    String key,
+    RenovationScope scope,
+  ) {
+    if (key.contains('roof')) {
+      return switch (scope) {
+        RenovationScope.cosmetic => _roofRepaint,
+        RenovationScope.structural => _roofReplacement,
+        RenovationScope.functional => _roofDrainage,
+      };
+    }
+    if (key.contains('floor')) {
+      return scope == RenovationScope.structural
+          ? _floorSlabRepair
+          : const [_floorTile, _skirting];
+    }
+    if (key.contains('paint')) return _painting;
+    if (key.contains('wall')) {
+      return scope == RenovationScope.structural
+          ? const [..._newWalls, _skimCoat, _primer, _paint]
+          : const [_skimCoat, _primer, _paint, _maskingTape];
+    }
+    if (key.contains('bath')) {
+      return switch (scope) {
+        RenovationScope.cosmetic => const [
+            ..._wetFinishes,
+            _waterCloset,
+            _lavatory,
+            _showerSet,
+          ],
+        RenovationScope.structural => const [..._newRoom, ..._wetFinishes],
+        RenovationScope.functional => _bathroomPlumbing,
+      };
+    }
+    if (key.contains('laundry')) {
+      return switch (scope) {
+        RenovationScope.cosmetic => _wetFinishes,
+        RenovationScope.structural => const [..._newRoom, ..._wetFinishes],
+        RenovationScope.functional => const [
+            ..._laundryPlumbing,
+            ..._roomWiring,
+          ],
+      };
+    }
+    if (key.contains('kitchen')) {
+      return switch (scope) {
+        RenovationScope.cosmetic => const [
+            _floorTile,
+            _backsplashTile,
+            _countertop,
+            _primer,
+            _paint,
+            _kitchenSink,
+            _sinkFaucet,
+          ],
+        RenovationScope.structural => const [
+            ..._newRoom,
+            _floorTile,
+            _backsplashTile,
+            _primer,
+            _paint,
+          ],
+        RenovationScope.functional => const [
+            ..._kitchenPlumbing,
+            ..._roomWiring,
+            ..._kitchenAppliances,
+          ],
+      };
+    }
+    // Living room, bedroom, dining room, and any other room.
+    return switch (scope) {
+      RenovationScope.cosmetic => _dryFinishes,
+      RenovationScope.structural => const [
+          ..._newRoom,
+          _floorTile,
+          _skimCoat,
+          _primer,
+          _paint,
+        ],
+      RenovationScope.functional => _roomWiring,
+    };
+  }
 
-  static const _tileAlts = [
-    MaterialAlternative(name: 'Ceramic Floor Tiles', size: '600x600'),
-    MaterialAlternative(name: 'Porcelain Floor Tiles', size: '600x600'),
-    MaterialAlternative(name: 'Vinyl Flooring Planks'),
-    MaterialAlternative(name: 'Non-Slip Floor Tiles', size: '300x300'),
+  // ── Finishes ─────────────────────────────────────────────────────────────
+
+  static const _floorTile = RenovationTemplateItem(
+    name: 'Ceramic Floor Tiles',
+    category: 'Floor Surface',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    size: '600x600',
+  );
+
+  static const _nonSlipFloorTile = RenovationTemplateItem(
+    name: 'Non-Slip Floor Tiles',
+    category: 'Floor Surface',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    size: '300x300',
+    notes: 'Non-slip for a wet floor',
+  );
+
+  static const _wallTile = RenovationTemplateItem(
+    name: 'Ceramic Wall Tiles',
+    category: 'Wall Surface',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    size: '300x600',
+  );
+
+  static const _backsplashTile = RenovationTemplateItem(
+    name: 'Subway Wall Tiles',
+    category: 'Wall Surface',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    size: '75x300',
+    notes: 'Backsplash along the counter',
+  );
+
+  static const _waterproofing = RenovationTemplateItem(
+    name: 'Cementitious Waterproofing',
+    category: 'Waterproofing',
+    unit: 'L',
+    defaultQuantity: 1,
+    qtyPerSqm: 0.8,
+    notes: 'Two coats on the floor and a 0.30 m upturn',
+  );
+
+  static const _skimCoat = RenovationTemplateItem(
+    name: 'Skim Coat (20 kg)',
+    category: 'Wall Finishing',
+    unit: 'bags',
+    defaultQuantity: 1,
+  );
+
+  static const _primer = RenovationTemplateItem(
+    name: 'Concrete Primer (4 L)',
+    category: 'Wall Finishing',
+    unit: 'gal',
+    defaultQuantity: 1,
+  );
+
+  static const _paint = RenovationTemplateItem(
+    name: 'Interior Latex Paint (4 L)',
+    category: 'Wall Finishing',
+    unit: 'gal',
+    defaultQuantity: 1,
+  );
+
+  static const _maskingTape = RenovationTemplateItem(
+    name: 'Masking Tape (1")',
+    category: 'Painting Supplies',
+    unit: 'rolls',
+    defaultQuantity: 3,
+  );
+
+  static const _skirting = RenovationTemplateItem(
+    name: 'Skirting',
+    category: 'Floor Finishing',
+    unit: 'lm',
+    defaultQuantity: 1,
+    qtyPerSqm: 1.2,
+  );
+
+  static const _countertop = RenovationTemplateItem(
+    name: 'Granite Countertop',
+    category: 'Countertops',
+    unit: 'sqm',
+    defaultQuantity: 1,
+    qtyPerSqm: 0.25,
+  );
+
+  static const _wetFinishes = [
+    _nonSlipFloorTile,
+    _wallTile,
+    _waterproofing,
+    _primer,
+    _paint,
   ];
 
-  static const _wallTileAlts = [
-    MaterialAlternative(name: 'Subway Wall Tiles', size: '75x300'),
-    MaterialAlternative(name: 'Ceramic Wall Tiles', size: '300x600'),
-    MaterialAlternative(name: 'Large-format Wall Tiles', size: '600x1200'),
-  ];
-
-  static const _kitchen = [
-    RenovationTemplate(
-      id: 'kitchen_modern',
-      renovationType: 'Kitchen Renovation',
-      style: 'modern',
-      name: 'Modern Kitchen',
-      description: 'Essential modern kitchen materials — use as a reference.',
-      order: 1,
-      items: [
-        RenovationTemplateItem(
-          name: 'Floor Tiles',
-          category: 'Flooring',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.0,
-          size: '600x600',
-          isSwappable: true,
-          alternatives: _tileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Wall Tiles (Backsplash)',
-          category: 'Wall Finishing',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.35,
-          size: '75x300',
-          isSwappable: true,
-          alternatives: _wallTileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Countertop',
-          category: 'Countertops',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.25,
-        ),
-        RenovationTemplateItem(
-          name: 'Base Cabinets',
-          category: 'Cabinetry',
-          unit: 'set',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.3,
-        ),
-        RenovationTemplateItem(
-          name: 'Kitchen Sink',
-          category: 'Plumbing Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Faucet',
-          category: 'Plumbing Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Tile Adhesive',
-          category: 'Installation',
-          unit: 'bags',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.25,
-        ),
-        RenovationTemplateItem(
-          name: 'Grout',
-          category: 'Installation',
-          unit: 'bags',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.12,
-        ),
-      ],
-    ),
-    RenovationTemplate(
-      id: 'kitchen_minimalist',
-      renovationType: 'Kitchen Renovation',
-      style: 'minimalist',
-      name: 'Minimalist Kitchen',
-      description: 'Lean essential package — reference for a simple kitchen.',
-      order: 2,
-      items: [
-        RenovationTemplateItem(
-          name: 'Vinyl Flooring',
-          category: 'Flooring',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.0,
-          isSwappable: true,
-          alternatives: _tileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Interior Paint',
-          category: 'Wall Finishing',
-          unit: 'gal',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.08,
-        ),
-        RenovationTemplateItem(
-          name: 'Laminate Countertop',
-          category: 'Countertops',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.22,
-        ),
-        RenovationTemplateItem(
-          name: 'Base Cabinets',
-          category: 'Cabinetry',
-          unit: 'set',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.25,
-        ),
-        RenovationTemplateItem(
-          name: 'Kitchen Sink',
-          category: 'Plumbing Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Faucet',
-          category: 'Plumbing Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-      ],
-    ),
-    RenovationTemplate(
-      id: 'kitchen_traditional',
-      renovationType: 'Kitchen Renovation',
-      style: 'traditional',
-      name: 'Traditional Kitchen',
-      description: 'Classic essential materials — reference package.',
-      order: 3,
-      items: [
-        RenovationTemplateItem(
-          name: 'Ceramic Floor Tiles',
-          category: 'Flooring',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.0,
-          size: '400x400',
-          isSwappable: true,
-          alternatives: _tileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Ceramic Wall Tiles',
-          category: 'Wall Finishing',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.4,
-          isSwappable: true,
-          alternatives: _wallTileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Granite Countertop',
-          category: 'Countertops',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.25,
-        ),
-        RenovationTemplateItem(
-          name: 'Base Cabinets',
-          category: 'Cabinetry',
-          unit: 'set',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.3,
-        ),
-        RenovationTemplateItem(
-          name: 'Kitchen Sink',
-          category: 'Plumbing Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Faucet',
-          category: 'Plumbing Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Tile Adhesive',
-          category: 'Installation',
-          unit: 'bags',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.25,
-        ),
-      ],
-    ),
-  ];
-
-  static const _bathroom = [
-    RenovationTemplate(
-      id: 'bathroom_modern',
-      renovationType: 'Bathroom Renovation',
-      style: 'modern',
-      name: 'Modern Bathroom',
-      description: 'Essential wet-area materials — reference only.',
-      order: 1,
-      items: [
-        RenovationTemplateItem(
-          name: 'Floor Tiles',
-          category: 'Floor Surface',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.0,
-          isSwappable: true,
-          alternatives: _tileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Wall Tiles',
-          category: 'Wall Surface',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 2.2,
-          isSwappable: true,
-          alternatives: _wallTileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Waterproofing',
-          category: 'Installation',
-          unit: 'L',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.8,
-        ),
-        RenovationTemplateItem(
-          name: 'Toilet',
-          category: 'Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Lavatory Sink',
-          category: 'Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Shower Set',
-          category: 'Fixtures',
-          unit: 'set',
-          defaultQuantity: 1,
-        ),
-      ],
-    ),
-    RenovationTemplate(
-      id: 'bathroom_minimalist',
-      renovationType: 'Bathroom Renovation',
-      style: 'minimalist',
-      name: 'Minimalist Bathroom',
-      description: 'Basic bathroom essentials — reference package.',
-      order: 2,
-      items: [
-        RenovationTemplateItem(
-          name: 'Floor Tiles',
-          category: 'Floor Surface',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.0,
-          isSwappable: true,
-          alternatives: _tileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Wall Tiles',
-          category: 'Wall Surface',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 2.0,
-          isSwappable: true,
-          alternatives: _wallTileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Toilet',
-          category: 'Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Lavatory Sink',
-          category: 'Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Shower Set',
-          category: 'Fixtures',
-          unit: 'set',
-          defaultQuantity: 1,
-        ),
-      ],
-    ),
-    RenovationTemplate(
-      id: 'bathroom_traditional',
-      renovationType: 'Bathroom Renovation',
-      style: 'traditional',
-      name: 'Traditional Bathroom',
-      description: 'Standard bathroom essentials — reference package.',
-      order: 3,
-      items: [
-        RenovationTemplateItem(
-          name: 'Ceramic Floor Tiles',
-          category: 'Floor Surface',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.0,
-          isSwappable: true,
-          alternatives: _tileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Ceramic Wall Tiles',
-          category: 'Wall Surface',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 2.2,
-          isSwappable: true,
-          alternatives: _wallTileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Toilet',
-          category: 'Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Lavatory Sink',
-          category: 'Fixtures',
-          unit: 'pcs',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Shower Valve Set',
-          category: 'Fixtures',
-          unit: 'set',
-          defaultQuantity: 1,
-        ),
-        RenovationTemplateItem(
-          name: 'Tile Adhesive',
-          category: 'Installation',
-          unit: 'bags',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.4,
-        ),
-      ],
-    ),
-  ];
-
-  static const _floor = [
-    RenovationTemplate(
-      id: 'floor_modern',
-      renovationType: 'Floor Renovation',
-      style: 'modern',
-      name: 'Modern Flooring',
-      description: 'Essential flooring package — reference.',
-      order: 1,
-      items: [
-        RenovationTemplateItem(
-          name: 'Floor Tiles',
-          category: 'Floor Surface',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.0,
-          isSwappable: true,
-          alternatives: _tileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Tile Adhesive',
-          category: 'Floor Installation',
-          unit: 'bags',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.4,
-        ),
-        RenovationTemplateItem(
-          name: 'Grout',
-          category: 'Floor Installation',
-          unit: 'bags',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.15,
-        ),
-        RenovationTemplateItem(
-          name: 'Skirting',
-          category: 'Finishing',
-          unit: 'lm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.2,
-        ),
-      ],
-    ),
-    RenovationTemplate(
-      id: 'floor_minimalist',
-      renovationType: 'Floor Renovation',
-      style: 'minimalist',
-      name: 'Minimalist Flooring',
-      description: 'Basic flooring essentials — reference.',
-      order: 2,
-      items: [
-        RenovationTemplateItem(
-          name: 'Vinyl Flooring',
-          category: 'Floor Surface',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.0,
-          isSwappable: true,
-          alternatives: _tileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Underlayment',
-          category: 'Floor Installation',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.0,
-        ),
-        RenovationTemplateItem(
-          name: 'Skirting',
-          category: 'Finishing',
-          unit: 'lm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.2,
-        ),
-      ],
-    ),
-    RenovationTemplate(
-      id: 'floor_traditional',
-      renovationType: 'Floor Renovation',
-      style: 'traditional',
-      name: 'Traditional Flooring',
-      description: 'Standard tile flooring essentials — reference.',
-      order: 3,
-      items: [
-        RenovationTemplateItem(
-          name: 'Ceramic Floor Tiles',
-          category: 'Floor Surface',
-          unit: 'sqm',
-          defaultQuantity: 1,
-          qtyPerSqm: 1.0,
-          isSwappable: true,
-          alternatives: _tileAlts,
-        ),
-        RenovationTemplateItem(
-          name: 'Tile Adhesive',
-          category: 'Floor Installation',
-          unit: 'bags',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.4,
-        ),
-        RenovationTemplateItem(
-          name: 'Grout',
-          category: 'Floor Installation',
-          unit: 'bags',
-          defaultQuantity: 1,
-          qtyPerSqm: 0.15,
-        ),
-      ],
-    ),
-  ];
-
-  static const _roof = [
-    RenovationTemplate(
-      id: 'roof_modern',
-      renovationType: 'Roof Repair',
-      style: 'modern',
-      name: 'Modern Roofing',
-      description: 'Essential roofing materials — reference.',
-      order: 1,
-      items: [
-        // Rib-type is cut to order and sold by the linear metre, so a piece
-        // count with no length is not something a shop can quote.
-        RenovationTemplateItem(name: 'Pre-painted Rib-type Roofing Ga.26', category: 'Roofing', unit: 'ln.m', defaultQuantity: 1),
-        RenovationTemplateItem(name: 'Ridge Roll (Pre-painted)', category: 'Roofing', unit: 'ln.m', defaultQuantity: 1),
-        RenovationTemplateItem(name: 'Tekscrew with Rubber Washer', category: 'Roof Installation', unit: 'pcs', defaultQuantity: 1),
-        RenovationTemplateItem(name: 'Roof Sealant (1 L can)', category: 'Roofing', unit: 'cans', defaultQuantity: 1),
-      ],
-    ),
-    RenovationTemplate(
-      id: 'roof_minimalist',
-      renovationType: 'Roof Repair',
-      style: 'minimalist',
-      name: 'Minimalist Roofing',
-      description: 'Basic leak-repair essentials — reference.',
-      order: 2,
-      items: [
-        RenovationTemplateItem(name: 'Patch Sheets', category: 'Roofing', unit: 'pcs', defaultQuantity: 6),
-        RenovationTemplateItem(name: 'Waterproofing Membrane', category: 'Waterproofing', unit: 'roll', defaultQuantity: 2),
-        RenovationTemplateItem(name: 'Roof Sealant (1 L can)', category: 'Roofing', unit: 'cans', defaultQuantity: 1),
-      ],
-    ),
-    RenovationTemplate(
-      id: 'roof_traditional',
-      renovationType: 'Roof Repair',
-      style: 'traditional',
-      name: 'Traditional Roofing',
-      description: 'Tile roof essentials — reference.',
-      order: 3,
-      items: [
-        RenovationTemplateItem(name: 'Concrete Roof Tiles', category: 'Roofing', unit: 'pcs', defaultQuantity: 1),
-        RenovationTemplateItem(name: 'Ridge Tiles', category: 'Roofing', unit: 'pcs', defaultQuantity: 1),
-        RenovationTemplateItem(name: 'Portland Cement - Ridge Bedding (40 kg)', category: 'Roof Installation', unit: 'bags', defaultQuantity: 1),
-        RenovationTemplateItem(name: 'Roof Sealant (1 L can)', category: 'Roofing', unit: 'cans', defaultQuantity: 1),
-      ],
-    ),
+  static const _dryFinishes = [
+    _floorTile,
+    _skirting,
+    _skimCoat,
+    _primer,
+    _paint,
+    _maskingTape,
   ];
 
   static const _painting = [
-    RenovationTemplate(
-      id: 'painting_modern',
-      renovationType: 'Interior Painting',
-      style: 'modern',
-      name: 'Modern Painting',
-      description: 'Essential paint package — reference.',
-      order: 1,
-      items: [
-        RenovationTemplateItem(name: 'Primer', category: 'Paint', unit: 'gal', defaultQuantity: 1, qtyPerSqm: 0.05),
-        RenovationTemplateItem(name: 'Interior Paint', category: 'Paint', unit: 'gal', defaultQuantity: 1, qtyPerSqm: 0.1),
-        RenovationTemplateItem(name: 'Roller Set', category: 'Tools & Supplies', unit: 'set', defaultQuantity: 1),
-        RenovationTemplateItem(name: 'Painter\'s Tape', category: 'Tools & Supplies', unit: 'pcs', defaultQuantity: 4),
-      ],
-    ),
-    RenovationTemplate(
-      id: 'painting_minimalist',
-      renovationType: 'Interior Painting',
-      style: 'minimalist',
-      name: 'Minimalist Painting',
-      description: 'Basic paint essentials — reference.',
-      order: 2,
-      items: [
-        RenovationTemplateItem(name: 'Primer', category: 'Paint', unit: 'gal', defaultQuantity: 1, qtyPerSqm: 0.05),
-        RenovationTemplateItem(name: 'Matte Interior Paint', category: 'Paint', unit: 'gal', defaultQuantity: 1, qtyPerSqm: 0.1),
-        RenovationTemplateItem(name: 'Roller Set', category: 'Tools & Supplies', unit: 'set', defaultQuantity: 1),
-      ],
-    ),
-    RenovationTemplate(
-      id: 'painting_traditional',
-      renovationType: 'Interior Painting',
-      style: 'traditional',
-      name: 'Traditional Painting',
-      description: 'Standard paint essentials — reference.',
-      order: 3,
-      items: [
-        RenovationTemplateItem(name: 'Primer', category: 'Paint', unit: 'gal', defaultQuantity: 1, qtyPerSqm: 0.05),
-        RenovationTemplateItem(name: 'Interior Paint', category: 'Paint', unit: 'gal', defaultQuantity: 1, qtyPerSqm: 0.1),
-        RenovationTemplateItem(name: 'Brush Set', category: 'Tools & Supplies', unit: 'set', defaultQuantity: 1),
-        RenovationTemplateItem(name: 'Sandpaper Pack', category: 'Tools & Supplies', unit: 'packs', defaultQuantity: 2),
-      ],
+    _skimCoat,
+    _primer,
+    _paint,
+    _maskingTape,
+    RenovationTemplateItem(
+      name: 'Paint Brush (2")',
+      category: 'Painting Supplies',
+      unit: 'pcs',
+      defaultQuantity: 2,
     ),
   ];
 
-  static const _electrical = [
-    RenovationTemplate(
-      id: 'electrical_modern',
-      renovationType: 'Electrical Installation',
-      style: 'modern',
-      name: 'Modern Electrical',
-      description: 'Essential electrical materials — reference.',
-      order: 1,
-      items: [
-        RenovationTemplateItem(name: 'Electrical Wire', category: 'Wiring', unit: 'm', defaultQuantity: 40, qtyPerSqm: 2.5),
-        RenovationTemplateItem(name: 'Outlets', category: 'Devices', unit: 'pcs', defaultQuantity: 6, qtyPerSqm: 0.25),
-        RenovationTemplateItem(name: 'Switches', category: 'Devices', unit: 'pcs', defaultQuantity: 4, qtyPerSqm: 0.15),
-        RenovationTemplateItem(name: 'LED Lights', category: 'Lighting', unit: 'pcs', defaultQuantity: 4, qtyPerSqm: 0.2),
-      ],
+  // ── Fixtures ─────────────────────────────────────────────────────────────
+
+  static const _waterCloset = RenovationTemplateItem(
+    name: 'Water Closet (Two-piece)',
+    category: 'Plumbing Fixtures',
+    unit: 'set',
+    defaultQuantity: 1,
+  );
+
+  static const _lavatory = RenovationTemplateItem(
+    name: 'Lavatory with Pedestal',
+    category: 'Plumbing Fixtures',
+    unit: 'set',
+    defaultQuantity: 1,
+  );
+
+  static const _showerSet = RenovationTemplateItem(
+    name: 'Shower Set',
+    category: 'Plumbing Fixtures',
+    unit: 'set',
+    defaultQuantity: 1,
+  );
+
+  static const _kitchenSink = RenovationTemplateItem(
+    name: 'Stainless Kitchen Sink (Single Bowl)',
+    category: 'Plumbing Fixtures',
+    unit: 'pcs',
+    defaultQuantity: 1,
+  );
+
+  static const _sinkFaucet = RenovationTemplateItem(
+    name: 'Sink Faucet (Gooseneck)',
+    category: 'Plumbing Fixtures',
+    unit: 'pcs',
+    defaultQuantity: 1,
+  );
+
+  // ── Structure ────────────────────────────────────────────────────────────
+
+  static const _newWalls = [
+    RenovationTemplateItem(
+      name: 'Concrete Hollow Block (CHB)',
+      category: 'Masonry',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      size: '4"',
+      notes: 'New or rebuilt walls',
     ),
-    RenovationTemplate(
-      id: 'electrical_minimalist',
-      renovationType: 'Electrical Installation',
-      style: 'minimalist',
-      name: 'Minimalist Electrical',
-      description: 'Basic electrical essentials — reference.',
-      order: 2,
-      items: [
-        RenovationTemplateItem(name: 'Electrical Wire', category: 'Wiring', unit: 'm', defaultQuantity: 30, qtyPerSqm: 2.0),
-        RenovationTemplateItem(name: 'Outlets', category: 'Devices', unit: 'pcs', defaultQuantity: 4, qtyPerSqm: 0.2),
-        RenovationTemplateItem(name: 'Switches', category: 'Devices', unit: 'pcs', defaultQuantity: 3, qtyPerSqm: 0.12),
-        RenovationTemplateItem(name: 'Ceiling Lights', category: 'Lighting', unit: 'pcs', defaultQuantity: 3, qtyPerSqm: 0.15),
-      ],
+    RenovationTemplateItem(
+      name: 'Portland Cement - Masonry & Plaster (40 kg)',
+      category: 'Masonry',
+      unit: 'bags',
+      defaultQuantity: 1,
+      notes: 'CHB laying mortar plus 16 mm plaster on both faces',
     ),
-    RenovationTemplate(
-      id: 'electrical_traditional',
-      renovationType: 'Electrical Installation',
-      style: 'traditional',
-      name: 'Traditional Electrical',
-      description: 'Standard electrical essentials — reference.',
-      order: 3,
-      items: [
-        RenovationTemplateItem(name: 'Electrical Wire', category: 'Wiring', unit: 'm', defaultQuantity: 35, qtyPerSqm: 2.2),
-        RenovationTemplateItem(name: 'Outlets', category: 'Devices', unit: 'pcs', defaultQuantity: 5, qtyPerSqm: 0.22),
-        RenovationTemplateItem(name: 'Switches', category: 'Devices', unit: 'pcs', defaultQuantity: 4, qtyPerSqm: 0.15),
-        RenovationTemplateItem(name: 'Lights', category: 'Lighting', unit: 'pcs', defaultQuantity: 4, qtyPerSqm: 0.18),
-      ],
+    RenovationTemplateItem(
+      name: 'Washed Sand - Masonry & Plaster',
+      category: 'Masonry',
+      unit: 'cu.m',
+      defaultQuantity: 1,
+      notes: 'CHB laying mortar plus 16 mm plaster on both faces',
+    ),
+    RenovationTemplateItem(
+      name: 'Deformed Bar (6 m length)',
+      category: 'Reinforcement',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      size: '10mm',
+      notes: 'CHB wall reinforcement, vertical and horizontal',
+    ),
+    RenovationTemplateItem(
+      name: 'G.I. Tie Wire #16',
+      category: 'Reinforcement',
+      unit: 'kg',
+      defaultQuantity: 1,
+      notes: 'For tying the wall reinforcement',
     ),
   ];
 
-  static const _plumbing = [
-    RenovationTemplate(
-      id: 'plumbing_modern',
-      renovationType: 'Plumbing Installation',
-      style: 'modern',
-      name: 'Modern Plumbing',
-      description: 'Essential plumbing materials — reference.',
-      order: 1,
-      items: [
-        RenovationTemplateItem(name: 'Pipes', category: 'Pipes', unit: 'pcs', defaultQuantity: 10, qtyPerSqm: 0.5),
-        RenovationTemplateItem(name: 'Fittings', category: 'Fittings', unit: 'pcs', defaultQuantity: 20, qtyPerSqm: 1.0),
-        RenovationTemplateItem(name: 'Valves', category: 'Valves', unit: 'pcs', defaultQuantity: 4),
-        RenovationTemplateItem(name: 'Teflon Tape', category: 'Supplies', unit: 'pcs', defaultQuantity: 4),
-      ],
+  static const _slabCement = RenovationTemplateItem(
+    name: 'Portland Cement - Slab (40 kg)',
+    category: 'Concrete Slab',
+    unit: 'bags',
+    defaultQuantity: 1,
+    notes: 'Class A 1:2:4 concrete, 100 mm slab on grade',
+  );
+
+  static const _slabSand = RenovationTemplateItem(
+    name: 'Washed Sand - Slab',
+    category: 'Concrete Slab',
+    unit: 'cu.m',
+    defaultQuantity: 1,
+    notes: 'Class A 1:2:4 concrete, 100 mm slab on grade',
+  );
+
+  static const _gravel = RenovationTemplateItem(
+    name: 'Crushed Gravel 3/4"',
+    category: 'Concrete Slab',
+    unit: 'cu.m',
+    defaultQuantity: 1,
+    notes: 'Class A 1:2:4 concrete, 100 mm slab on grade',
+  );
+
+  static const _formwork = [
+    RenovationTemplateItem(
+      name: 'Marine Plywood 1/2" (4\'x8\')',
+      category: 'Formwork',
+      unit: 'sheets',
+      defaultQuantity: 2,
+      qtyPerSqm: 0.2,
+      notes: 'Forms for slab edges, lintels and columns',
     ),
-    RenovationTemplate(
-      id: 'plumbing_minimalist',
-      renovationType: 'Plumbing Installation',
-      style: 'minimalist',
-      name: 'Minimalist Plumbing',
-      description: 'Basic plumbing essentials — reference.',
-      order: 2,
-      items: [
-        RenovationTemplateItem(name: 'Pipes', category: 'Pipes', unit: 'pcs', defaultQuantity: 8, qtyPerSqm: 0.4),
-        RenovationTemplateItem(name: 'Fittings', category: 'Fittings', unit: 'pcs', defaultQuantity: 16, qtyPerSqm: 0.8),
-        RenovationTemplateItem(name: 'Valves', category: 'Valves', unit: 'pcs', defaultQuantity: 3),
-      ],
+    RenovationTemplateItem(
+      name: 'Coco Lumber (2"x2" & 2"x3")',
+      category: 'Formwork',
+      unit: 'bd.ft',
+      defaultQuantity: 30,
+      qtyPerSqm: 2.5,
+      notes: 'Form joists and shoring',
     ),
-    RenovationTemplate(
-      id: 'plumbing_traditional',
-      renovationType: 'Plumbing Installation',
-      style: 'traditional',
-      name: 'Traditional Plumbing',
-      description: 'Standard plumbing essentials — reference.',
-      order: 3,
-      items: [
-        RenovationTemplateItem(name: 'PVC Pipes', category: 'Pipes', unit: 'pcs', defaultQuantity: 10, qtyPerSqm: 0.5),
-        RenovationTemplateItem(name: 'PVC Fittings', category: 'Fittings', unit: 'pcs', defaultQuantity: 18, qtyPerSqm: 0.9),
-        RenovationTemplateItem(name: 'Valves', category: 'Valves', unit: 'pcs', defaultQuantity: 3),
-        RenovationTemplateItem(name: 'Solvent Cement', category: 'Supplies', unit: 'pcs', defaultQuantity: 2),
-      ],
+    RenovationTemplateItem(
+      name: 'Common Wire Nails (CWN Assorted)',
+      category: 'Formwork',
+      unit: 'kg',
+      defaultQuantity: 2,
+      qtyPerSqm: 0.15,
+      notes: 'Formwork assembly',
+    ),
+  ];
+
+  /// New walls, a new slab and the forms for them: a bigger room or a
+  /// changed layout.
+  static const _newRoom = [
+    ..._newWalls,
+    _slabCement,
+    _slabSand,
+    _gravel,
+    ..._formwork,
+  ];
+
+  static const _floorSlabRepair = [
+    _slabCement,
+    _slabSand,
+    _gravel,
+    RenovationTemplateItem(
+      name: 'Welded Mesh Reinforcement 6"x6" (Ga.10)',
+      category: 'Slab Reinforcement',
+      unit: 'sqm',
+      defaultQuantity: 1,
+      qtyPerSqm: 1.1,
+      notes: 'Laid mid-depth in the new slab, with a 150 mm lap',
+    ),
+    _floorTile,
+    _skirting,
+  ];
+
+  // ── Roof ─────────────────────────────────────────────────────────────────
+
+  static const _roofSealant = RenovationTemplateItem(
+    name: 'Roof Sealant (1 L can)',
+    category: 'Roofing',
+    unit: 'cans',
+    defaultQuantity: 1,
+  );
+
+  static const _metalPrimer = RenovationTemplateItem(
+    name: 'Metal Primer (Red Oxide, 4 L)',
+    category: 'Roof Painting',
+    unit: 'gal',
+    defaultQuantity: 1,
+  );
+
+  static const _roofRepaint = [
+    _metalPrimer,
+    RenovationTemplateItem(
+      name: 'Roof Paint (4 L)',
+      category: 'Roof Painting',
+      unit: 'gal',
+      defaultQuantity: 1,
+    ),
+    _roofSealant,
+    RenovationTemplateItem(
+      name: 'Steel Brush (for rust removal)',
+      category: 'Painting Supplies',
+      unit: 'pcs',
+      defaultQuantity: 2,
+    ),
+  ];
+
+  static const _roofReplacement = [
+    // Rib-type is cut to order and sold by the linear metre, so a piece count
+    // with no length is not something a shop can quote.
+    RenovationTemplateItem(
+      name: 'Pre-painted Rib-type Roofing Ga.26',
+      category: 'Roofing',
+      unit: 'ln.m',
+      defaultQuantity: 1,
+    ),
+    RenovationTemplateItem(
+      name: 'Ridge Roll (Pre-painted)',
+      category: 'Roofing',
+      unit: 'ln.m',
+      defaultQuantity: 1,
+    ),
+    RenovationTemplateItem(
+      name: 'C-Purlin 2" x 4" x 1.5 mm (6 m length)',
+      category: 'Roof Framing',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      qtyPerSqm: 0.32,
+      notes: 'Purlins at 600 mm on centre',
+    ),
+    RenovationTemplateItem(
+      name: 'Tekscrew with Rubber Washer',
+      category: 'Roof Installation',
+      unit: 'pcs',
+      defaultQuantity: 1,
+    ),
+    RenovationTemplateItem(
+      name: 'Welding Rod 1/8" (E6013)',
+      category: 'Roof Framing',
+      unit: 'kg',
+      defaultQuantity: 1,
+      qtyPerSqm: 0.05,
+    ),
+    _roofSealant,
+  ];
+
+  static const _roofDrainage = [
+    RenovationTemplateItem(
+      name: 'Pre-painted Roof Gutter Ga.24 (3 m length)',
+      category: 'Roof Drainage',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      notes: 'Along both eaves',
+    ),
+    RenovationTemplateItem(
+      name: 'Gutter Bracket',
+      category: 'Roof Drainage',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      notes: 'One every 0.60 m of gutter',
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Downspout Pipe 3" (3 m length)',
+      category: 'Roof Drainage',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      notes: 'One downspout per 9 m of gutter, one storey high',
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Downspout Elbow 3"',
+      category: 'Roof Drainage',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      notes: 'Two per downspout',
+    ),
+    RenovationTemplateItem(
+      name: 'Blind Rivets 1/8" (box of 100)',
+      category: 'Roof Drainage',
+      unit: 'box',
+      defaultQuantity: 1,
+    ),
+    _roofSealant,
+  ];
+
+  // ── Plumbing ─────────────────────────────────────────────────────────────
+
+  static const _solventCement = RenovationTemplateItem(
+    name: 'PVC Solvent Cement (100 cc)',
+    category: 'Plumbing Supplies',
+    unit: 'cans',
+    defaultQuantity: 1,
+  );
+
+  static const _bathroomPlumbing = [
+    RenovationTemplateItem(
+      name: 'PPR Pipe 1/2" (4 m length)',
+      category: 'Water Supply Pipes',
+      unit: 'pcs',
+      defaultQuantity: 3,
+      notes: 'Cold water to the water closet, lavatory and shower',
+    ),
+    RenovationTemplateItem(
+      name: 'PPR Elbow 1/2"',
+      category: 'Water Supply Fittings',
+      unit: 'pcs',
+      defaultQuantity: 8,
+    ),
+    RenovationTemplateItem(
+      name: 'PPR Tee 1/2"',
+      category: 'Water Supply Fittings',
+      unit: 'pcs',
+      defaultQuantity: 3,
+    ),
+    RenovationTemplateItem(
+      name: 'PPR Female Adapter 1/2"',
+      category: 'Water Supply Fittings',
+      unit: 'pcs',
+      defaultQuantity: 3,
+    ),
+    RenovationTemplateItem(
+      name: 'PPR Gate Valve 1/2"',
+      category: 'Valves',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      notes: 'Shut-off for the whole bathroom',
+    ),
+    RenovationTemplateItem(
+      name: 'Angle Valve 1/2"',
+      category: 'Valves',
+      unit: 'pcs',
+      defaultQuantity: 2,
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Sanitary Pipe 4" (3 m length)',
+      category: 'Drainage Pipes',
+      unit: 'pcs',
+      defaultQuantity: 2,
+      notes: 'Water closet to the septic line',
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Sanitary Pipe 2" (3 m length)',
+      category: 'Drainage Pipes',
+      unit: 'pcs',
+      defaultQuantity: 2,
+      notes: 'Lavatory and floor drain',
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Sanitary Wye 4" x 2"',
+      category: 'Drainage Fittings',
+      unit: 'pcs',
+      defaultQuantity: 1,
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Sanitary Elbow 2"',
+      category: 'Drainage Fittings',
+      unit: 'pcs',
+      defaultQuantity: 3,
+    ),
+    RenovationTemplateItem(
+      name: 'Floor Drain 4" x 4" (Stainless)',
+      category: 'Drainage Fittings',
+      unit: 'pcs',
+      defaultQuantity: 1,
+    ),
+    RenovationTemplateItem(
+      name: 'P-Trap 1-1/4" (Lavatory)',
+      category: 'Drainage Fittings',
+      unit: 'pcs',
+      defaultQuantity: 1,
+    ),
+    _solventCement,
+    RenovationTemplateItem(
+      name: 'Teflon Threadseal Tape (3/4")',
+      category: 'Plumbing Supplies',
+      unit: 'rolls',
+      defaultQuantity: 3,
+    ),
+  ];
+
+  static const _kitchenPlumbing = [
+    RenovationTemplateItem(
+      name: 'PPR Pipe 1/2" (4 m length)',
+      category: 'Water Supply Pipes',
+      unit: 'pcs',
+      defaultQuantity: 2,
+      notes: 'Cold water to the sink',
+    ),
+    RenovationTemplateItem(
+      name: 'PPR Elbow 1/2"',
+      category: 'Water Supply Fittings',
+      unit: 'pcs',
+      defaultQuantity: 6,
+    ),
+    RenovationTemplateItem(
+      name: 'PPR Tee 1/2"',
+      category: 'Water Supply Fittings',
+      unit: 'pcs',
+      defaultQuantity: 2,
+    ),
+    RenovationTemplateItem(
+      name: 'PPR Female Adapter 1/2"',
+      category: 'Water Supply Fittings',
+      unit: 'pcs',
+      defaultQuantity: 2,
+    ),
+    RenovationTemplateItem(
+      name: 'Angle Valve 1/2"',
+      category: 'Valves',
+      unit: 'pcs',
+      defaultQuantity: 2,
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Sanitary Pipe 2" (3 m length)',
+      category: 'Drainage Pipes',
+      unit: 'pcs',
+      defaultQuantity: 2,
+      notes: 'Sink drain to the grease trap',
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Sanitary Elbow 2"',
+      category: 'Drainage Fittings',
+      unit: 'pcs',
+      defaultQuantity: 3,
+    ),
+    RenovationTemplateItem(
+      name: 'P-Trap 1-1/2" (Sink)',
+      category: 'Drainage Fittings',
+      unit: 'pcs',
+      defaultQuantity: 1,
+    ),
+    _solventCement,
+    RenovationTemplateItem(
+      name: 'Teflon Threadseal Tape (3/4")',
+      category: 'Plumbing Supplies',
+      unit: 'rolls',
+      defaultQuantity: 2,
+    ),
+  ];
+
+  static const _laundryPlumbing = [
+    RenovationTemplateItem(
+      name: 'PPR Pipe 1/2" (4 m length)',
+      category: 'Water Supply Pipes',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      notes: 'Cold water to the washing machine',
+    ),
+    RenovationTemplateItem(
+      name: 'PPR Elbow 1/2"',
+      category: 'Water Supply Fittings',
+      unit: 'pcs',
+      defaultQuantity: 4,
+    ),
+    RenovationTemplateItem(
+      name: 'PPR Female Adapter 1/2"',
+      category: 'Water Supply Fittings',
+      unit: 'pcs',
+      defaultQuantity: 1,
+    ),
+    RenovationTemplateItem(
+      name: 'Hose Bibb Faucet 1/2"',
+      category: 'Plumbing Fixtures',
+      unit: 'pcs',
+      defaultQuantity: 1,
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Sanitary Pipe 2" (3 m length)',
+      category: 'Drainage Pipes',
+      unit: 'pcs',
+      defaultQuantity: 1,
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Sanitary Elbow 2"',
+      category: 'Drainage Fittings',
+      unit: 'pcs',
+      defaultQuantity: 2,
+    ),
+    RenovationTemplateItem(
+      name: 'Floor Drain 4" x 4" (Stainless)',
+      category: 'Drainage Fittings',
+      unit: 'pcs',
+      defaultQuantity: 1,
+    ),
+    _solventCement,
+  ];
+
+  // ── Electrical ───────────────────────────────────────────────────────────
+
+  static const _roomWiring = [
+    RenovationTemplateItem(
+      name: 'THHN Stranded Wire 3.5 mm² (#12)',
+      category: 'Wiring',
+      unit: 'm',
+      defaultQuantity: 1,
+      qtyPerSqm: 3.0,
+      notes: 'Convenience outlet circuit, line and neutral',
+    ),
+    RenovationTemplateItem(
+      name: 'THHN Stranded Wire 2.0 mm² (#14)',
+      category: 'Wiring',
+      unit: 'm',
+      defaultQuantity: 1,
+      qtyPerSqm: 2.0,
+      notes: 'Lighting circuit, line and neutral',
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Electrical Conduit 1/2" (3 m length)',
+      category: 'Wiring',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      qtyPerSqm: 0.5,
+    ),
+    RenovationTemplateItem(
+      name: 'PVC Conduit Coupling 1/2"',
+      category: 'Wiring',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      qtyPerSqm: 0.5,
+    ),
+    RenovationTemplateItem(
+      name: 'Utility Box 2" x 4"',
+      category: 'Wiring Devices',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      qtyPerSqm: 0.35,
+    ),
+    RenovationTemplateItem(
+      name: 'Duplex Convenience Outlet',
+      category: 'Wiring Devices',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      qtyPerSqm: 0.25,
+    ),
+    RenovationTemplateItem(
+      name: 'One-Gang Light Switch',
+      category: 'Wiring Devices',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      qtyPerSqm: 0.1,
+    ),
+    RenovationTemplateItem(
+      name: 'LED Ceiling Light (12 W)',
+      category: 'Lighting',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      qtyPerSqm: 0.12,
+    ),
+    RenovationTemplateItem(
+      name: 'Circuit Breaker 20 A (Plug-in)',
+      category: 'Wiring Devices',
+      unit: 'pcs',
+      defaultQuantity: 1,
+    ),
+    RenovationTemplateItem(
+      name: 'Electrical Tape',
+      category: 'Wiring',
+      unit: 'rolls',
+      defaultQuantity: 2,
+    ),
+  ];
+
+  static const _kitchenAppliances = [
+    RenovationTemplateItem(
+      name: 'THHN Stranded Wire 5.5 mm² (#10)',
+      category: 'Wiring',
+      unit: 'm',
+      defaultQuantity: 1,
+      qtyPerSqm: 1.5,
+      notes: 'Dedicated circuit for the range or oven',
+    ),
+    RenovationTemplateItem(
+      name: 'Circuit Breaker 30 A (Plug-in)',
+      category: 'Wiring Devices',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      notes: 'Range or oven circuit',
     ),
   ];
 }

@@ -244,7 +244,9 @@ MaterialKind classifyMaterialParts({
       (has('sand') && unitIsVolume)) {
     return MaterialKind.washedSand;
   }
-  if (has('cement') || has('portland')) {
+  // At the start of a word only: "reinforcement" ends in "cement", and welded
+  // mesh reinforcement was being sized as bags of bedding cement.
+  if (RegExp(r'\bcement').hasMatch(n) || has('portland')) {
     if (c.contains('concrete') || c.contains('structural') || has('slab')) {
       return MaterialKind.structuralCement;
     }

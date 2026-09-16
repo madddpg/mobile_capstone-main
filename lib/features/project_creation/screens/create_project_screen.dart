@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:iconstruct/core/theme/app_theme.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/screens/select_planning_method_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
 
-/// Names the material-planning estimate, then opens planning-method choice.
+/// Names the estimate, then opens the AI or template choice.
 class CreateProjectScreen extends StatefulWidget {
   final String renovationType;
+  final RenovationScope scope;
 
-  const CreateProjectScreen({super.key, required this.renovationType});
+  const CreateProjectScreen({
+    super.key,
+    required this.renovationType,
+    this.scope = RenovationScope.cosmetic,
+  });
 
   @override
   State<CreateProjectScreen> createState() => _CreateProjectScreenState();
@@ -18,12 +24,10 @@ class CreateProjectScreen extends StatefulWidget {
 class _CreateProjectScreenState extends State<CreateProjectScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _notesController = TextEditingController();
 
   @override
   void dispose() {
     _nameController.dispose();
-    _notesController.dispose();
     super.dispose();
   }
 
@@ -35,9 +39,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
         builder: (_) => SelectPlanningMethodScreen(
           projectName: widget.renovationType,
           customProjectName: _nameController.text.trim(),
-          projectNotes: _notesController.text.trim().isEmpty
-              ? null
-              : _notesController.text.trim(),
+          scope: widget.scope,
         ),
       ),
     );
@@ -46,10 +48,10 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
   @override
   Widget build(BuildContext context) {
     return GlitchedFlowShell(
-      title: 'Name Your\nEstimate',
-      subtitle: widget.renovationType,
+      title: 'Name Your\nProject',
+      subtitle: '${widget.scope.label} · ${widget.renovationType}',
       instruction:
-          'Next, choose how to plan materials — AI Planner or a renovation template.',
+          'Next, choose how to plan materials: the AI Planner or a template.',
       trailingAction: GlitchedPillButton(
         label: 'Continue',
         onPressed: _continue,
@@ -61,7 +63,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           children: [
             Text(
-              'Estimate Name *',
+              'Project Name *',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -72,41 +74,20 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
             TextFormField(
               controller: _nameController,
               textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _continue(),
               style: GoogleFonts.poppins(
                 color: GlitchedFlowShell.darkBlue,
                 fontSize: 14,
               ),
-              decoration: _fieldDecoration('e.g. Modern Kitchen Materials'),
+              decoration: _fieldDecoration('e.g. Master Bathroom Makeover'),
               scrollPadding: const EdgeInsets.only(bottom: 140),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Estimate name is required';
+                  return 'Project name is required';
                 }
                 return null;
               },
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Material Notes (Optional)',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: GlitchedFlowShell.cream,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _notesController,
-              maxLines: 4,
-              textCapitalization: TextCapitalization.sentences,
-              style: GoogleFonts.poppins(
-                color: GlitchedFlowShell.darkBlue,
-                fontSize: 14,
-              ),
-              decoration: _fieldDecoration(
-                'Preferred materials, brand notes, or BOM remarks',
-              ),
-              scrollPadding: const EdgeInsets.only(bottom: 140),
             ),
           ],
         ),

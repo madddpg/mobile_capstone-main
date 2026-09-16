@@ -8,7 +8,6 @@ void main() {
   test('a builder who picks four materials reviews four materials', () {
     final template = BomQuantityEstimator.buildConsultationTemplate(
       projectType: 'Bathroom Renovation',
-      style: 'modern',
       areaSqm: 12,
       materialNames: const [
         'Ceramic floor tiles (600x600, non-slip)',
@@ -33,7 +32,6 @@ void main() {
   test('parenthetical detail becomes size and notes, not extra line items', () {
     final template = BomQuantityEstimator.buildConsultationTemplate(
       projectType: 'Kitchen Renovation',
-      style: 'modern',
       areaSqm: 10,
       materialNames: const ['Ceramic floor tiles (600x600, non-slip)'],
     );
@@ -47,7 +45,6 @@ void main() {
   test('duplicate picks are merged case-insensitively', () {
     final template = BomQuantityEstimator.buildConsultationTemplate(
       projectType: 'Kitchen Renovation',
-      style: 'modern',
       areaSqm: 10,
       materialNames: const ['Tile adhesive', 'Tile Adhesive', 'Tile grout'],
     );
@@ -58,7 +55,6 @@ void main() {
   test('AI consultation BOM offers no swap alternatives by default', () {
     final template = BomQuantityEstimator.buildConsultationTemplate(
       projectType: 'Kitchen Renovation',
-      style: 'modern',
       areaSqm: 12,
       materialNames: const ['Ceramic floor tiles', 'Interior paint', 'Toilet'],
     );
@@ -69,17 +65,15 @@ void main() {
   test('explicit Extension scope keeps structural picks in the AI BOM', () {
     final full = BomQuantityEstimator.buildConsultationTemplate(
       projectType: 'Bedroom Renovation',
-      style: 'modern',
       areaSqm: 20,
       materialNames: const ['Ceramic floor tiles', 'CHB 6"', 'Deformed rebar 12mm'],
-      scope: RenovationScope.fullRenovation,
+      scope: RenovationScope.cosmetic,
     );
     final ext = BomQuantityEstimator.buildConsultationTemplate(
       projectType: 'Bedroom Renovation',
-      style: 'modern',
       areaSqm: 20,
       materialNames: const ['Ceramic floor tiles', 'CHB 6"', 'Deformed rebar 12mm'],
-      scope: RenovationScope.extension,
+      scope: RenovationScope.structural,
     );
 
     bool hasChb(RenovationTemplate t) =>

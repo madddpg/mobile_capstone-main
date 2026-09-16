@@ -14,7 +14,7 @@ class BomQuantityEstimator {
   static List<RenovationTemplateItem> scaleTemplate({
     required RenovationTemplate template,
     required double areaSqm,
-    RenovationScope scope = RenovationScope.fullRenovation,
+    RenovationScope scope = RenovationScope.cosmetic,
     SiteTakeoff? takeoff,
   }) {
     final area = _baseArea(areaSqm, takeoff);
@@ -22,8 +22,9 @@ class BomQuantityEstimator {
     final items = <RenovationTemplateItem>[];
 
     // An AI BOM is exactly what the builder confirmed, so a measured room
-    // sizes its lines but never adds or removes any.
-    final source = takeoff == null || isConsultation
+    // sizes its lines but never adds or removes any. Functional work replaces
+    // pipes and wiring, not finishes, so its lines are left as they are too.
+    final source = takeoff == null || isConsultation || !scope.changesFinishes
         ? template.items
         : fitToRoom(template.items, takeoff);
 
@@ -57,7 +58,7 @@ class BomQuantityEstimator {
 
     // Add Master Foreman Auxiliary Consumables if not present (skip for AI consultation templates)
     if (!isConsultation) {
-      _addForemanAuxiliaries(items, area, scope, takeoff);
+      _addForemanAuxiliaries(items);
     }
 
     return items;
@@ -227,9 +228,6 @@ class BomQuantityEstimator {
   /// Appends Master Foreman auxiliary items (Spacers, Teflon Tape, Silicone, Sandpaper, Roller Sets)
   static void _addForemanAuxiliaries(
     List<RenovationTemplateItem> items,
-    double areaSqm,
-    RenovationScope scope,
-    SiteTakeoff? takeoff,
   ) {
     final names = items.map((i) => i.name.toLowerCase()).toSet();
     final kinds = items.map(classifyMaterial).toSet();
@@ -238,10 +236,6 @@ class BomQuantityEstimator {
         kinds.contains(MaterialKind.tileGrout);
     final hasPlumbing = kinds.contains(MaterialKind.plumbingFixture);
     final hasPainting = kinds.any(kPaintKinds.contains);
-    final aux = PhRenovationRates.calculateForemanAuxiliaries(
-      areaSqm: areaSqm,
-      isExtension: scope.includesStructural,
-    );
 
     if (hasTiling && !names.any((n) => n.contains('spacer'))) {
       items.add(
@@ -305,42 +299,9 @@ class BomQuantityEstimator {
       );
     }
 
-    if (scope.includesStructural) {
-      _addExtensionStructure(items, areaSqm, takeoff);
-      if (!names.any((n) => n.contains('plywood'))) {
-        items.add(
-          RenovationTemplateItem(
-            name: 'Marine Plywood 1/2" (4\'x8\')',
-            category: 'Formwork & Structural',
-            unit: 'sheets',
-            defaultQuantity: aux['marinePlywoodSheets'] as double? ?? 2.0,
-            notes: 'Foreman essential — slab & column concrete formwork',
-          ),
-        );
-      }
-      if (!names.any((n) => n.contains('coco lumber'))) {
-        items.add(
-          RenovationTemplateItem(
-            name: 'Coco Lumber (2"x2" & 2"x3")',
-            category: 'Formwork & Structural',
-            unit: 'bd.ft',
-            defaultQuantity: aux['cocoLumberBdFt'] as double? ?? 30.0,
-            notes: 'Foreman essential — form joists & vertical shoring',
-          ),
-        );
-      }
-      if (!names.any((n) => n.contains('nail'))) {
-        items.add(
-          RenovationTemplateItem(
-            name: 'Common Wire Nails (CWN Assorted)',
-            category: 'Formwork & Structural',
-            unit: 'kg',
-            defaultQuantity: aux['cwnNailsKg'] as double? ?? 2.0,
-            notes: 'Foreman essential — formwork assembly nails',
-          ),
-        );
-      }
-    }
+    // Structural templates list their own walls, slab and forms. Adding a
+    // slab and CHB walls to every structural job put a slab under a roof
+    // replacement and walls into a floor repair.
   }
 
   /// Wall surface area for a wall-*tile* item. Honours the template's own
@@ -370,8 +331,61 @@ class BomQuantityEstimator {
 
   /// Wall and ceiling left for paint. Unmeasured, paint is sized from the
   /// floor area, as it always was.
-  static double _paintArea(double area, SiteTakeoff? takeoff) =>
-      takeoff?.paintSqm ?? area;
+  ///
+  /// Roof paint covers the sloped roof, not the plan it was measured from.
+  static double _paintArea(
+    double area,
+    SiteTakeoff? takeoff, [
+    RenovationTemplateItem? item,
+  ]) {
+    if (item != null && _isRoofWork(item)) {
+      return PhRenovationRates.roofAreaFromPlan(area);
+    }
+    return takeoff?.paintSqm ?? area;
+  }
+
+  static bool _isRoofWork(RenovationTemplateItem item) =>
+      '${item.name} ${item.category}'.toLowerCase().contains('roof');
+
+  /// Which gutter-and-downspout line [item] is, or `null` if it is not one.
+  static String? _drainagePart(RenovationTemplateItem item) {
+    if (!_isRoofWork(item) ||
+        !item.category.toLowerCase().contains('drainage')) {
+      return null;
+    }
+    final name = item.name.toLowerCase();
+    if (name.contains('bracket')) return 'bracket';
+    if (name.contains('gutter')) return 'gutter';
+    if (name.contains('downspout')) {
+      return name.contains('elbow') ? 'elbow' : 'downspout';
+    }
+    return null;
+  }
+
+  static double? _roofDrainageQuantity(
+    RenovationTemplateItem item,
+    double area,
+  ) =>
+      switch (_drainagePart(item)) {
+        'gutter' => PhRenovationRates.calculateGutterPieces(area),
+        'bracket' => PhRenovationRates.calculateGutterBrackets(area),
+        'downspout' => PhRenovationRates.calculateDownspouts(area),
+        'elbow' => PhRenovationRates.calculateDownspoutElbows(area),
+        _ => null,
+      };
+
+  static String? _roofDrainageFormula(
+    RenovationTemplateItem item,
+    double area,
+    double qty,
+  ) =>
+      switch (_drainagePart(item)) {
+        'gutter' => PhRenovationRates.gutterFormulaString(area, qty),
+        'bracket' => PhRenovationRates.gutterBracketFormulaString(area, qty),
+        'downspout' => PhRenovationRates.downspoutFormulaString(area, qty),
+        'elbow' => PhRenovationRates.downspoutElbowFormulaString(area, qty),
+        _ => null,
+      };
 
   /// Wall area for new CHB walls: the measured walls less their doors and
   /// windows, otherwise the 2.2 × floor assumption.
@@ -424,124 +438,23 @@ class BomQuantityEstimator {
     return withWaste < 1 ? 1.0 : withWaste.ceilToDouble();
   }
 
-  /// Shown with an Extension BOM. The package covers what can be sized from
-  /// the floor area alone; structural members need the engineer's plan.
-  static const String extensionCoverageNote =
-      'Extension covers the floor slab and new CHB walls only, assuming a '
-      '100 mm slab on grade and new wall area of 2.2 × floor area in 4" CHB. '
-      'Footings, columns, beams and roofing are not included; take those from '
-      'the structural plan.';
+  /// Shown with a structural BOM. What can be sized from a room is listed;
+  /// structural members need the engineer's plan.
+  static const String structuralNote =
+      'Structural quantities assume a 100 mm slab on grade and new wall area of '
+      '2.2 × floor area in 4" CHB. Footings, columns, beams, roof framing and '
+      'underpinning are not included; take those from a plan signed by a '
+      'licensed civil engineer.';
 
-  /// [extensionCoverageNote], restated for a measured room.
-  static String extensionCoverageNoteFor(SiteTakeoff? takeoff) {
-    if (takeoff == null || takeoff.netWallSqm <= 0) {
-      return extensionCoverageNote;
-    }
-    return 'Extension covers the floor slab and new CHB walls only: a 100 mm '
-        'slab on grade over the measured ${takeoff.floorSqm.toStringAsFixed(1)} sq.m '
-        'floor and 4" CHB over the measured ${takeoff.netWallSqm.toStringAsFixed(1)} sq.m '
-        'of wall, less doors and windows. Footings, columns, beams and roofing '
-        'are not included; take those from the structural plan.';
-  }
-
-  /// Slab and CHB wall materials an Extension adds. Quantities come from
-  /// [estimateQuantity] when the rows are added.
-  ///
-  /// The Extension scope used to promise concrete, CHB and rebar but add only
-  /// formwork: plywood, lumber and nails with nothing to pour into them.
-  static const List<RenovationTemplateItem> _extensionStructureRows = [
-    RenovationTemplateItem(
-      name: 'Portland Cement - Slab (40 kg)',
-      category: 'Concrete Slab',
-      unit: 'bags',
-      defaultQuantity: 1,
-      notes: 'Class A 1:2:4 concrete, 100 mm slab on grade',
-    ),
-    RenovationTemplateItem(
-      name: 'Washed Sand - Slab',
-      category: 'Concrete Slab',
-      unit: 'cu.m',
-      defaultQuantity: 1,
-      notes: 'Class A 1:2:4 concrete, 100 mm slab on grade',
-    ),
-    RenovationTemplateItem(
-      name: 'Crushed Gravel 3/4"',
-      category: 'Concrete Slab',
-      unit: 'cu.m',
-      defaultQuantity: 1,
-      notes: 'Class A 1:2:4 concrete, 100 mm slab on grade',
-    ),
-    RenovationTemplateItem(
-      name: 'Concrete Hollow Block (CHB)',
-      category: 'Masonry',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      size: '4"',
-      notes: 'New wall area assumed at 2.2 × floor area',
-    ),
-    RenovationTemplateItem(
-      name: 'Portland Cement - Masonry & Plaster (40 kg)',
-      category: 'Masonry',
-      unit: 'bags',
-      defaultQuantity: 1,
-      notes: 'CHB laying mortar plus 16 mm plaster on both faces',
-    ),
-    RenovationTemplateItem(
-      name: 'Washed Sand - Masonry & Plaster',
-      category: 'Masonry',
-      unit: 'cu.m',
-      defaultQuantity: 1,
-      notes: 'CHB laying mortar plus 16 mm plaster on both faces',
-    ),
-    RenovationTemplateItem(
-      name: 'Deformed Bar (6 m length)',
-      category: 'Reinforcement',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      size: '10mm',
-      notes: 'CHB wall reinforcement, vertical and horizontal',
-    ),
-    RenovationTemplateItem(
-      name: 'G.I. Tie Wire #16',
-      category: 'Reinforcement',
-      unit: 'kg',
-      defaultQuantity: 1,
-      notes: 'For tying the wall reinforcement',
-    ),
-  ];
-
-  /// Adds the slab and CHB wall package, skipping any line the template
-  /// already covers so the same material is never ordered twice.
-  static void _addExtensionStructure(
-    List<RenovationTemplateItem> items,
-    double area,
-    SiteTakeoff? takeoff,
-  ) {
-    final measuredWalls = takeoff != null && takeoff.netWallSqm > 0;
-    final present = items.map(_structuralRole).whereType<String>().toSet();
-    for (final row in _extensionStructureRows) {
-      if (!present.add(_structuralRole(row)!)) continue;
-      items.add(
-        row.copyWith(
-          defaultQuantity:
-              estimateQuantity(item: row, areaSqm: area, takeoff: takeoff),
-          notes: measuredWalls && classifyMaterial(row) == MaterialKind.chbBlock
-              ? 'Measured wall area, less doors and windows'
-              : null,
-        ),
-      );
-    }
-  }
-
-  /// The slot a line fills in the Extension package, or `null` if none.
-  static String? _structuralRole(RenovationTemplateItem item) {
-    final kind = classifyMaterial(item);
-    if (kind == MaterialKind.washedSand) {
-      if (_isSlabSand(item)) return 'slabSand';
-      if (_isMasonrySand(item)) return 'masonrySand';
-      return null;
-    }
-    return kStructuralOnlyKinds.contains(kind) ? kind.name : null;
+  /// [structuralNote], restated for a measured room.
+  static String structuralNoteFor(SiteTakeoff? takeoff) {
+    if (takeoff == null || takeoff.netWallSqm <= 0) return structuralNote;
+    return 'Structural quantities use the measured '
+        '${takeoff.floorSqm.toStringAsFixed(1)} sq.m of floor for a 100 mm slab '
+        'and the measured ${takeoff.netWallSqm.toStringAsFixed(1)} sq.m of wall, '
+        'less doors and windows, for 4" CHB. Footings, columns, beams, roof '
+        'framing and underpinning are not included; take those from a plan '
+        'signed by a licensed civil engineer.';
   }
 
   /// Sand for slab concrete. Slab and wall work take far more sand per sq.m
@@ -569,7 +482,7 @@ class BomQuantityEstimator {
     final area = _baseArea(areaSqm, takeoff);
     final sizeKey = item.size ?? '';
     final wallArea = _newWallArea(area, takeoff);
-    final paintArea = _paintArea(area, takeoff);
+    final paintArea = _paintArea(area, takeoff, item);
 
     switch (classifyMaterial(item)) {
       case MaterialKind.wallTile:
@@ -642,7 +555,7 @@ class BomQuantityEstimator {
         return PhRenovationRates.calculateChbRebar(
             wallArea, sizeKey.isEmpty ? '10mm' : sizeKey).tieWireKg;
       default:
-        return _scaleByRate(item, area);
+        return _roofDrainageQuantity(item, area) ?? _scaleByRate(item, area);
     }
   }
 
@@ -689,14 +602,16 @@ class BomQuantityEstimator {
     final area = _baseArea(areaSqm, takeoff);
     final sizeKey = item.size ?? '';
     final wallArea = _newWallArea(area, takeoff);
-    final paintArea = _paintArea(area, takeoff);
+    final paintArea = _paintArea(area, takeoff, item);
 
     // A measured room states its measurement first, so the builder can check
     // the room before checking the rate.
     final floorLine = takeoff?.floorLine;
     final wallLine =
         takeoff == null || takeoff.netWallSqm <= 0 ? null : takeoff.wallLine;
-    final paintLine = takeoff?.paintLine;
+    final paintLine = _isRoofWork(item)
+        ? PhRenovationRates.roofAreaLine(area)
+        : takeoff?.paintLine;
     String measured(String? line, String formula) =>
         line == null ? formula : '$line\n$formula';
 
@@ -825,6 +740,8 @@ class BomQuantityEstimator {
               wallArea, sizeKey, currentQty.toInt()),
         );
       default:
+        final drainage = _roofDrainageFormula(item, area, currentQty);
+        if (drainage != null) return drainage;
         return '${area.toStringAsFixed(1)} sq.m x standard rate = ${_fmtQty(currentQty)} ${item.unit}\n(Quantity: Max Fajardo, Simplified Construction Estimate | see docs/material-data-sources.md)';
     }
   }
@@ -937,6 +854,11 @@ class BomQuantityEstimator {
           MaterialAlternative(name: 'Vinyl Flooring Planks'),
           MaterialAlternative(name: 'SPC Flooring Planks'),
           MaterialAlternative(name: 'Laminate Flooring'),
+        ];
+      case MaterialKind.paintTopcoat when _isRoofWork(item):
+        return const [
+          MaterialAlternative(name: 'Acrylic Roof Paint'),
+          MaterialAlternative(name: 'Elastomeric Roof Paint'),
         ];
       case MaterialKind.paintTopcoat:
         return const [
@@ -1131,25 +1053,33 @@ class BomQuantityEstimator {
   /// material implies new structure (CHB, rebar, gravel, formwork).
   static RenovationScope inferScope(
       String projectType, Iterable<String> materialNames) {
-    if (RenovationScope.fromString(projectType) == RenovationScope.extension) {
-      return RenovationScope.extension;
+    if (RenovationScope.fromString(projectType) == RenovationScope.structural) {
+      return RenovationScope.structural;
     }
     final structural = materialNames.any((n) =>
         kStructuralOnlyKinds.contains(classifyMaterialParts(name: n)));
     return structural
-        ? RenovationScope.extension
-        : RenovationScope.fullRenovation;
+        ? RenovationScope.structural
+        : RenovationScope.cosmetic;
   }
 
-  static RenovationTemplate buildConsultationTemplate({
+  /// The id every AI material list carries, so it is never reshaped.
+  static const String consultationTemplateId = 'ai_consultation_bom';
+
+  /// Removes type chips from an AI list, which holds exactly what the builder
+  /// chose.
+  static List<RenovationTemplateItem> fixedList(
+          List<RenovationTemplateItem> items) =>
+      items
+          .map((i) => i.copyWith(isSwappable: false, alternatives: const []))
+          .toList();
+
+  /// The builder's AI picks as a template with no quantities yet, so the room
+  /// can be measured before anything is sized.
+  static RenovationTemplate consultationTemplate({
     required String projectType,
-    required String style,
-    required double areaSqm,
     required List<String> materialNames,
-    RenovationScope? scope,
-    // AI BOMs are exactly what the user chose in consultation — don't offer
-    // "Premium/Economy" swap alternatives on the review screen.
-    bool allowSwaps = false,
+    RenovationScope scope = RenovationScope.cosmetic,
   }) {
     final names = <String>[];
     final seen = <String>{};
@@ -1164,10 +1094,6 @@ class BomQuantityEstimator {
       names.addAll(_defaultBasicsForType(projectType));
     }
 
-    // Resolve the scope so structural materials the user explicitly confirmed
-    // (CHB, rebar, gravel, plywood, wire nails) are NOT silently filtered out.
-    final resolvedScope = scope ?? inferScope(projectType, names);
-
     final items = names.map((raw) {
       final detail = _splitNameAndDetail(raw);
       final name = detail.name;
@@ -1175,7 +1101,7 @@ class BomQuantityEstimator {
       final isSurface = lower.contains('tile') || lower.contains('paint') || lower.contains('floor') || lower.contains('vinyl') || lower.contains('waterproof');
       final unit = lower.contains('paint') || lower.contains('primer') ? 'gal' : (lower.contains('adhesive') || lower.contains('grout') || lower.contains('cement')) ? 'bags' : isSurface ? 'pcs' : 'pcs';
 
-      final base = RenovationTemplateItem(
+      return RenovationTemplateItem(
         name: name,
         category: _guessCategory(name),
         unit: unit,
@@ -1184,37 +1110,54 @@ class BomQuantityEstimator {
         size: detail.size,
         notes: detail.notes,
       );
-      return allowSwaps ? ensureSwappable(base) : base;
     }).toList();
 
+    return RenovationTemplate(
+      id: consultationTemplateId,
+      renovationType: projectType,
+      scope: scope,
+      name: 'AI Material List',
+      description: 'Built from materials you confirmed with the AI.',
+      items: items,
+    );
+  }
+
+  /// [consultationTemplate], sized for [areaSqm].
+  static RenovationTemplate buildConsultationTemplate({
+    required String projectType,
+    required double areaSqm,
+    required List<String> materialNames,
+    RenovationScope? scope,
+    // AI BOMs are exactly what the user chose in consultation — don't offer
+    // "Premium/Economy" swap alternatives on the review screen.
+    bool allowSwaps = false,
+  }) {
+    final unscaled = consultationTemplate(
+      projectType: projectType,
+      materialNames: materialNames,
+    );
+    // Resolve the scope so structural materials the user explicitly confirmed
+    // (CHB, rebar, gravel, plywood, wire nails) are NOT silently filtered out.
+    final resolvedScope =
+        scope ?? inferScope(projectType, unscaled.items.map((i) => i.name));
+
     final scaled = scaleTemplate(
-      template: RenovationTemplate(
-        id: 'ai_consultation_bom',
-        renovationType: projectType,
-        style: style.isEmpty ? 'custom' : style,
-        name: 'AI Essential BOM',
-        description: 'Built from materials you confirmed in consultation.',
-        items: items,
-      ),
+      template: allowSwaps
+          ? unscaled.copyWithItems(unscaled.items.map(ensureSwappable).toList())
+          : unscaled,
       areaSqm: areaSqm,
       scope: resolvedScope,
     );
 
-    // scaleTemplate re-runs ensureSwappable internally; strip the fabricated
-    // alternatives back off when the caller wants a fixed list.
-    final finalItems = allowSwaps
-        ? scaled
-        : scaled
-            .map((i) => i.copyWith(isSwappable: false, alternatives: const []))
-            .toList();
-
     return RenovationTemplate(
-      id: 'ai_consultation_bom',
+      id: consultationTemplateId,
       renovationType: projectType,
-      style: style.isEmpty ? 'custom' : style,
-      name: 'AI Essential BOM',
-      description: 'Built from materials you confirmed in consultation.',
-      items: finalItems,
+      scope: resolvedScope,
+      name: unscaled.name,
+      description: unscaled.description,
+      // scaleTemplate re-runs ensureSwappable internally; strip the fabricated
+      // alternatives back off when the caller wants a fixed list.
+      items: allowSwaps ? scaled : fixedList(scaled),
     );
   }
 

@@ -23,18 +23,13 @@ void main() {
 
   // Every BOM row the template picker can produce, as the review screen sees it.
   final rows = <(String, RenovationTemplateItem)>[
-    for (final type in {
-      ...RenovationTemplatesCatalog.allTemplates.map((t) => t.renovationType),
-      'Living Room Renovation',
-    })
-      for (final template in RenovationTemplatesCatalog.threeForType(type))
-        for (final scope in RenovationScope.values)
-          for (final item in BomQuantityEstimator.scaleTemplate(
-            template: template,
-            areaSqm: area,
-            scope: scope,
-          ))
-            ('${template.id} ${scope.name}', item),
+    for (final template in RenovationTemplatesCatalog.allTemplates)
+      for (final item in BomQuantityEstimator.scaleTemplate(
+        template: template,
+        areaSqm: area,
+        scope: template.scope,
+      ))
+        (template.id, item),
   ];
 
   group('BOM type chips', () {
@@ -152,7 +147,8 @@ void main() {
     test('a smaller tile face re-estimates to more pieces', () {
       final floor = BomQuantityEstimator.scaleTemplate(
         template:
-            RenovationTemplatesCatalog.threeForType('Floor Renovation').first,
+            RenovationTemplatesCatalog.forProject(
+                'Floor Renovation', RenovationScope.cosmetic),
         areaSqm: area,
       ).firstWhere((i) => classifyMaterial(i) == MaterialKind.floorTile);
       final nonSlip = floor.alternatives.firstWhere((a) => a.size == '300x300');

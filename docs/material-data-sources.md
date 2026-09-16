@@ -58,10 +58,14 @@ In code this lives in `lib/features/project_creation/data/material_sources.dart`
 Three origins, in order of precedence.
 
 1. **Built-in renovation templates**, in
-   `lib/features/project_creation/data/renovation_templates.dart`. Seven
-   renovation types are covered: bathroom, kitchen, floor, interior painting,
-   roof repair, plumbing installation, and electrical installation. Each type
-   offers three style variants. The item lists were assembled from the DPWH
+   `lib/features/project_creation/data/renovation_templates.dart`. The ten
+   projects on the home screen are covered, each offered as the types of
+   renovation that make sense for it: cosmetic (repainting, tiles and other
+   finishes), structural (changing the layout, a bigger room, foundation
+   repair and underpinning) and functional (plumbing and electrical wiring).
+   Interior painting is cosmetic only, and floor renovation and wall finishing
+   have no functional type, which gives 25 templates, one for each project
+   and type. The item lists were assembled from the DPWH
    work items that apply to that trade, plus the auxiliary consumables a
    foreman orders alongside them but which no specification lists, such as
    tile spacers, teflon tape, and masking tape. The templates are fixed in the
@@ -76,9 +80,17 @@ Three origins, in order of precedence.
    their own words. Suggestions are returned to the user for review and are
    never posted for quotation without the user accepting them.
 
-Scope filtering then removes what does not belong. A Full Renovation excludes
-structural items such as gravel, hollow blocks, rebar, and formwork; an
-Extension includes them. The rule is in
+For the AI, the builder describes the job on its own screen and the AI
+recommends a list from that description, the project and its type. A builder
+who would rather not write it out can chat with the AI instead. Either way,
+only the materials the builder keeps go on to be measured and quantified.
+
+The type of renovation then removes what does not belong. Cosmetic and
+functional work exclude structural items such as gravel, hollow blocks,
+rebar, and formwork; structural work includes them. Each structural template
+lists only the structure its job needs, so a floor slab repair has no walls
+and a rebuilt wall has no slab. Functional work leaves the room's finishes
+alone. The filtering rule is in
 `lib/features/project_creation/data/material_kind.dart`.
 
 ## Layer 2 — how the quantities are computed
@@ -104,13 +116,19 @@ now shows both, in the form `Material spec: ... | Quantity: ...`.
 | Structural concrete | 9.0 bags cement, 0.50 cu.m sand, 1.00 cu.m gravel per cu.m | Fajardo, Class A 1:2:4 mix |
 | Rebar mass | W = D squared divided by 162.2 kg per metre | Nominal mass formula; bar sizes to PNS 49:2020 |
 | Rebar spacing | 4.28 linear metres per sq.m of wall, plus 5% | NSCP detailing for CHB wall reinforcement |
-| Extension slab and walls | 100 mm slab on grade over the floor area; new wall area of 2.2 x floor area in 4 in CHB | App assumption, stated on the BOM. Footings, columns, beams and roofing come from the structural plan |
+| Structural slab and walls | 100 mm slab on grade over the floor area; new wall area of 2.2 x floor area in 4 in CHB, or the measured walls when the room is measured | App assumption, stated on the BOM. Footings, columns, beams, roof framing and underpinning come from a plan signed by a licensed civil engineer |
+| Formwork | 0.2 sheets of 1/2 in marine plywood, 2.5 bd.ft of coco lumber and 0.15 kg of nails per sq.m, plus 8% | App assumption for slab edges, lintels and columns |
 | Roof area | Floor area x 1.15 | Geometry of a roof at about 30 degrees pitch (1 / cos 30) |
 | Rib-type roofing | 1.0 m effective cover per sheet, plus 10% side and end lap, ordered by the linear metre | Trade practice for rib-type sheets |
 | Concrete roof tiles | 10.5 pcs per sq.m of roof plus 5% breakage; ridge tiles 3 per linear metre | Typical manufacturer coverage; clay tiles run about 16 per sq.m |
 | Ridge length | Square root of floor area, plus 10% lap | App assumption; the formula tells the builder to measure the real ridge |
 | Tekscrews | 8 per sq.m of roof | Trade practice, purlins at 600 mm fastened every second rib |
 | Roof sealant | 1 L can per 15 sq.m of roof | Trade practice |
+| Roof repaint | 1 primer coat plus 2 topcoats over the sloped roof, floor area x 1.15 | Manufacturer spreading rate, same slope factor as the sheets |
+| Purlins | 0.32 lengths of 6 m per sq.m of floor | Purlins at 600 mm over the sloped roof: 1.15 ÷ 0.60 ÷ 6 m |
+| Gutters and downspouts | Two eaves, each taken as the ridge length; 3 m gutter lengths, a bracket every 0.60 m, a downspout per 9 m of gutter (at least 2), two elbows per downspout | App assumption for a one-storey gable roof; the formula tells the builder to measure the eaves |
+| Room wiring | 3.0 m of 3.5 mm² THHN and 2.0 m of 2.0 mm² per sq.m of floor; outlets 0.25, switches 0.10 and lights 0.12 per sq.m; plus 8% | App assumption for a line and neutral per circuit; conductor sizes per the Philippine Electrical Code |
+| Plumbing lines | Fixed counts for one water closet, one lavatory and one shower (bathroom), one sink (kitchen) or one washing machine (laundry) | App assumption; pipe lengths depend on where the fixtures sit, so the builder adjusts them |
 
 Rates live in `lib/features/project_creation/data/ph_renovation_rates.dart`.
 
@@ -121,7 +139,7 @@ room, floor, painting and wall finishing) start from a site-details step
 instead of a single area. The builder enters length, width, ceiling height,
 doors and windows by size and count, how high the wall tiles go, and whether
 the old floor tiles come off. Each material is then sized from the surface it
-actually covers. Roofing, electrical and plumbing keep a single area.
+actually covers. Roofing keeps a single area, and functional work asks only for the room's size, since its pipes and wiring are sized from the floor.
 
 | Surface | Rule | Source |
 |---|---|---|
@@ -135,7 +153,7 @@ actually covers. Roofing, electrical and plumbing keep a single area.
 | Skirting | Perimeter less doorway widths, plus 5% for corners | Geometry, trade allowance |
 | Countertop | Counter length x 0.60 m depth, plus 8% | Standard counter depth |
 | New screed after tile removal | 25 mm Class B 1:3 over the floor | Fajardo, as mortar bedding above |
-| Extension CHB walls | Measured net wall area, replacing 2.2 x floor | Geometry |
+| Structural CHB walls | Measured net wall area, replacing 2.2 x floor | Geometry |
 
 The measured room also fits the template to the job: a painting job drops the
 floor finish, choosing no wall tiles drops the wall-tile line, bare walls get

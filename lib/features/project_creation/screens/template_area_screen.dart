@@ -22,12 +22,20 @@ class TemplateAreaScreen extends StatefulWidget {
   final String? customProjectName;
   final String? projectNotes;
 
+  /// Chosen on the renovation type step, before the project was named.
+  final RenovationScope scope;
+
+  /// Budget tier from the AI chat, when the list came from there.
+  final String? budgetPreference;
+
   const TemplateAreaScreen({
     super.key,
     required this.template,
     required this.projectName,
     this.customProjectName,
     this.projectNotes,
+    this.scope = RenovationScope.cosmetic,
+    this.budgetPreference,
   });
 
   @override
@@ -105,7 +113,10 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   WallTileHeight _wallTiles = WallTileHeight.none;
   bool _removeOldTiles = false;
   bool _paintCeiling = false;
-  RenovationScope _selectedScope = RenovationScope.fullRenovation;
+
+  /// Functional work replaces pipes and wiring, so only the room's size
+  /// matters; doors, windows, tiles and paint are left as they are.
+  bool get _finishes => widget.scope.changesFinishes;
 
   @override
   void initState() {
@@ -162,14 +173,16 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       heightM: job.hasWalls
           ? _parseMetres(_heightController.text) ?? 0
           : job.typicalHeightM,
-      doors: openings(_doors),
-      windows: job.hasWalls ? openings(_windows) : const [],
-      wallTileHeight: job.offersWallTiles ? _wallTiles : WallTileHeight.none,
-      counterLengthM: job == RoomJob.kitchen
+      doors: _finishes ? openings(_doors) : const [],
+      windows: _finishes && job.hasWalls ? openings(_windows) : const [],
+      wallTileHeight: _finishes && job.offersWallTiles
+          ? _wallTiles
+          : WallTileHeight.none,
+      counterLengthM: _finishes && job == RoomJob.kitchen
           ? _parseMetres(_counterController.text) ?? 0
           : 0,
-      removeOldTiles: job.hasFloor && _removeOldTiles,
-      paintCeiling: job.hasWalls && _paintCeiling,
+      removeOldTiles: _finishes && job.hasFloor && _removeOldTiles,
+      paintCeiling: _finishes && job.hasWalls && _paintCeiling,
     );
   }
 
@@ -201,12 +214,18 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   }
 
   void _openEstimate(double area, SiteTakeoff? takeoff) {
-    final scaledItems = BomQuantityEstimator.scaleTemplate(
+    final scaled = BomQuantityEstimator.scaleTemplate(
       template: widget.template,
       areaSqm: area,
-      scope: _selectedScope,
+      scope: widget.scope,
       takeoff: takeoff,
     );
+    // An AI list holds exactly what the builder picked, so it gets no type
+    // chips to swap one pick for another.
+    final scaledItems =
+        widget.template.id == BomQuantityEstimator.consultationTemplateId
+            ? BomQuantityEstimator.fixedList(scaled)
+            : scaled;
 
     Navigator.push(
       context,
@@ -217,8 +236,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           projectNotes: widget.projectNotes,
           template: widget.template.copyWithItems(scaledItems),
           projectAreaSqm: area,
-          scope: _selectedScope,
+          scope: widget.scope,
           takeoff: takeoff,
+          budgetPreference: widget.budgetPreference,
         ),
       ),
     );
@@ -269,9 +289,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
                 ),
                 const SizedBox(height: 10),
                 _buildGuideCard(
-                  title: '3. Renovation Scope',
+                  title: '3. Type of Renovation',
                   body:
-                      '• Full Renovation: Redo finishes (tiles, paint, fixtures & screed cement/sand).\n• Extension: Adds slab concrete, CHB walls, rebar & formwork. Footings, columns, beams and roof come from the structural plan.',
+                      '• Cosmetic: tiles, paint, fixtures and the screed under new tiles.\n• Structural: CHB walls, slab, rebar and forms. Footings, columns, beams and underpinning come from the engineer\'s plan.\n• Functional: pipes, fittings, wiring and devices, sized from the room\'s floor area.',
                   icon: Icons.tune_outlined,
                 ),
                 const SizedBox(height: 10),
@@ -354,7 +374,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       subtitle: widget.template.name,
       instruction: job == null
           ? 'Select scope & total area (sqm). Quantities auto-estimate per Philippine DPWH national standards.'
-          : 'Measure the room first. Floor, wall and paint quantities are each sized from what you enter here.',
+          : _finishes
+              ? 'Measure the room first. Floor, wall and paint quantities are each sized from what you enter here.'
+              : 'Measure the room. Wire, conduit and device quantities are sized from its floor area.',
       trailingAction: GlitchedPillButton(
         label: 'Estimate Qty',
         width: 168,
@@ -366,7 +388,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           padding: const EdgeInsets.only(right: 4, bottom: 24),
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           children: [
-            ..._buildScopeSection(),
+            _buildTypeRow(),
             const SizedBox(height: 18),
             if (job == null) ..._buildAreaSection() else ..._buildRoomSection(job),
             const SizedBox(height: 18),
@@ -388,13 +410,15 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     );
   }
 
-  List<Widget> _buildScopeSection() {
-    return [
-      Row(
+  Widget _buildTypeRow() {
+    return Row(
         children: [
           // Expanded so the label gives way to the help link on a narrow
           // screen instead of pushing it past the panel edge.
-          Expanded(child: _label('Renovation Scope *')),
+          Expanded(
+            child: _label(
+                '${widget.scope.label} renovation · ${widget.template.items.length} materials'),
+          ),
           const SizedBox(width: 8),
           InkWell(
             onTap: _showHowEstimationWorksDialog,
@@ -420,44 +444,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
             ),
           ),
         ],
-      ),
-      const SizedBox(height: 8),
-      Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E3042),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: GlitchedFlowShell.cream.withAlpha(60)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _buildScopeOption(
-                scope: RenovationScope.fullRenovation,
-                title: 'Full Renovation',
-                subtitle: 'Finishes & Screed',
-              ),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: _buildScopeOption(
-                scope: RenovationScope.extension,
-                title: 'Extension',
-                subtitle: 'Structure + Finishes',
-              ),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 6),
-      Text(
-        _selectedScope.description,
-        style: GoogleFonts.poppins(
-          fontSize: 11,
-          color: const Color(0xFF8FB2D4),
-        ),
-      ),
-    ];
+      );
   }
 
   List<Widget> _buildAreaSection() {
@@ -535,6 +522,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           ],
         ],
       ),
+      if (_finishes) ...[
       const SizedBox(height: 18),
       _label(job.hasWalls ? 'Doors' : 'Doorways (skirting stops at these)'),
       const SizedBox(height: 6),
@@ -593,6 +581,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           value: _paintCeiling,
           onChanged: (v) => setState(() => _paintCeiling = v),
         ),
+      ],
       const SizedBox(height: 12),
       _buildTakeoffSummary(details),
     ];
@@ -828,7 +817,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       if (t.paintSqm > 0) lines.add(t.paintLine);
       if (job.hasSkirting && t.skirtingM > 0) lines.add(t.skirtingLine);
       if (t.waterproofingSqm > 0) lines.add(t.waterproofingLine);
-      warnings = details.warnings();
+      warnings = _finishes ? details.warnings() : const <String>[];
     }
 
     final bodyStyle = GoogleFonts.poppins(
@@ -908,50 +897,6 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     );
   }
 
-  Widget _buildScopeOption({
-    required RenovationScope scope,
-    required String title,
-    required String subtitle,
-  }) {
-    final selected = _selectedScope == scope;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedScope = scope),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        decoration: BoxDecoration(
-          color: selected ? GlitchedFlowShell.cream : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: selected
-                    ? GlitchedFlowShell.darkBlue
-                    : GlitchedFlowShell.cream,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 9,
-                color: selected
-                    ? GlitchedFlowShell.darkBlue.withAlpha(180)
-                    : const Color(0xFF8FB2D4),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 /// A − n + counter for doors or windows of one size.

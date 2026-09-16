@@ -37,7 +37,8 @@ import 'package:iconstruct/features/project_creation/data/renovation_templates.d
 import 'package:iconstruct/features/project_creation/data/site_details.dart';
 import 'package:iconstruct/features/project_creation/screens/create_project_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/select_planning_method_screen.dart';
-import 'package:iconstruct/features/project_creation/screens/select_template_screen.dart';
+import 'package:iconstruct/features/project_creation/screens/describe_project_screen.dart';
+import 'package:iconstruct/features/project_creation/screens/select_renovation_type_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
 
 const _sizes = <String, Size>{
@@ -108,12 +109,13 @@ void main() {
   });
 
   final bathroom =
-      RenovationTemplatesCatalog.threeForType('Bathroom Renovation').first;
+      RenovationTemplatesCatalog.forProject(
+          'Bathroom Renovation', RenovationScope.structural);
   final extensionBom = bathroom.copyWithItems(
     BomQuantityEstimator.scaleTemplate(
       template: bathroom,
       areaSqm: 20,
-      scope: RenovationScope.extension,
+      scope: RenovationScope.structural,
     ),
   );
   final measuredTakeoff = SiteTakeoff.from(
@@ -137,7 +139,8 @@ void main() {
     ),
   );
   final kitchen =
-      RenovationTemplatesCatalog.threeForType('Kitchen Renovation').first;
+      RenovationTemplatesCatalog.forProject(
+          'Kitchen Renovation', RenovationScope.cosmetic);
 
   final screens = <String, Widget Function()>{
     'DisplayScreen': () => const DisplayScreen(),
@@ -154,8 +157,20 @@ void main() {
         const CreateProjectScreen(renovationType: 'Bathroom Renovation'),
     'SelectPlanningMethodScreen': () =>
         const SelectPlanningMethodScreen(projectName: 'Bathroom Renovation'),
-    'SelectTemplateScreen': () =>
-        const SelectTemplateScreen(projectName: 'Bathroom Renovation'),
+    'SelectRenovationTypeScreen': () => const SelectRenovationTypeScreen(
+          renovationType: 'Interior Painting',
+        ),
+    'DescribeProjectScreen (AI)': () => const DescribeProjectScreen(
+          projectName: 'Bathroom Renovation',
+          scope: RenovationScope.functional,
+          method: PlanningMethod.ai,
+        ),
+    'TemplateAreaScreen (functional)': () => TemplateAreaScreen(
+          template: RenovationTemplatesCatalog.forProject(
+              'Kitchen Renovation', RenovationScope.functional),
+          projectName: 'Kitchen Renovation',
+          scope: RenovationScope.functional,
+        ),
     'TemplateAreaScreen': () => TemplateAreaScreen(
           template: bathroom,
           projectName: 'Bathroom Renovation',
@@ -164,7 +179,7 @@ void main() {
           projectName: 'Bathroom Renovation',
           template: extensionBom,
           projectAreaSqm: 20,
-          scope: RenovationScope.extension,
+          scope: RenovationScope.structural,
         ),
     'TemplateAreaScreen (kitchen site details)': () => TemplateAreaScreen(
           template: kitchen,
@@ -172,7 +187,8 @@ void main() {
         ),
     'TemplateAreaScreen (roof area)': () => TemplateAreaScreen(
           template:
-              RenovationTemplatesCatalog.threeForType('Roof Repair').first,
+              RenovationTemplatesCatalog.forProject(
+              'Roof Repair', RenovationScope.cosmetic),
           projectName: 'Roof Repair',
         ),
     'CostEstimationScreen (measured room)': () => CostEstimationScreen(

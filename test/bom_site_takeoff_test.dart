@@ -9,14 +9,14 @@ import 'package:iconstruct/features/project_creation/data/site_details.dart';
 
 /// A measured room sizes each material from the surface it covers, instead of
 /// the floor area times a guess.
-RenovationTemplate _template(String type, String style) =>
-    RenovationTemplatesCatalog.threeForType(type)
-        .firstWhere((t) => t.style == style);
+RenovationTemplate _template(String type,
+        [RenovationScope scope = RenovationScope.cosmetic]) =>
+    RenovationTemplatesCatalog.forProject(type, scope);
 
 List<RenovationTemplateItem> _bom(
   RenovationTemplate template,
   SiteDetails details, {
-  RenovationScope scope = RenovationScope.fullRenovation,
+  RenovationScope scope = RenovationScope.cosmetic,
 }) {
   final takeoff = SiteTakeoff.from(details);
   return BomQuantityEstimator.scaleTemplate(
@@ -49,14 +49,14 @@ const _bathroom = SiteDetails(
 );
 
 void main() {
-  final modernBathroom = _template('Bathroom Renovation', 'modern');
+  final cosmeticBathroom = _template('Bathroom Renovation');
 
   group('a measured bathroom', () {
-    final items = _bom(modernBathroom, _bathroom);
+    final items = _bom(cosmeticBathroom, _bathroom);
 
     test('tiles the floor it measured and the walls less their openings', () {
       expect(_one(items, MaterialKind.floorTile).defaultQuantity,
-          PhRenovationRates.calculateFloorTilePieces(3.0, '600x600'));
+          PhRenovationRates.calculateFloorTilePieces(3.0, '300x300'));
       expect(_one(items, MaterialKind.wallTile).defaultQuantity,
           PhRenovationRates.calculateWallTilePieces(14.97, '300x600'));
     });
@@ -66,7 +66,7 @@ void main() {
           PhRenovationRates.calculateTileAdhesiveBags(3.0 + 14.97));
       expect(
         _one(items, MaterialKind.tileGrout).defaultQuantity,
-        PhRenovationRates.groutPacksForKg(3.0 * 0.18 + 14.97 * 0.18),
+        PhRenovationRates.groutPacksForKg(3.0 * 0.25 + 14.97 * 0.18),
       );
     });
 
@@ -113,7 +113,7 @@ void main() {
 
   test('no wall tiles drops the wall tile line and paints the walls instead', () {
     final items = _bom(
-        modernBathroom, _bathroom.copyWith(wallTileHeight: WallTileHeight.none));
+        cosmeticBathroom, _bathroom.copyWith(wallTileHeight: WallTileHeight.none));
 
     expect(_ofKind(items, MaterialKind.wallTile), isEmpty);
     expect(_one(items, MaterialKind.tileAdhesive).defaultQuantity,
@@ -124,7 +124,7 @@ void main() {
 
   test('removing old tiles adds cement and sand for a new screed', () {
     final items =
-        _bom(modernBathroom, _bathroom.copyWith(removeOldTiles: true));
+        _bom(cosmeticBathroom, _bathroom.copyWith(removeOldTiles: true));
 
     expect(_one(items, MaterialKind.cementBedding).defaultQuantity,
         PhRenovationRates.calculateTileBeddingMortar(3.0).cementBags);
@@ -143,7 +143,7 @@ void main() {
       paintCeiling: true,
     );
     final takeoff = SiteTakeoff.from(details);
-    final items = _bom(_template('Wall Finishing', 'modern'), details);
+    final items = _bom(_template('Wall Finishing'), details);
 
     expect(_ofKind(items, MaterialKind.floorTile), isEmpty);
     expect(_ofKind(items, MaterialKind.cementBedding), isEmpty);
@@ -163,14 +163,13 @@ void main() {
       wallTileHeight: WallTileHeight.backsplash,
       counterLengthM: 2.4,
     );
-    // The minimalist kitchen has no wall tile of its own.
-    final items = _bom(_template('Kitchen Renovation', 'minimalist'), details);
+    final items = _bom(_template('Kitchen Renovation'), details);
 
     expect(_one(items, MaterialKind.wallTile).defaultQuantity,
         PhRenovationRates.calculateWallTilePieces(1.44, '75x300'));
     // 2.4 m × 0.60 m = 1.44 sq.m × 1.08 = 1.56 → 2 sq.m.
     expect(
-      items.singleWhere((i) => i.name == 'Laminate Countertop').defaultQuantity,
+      items.singleWhere((i) => i.name == 'Granite Countertop').defaultQuantity,
       2,
     );
     expect(_ofKind(items, MaterialKind.tileAdhesive), hasLength(1));
@@ -185,7 +184,7 @@ void main() {
       heightM: 2.7,
       doors: [Opening(widthM: 0.80, heightM: 2.10, count: 2)],
     );
-    final items = _bom(_template('Floor Renovation', 'modern'), details);
+    final items = _bom(_template('Floor Renovation'), details);
 
     // 14.0 m less 1.6 m of doorways = 12.4 m × 1.05 = 13.02 → 14 lm.
     expect(items.singleWhere((i) => i.name == 'Skirting').defaultQuantity, 14);
@@ -195,7 +194,7 @@ void main() {
 
   test('a swap or a new size keeps the measured basis', () {
     final takeoff = SiteTakeoff.from(_bathroom);
-    final items = _bom(modernBathroom, _bathroom);
+    final items = _bom(cosmeticBathroom, _bathroom);
     final wall = _one(items, MaterialKind.wallTile);
 
     final subway = BomQuantityEstimator.applyAlternative(
@@ -226,29 +225,31 @@ void main() {
         takeoff: takeoff);
     expect(
       _one(settled, MaterialKind.tileGrout).defaultQuantity,
-      PhRenovationRates.groutPacksForKg(3.0 * 0.18 + 14.97 * 0.30),
+      PhRenovationRates.groutPacksForKg(3.0 * 0.25 + 14.97 * 0.30),
     );
   });
 
-  test('an extension builds CHB over the measured walls, not 2.2 × floor', () {
+  test('a structural job builds CHB over the measured walls, not 2.2 × floor', () {
     final takeoff = SiteTakeoff.from(_bathroom);
     final items =
-        _bom(modernBathroom, _bathroom, scope: RenovationScope.extension);
+        _bom(_template('Bathroom Renovation', RenovationScope.structural), _bathroom,
+            scope: RenovationScope.structural);
 
     expect(_one(items, MaterialKind.chbBlock).defaultQuantity,
         PhRenovationRates.calculateChbPieces(14.97));
-    expect(BomQuantityEstimator.extensionCoverageNoteFor(takeoff),
+    expect(BomQuantityEstimator.structuralNoteFor(takeoff),
         contains('measured 15.0 sq.m of wall'));
   });
 
   test('without a measured room nothing changes', () {
     final withNull = BomQuantityEstimator.scaleTemplate(
-      template: modernBathroom,
+      template: cosmeticBathroom,
       areaSqm: 20,
     );
     // Walls still come from the template's 2.2 × floor.
     expect(_one(withNull, MaterialKind.wallTile).defaultQuantity,
         PhRenovationRates.calculateWallTilePieces(44, '300x600'));
-    expect(_ofKind(withNull, MaterialKind.paintTopcoat), isEmpty);
+    expect(_one(withNull, MaterialKind.floorTile).defaultQuantity,
+        PhRenovationRates.calculateFloorTilePieces(20, '300x300'));
   });
 }

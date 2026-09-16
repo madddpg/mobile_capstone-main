@@ -161,7 +161,6 @@ void main() {
       final template = RenovationTemplate(
         id: 'test_roof',
         renovationType: 'Roof Repair',
-        style: 'modern',
         name: 'Roof',
         description: '',
         items: const [
@@ -178,7 +177,7 @@ void main() {
       final scaled = BomQuantityEstimator.scaleTemplate(
         template: template,
         areaSqm: 20,
-        scope: RenovationScope.fullRenovation,
+        scope: RenovationScope.cosmetic,
       );
 
       expect(
@@ -192,7 +191,6 @@ void main() {
       final template = RenovationTemplate(
         id: 'test_ext',
         renovationType: 'Kitchen Renovation',
-        style: 'modern',
         name: 'K',
         description: '',
         items: const [
@@ -208,12 +206,12 @@ void main() {
       final full = BomQuantityEstimator.scaleTemplate(
         template: template,
         areaSqm: 20,
-        scope: RenovationScope.fullRenovation,
+        scope: RenovationScope.cosmetic,
       );
       final ext = BomQuantityEstimator.scaleTemplate(
         template: template,
         areaSqm: 20,
-        scope: RenovationScope.extension,
+        scope: RenovationScope.structural,
       );
 
       expect(full.any((i) => i.name.toLowerCase().contains('chb')), isFalse);
@@ -226,7 +224,7 @@ void main() {
       expect(
         BomQuantityEstimator.inferScope(
             'Kitchen Renovation', const ['Ceramic floor tiles', 'CHB 6"']),
-        RenovationScope.extension,
+        RenovationScope.structural,
       );
     });
 
@@ -234,7 +232,7 @@ void main() {
       expect(
         BomQuantityEstimator.inferScope('Kitchen Renovation',
             const ['Ceramic floor tiles', 'Tile adhesive', 'Interior paint']),
-        RenovationScope.fullRenovation,
+        RenovationScope.cosmetic,
       );
     });
   });

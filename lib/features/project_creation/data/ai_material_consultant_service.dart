@@ -17,8 +17,113 @@ class AiConsultResult {
   });
 }
 
+/// One material the AI recommends from a builder's description.
+class AiRecommendedMaterial {
+  final String name;
+  final String category;
+
+  /// Why the job needs it, in a short phrase.
+  final String reason;
+
+  const AiRecommendedMaterial({
+    required this.name,
+    this.category = '',
+    this.reason = '',
+  });
+}
+
+class AiRecommendResult {
+  final bool success;
+  final List<AiRecommendedMaterial> materials;
+  final String? errorMessage;
+
+  const AiRecommendResult({
+    required this.success,
+    this.materials = const [],
+    this.errorMessage,
+  });
+}
+
 /// Calls Firebase Cloud Functions that proxy Gemini (iConstruct-scoped only).
 class AiMaterialConsultantService {
+  /// The most recommendations shown; beyond this the list stops being a
+  /// starting point and becomes a package nobody asked for.
+  static const int maxRecommendations = 15;
+
+  /// Recommends materials for [description], a builder's own account of the
+  /// job, given the project and its renovation type.
+  ///
+  /// Uses `generateAIBOM` in recommend mode. A copy deployed before that mode
+  /// existed ignores it and drafts a BOM from `additionalNotes`, which carries
+  /// the same description, so this works on either version.
+  Future<AiRecommendResult> recommend({
+    required String projectType,
+    required String scope,
+    required String description,
+  }) async {
+    try {
+      final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
+          .httpsCallable(
+        'generateAIBOM',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+      );
+      final response = await callable.call(<String, dynamic>{
+        'mode': 'recommend',
+        'projectType': projectType,
+        'scope': scope,
+        'description': description,
+        'style': 'As described by the builder',
+        'additionalNotes':
+            'Renovation type: $scope\nWhat the builder wants:\n$description',
+      });
+
+      final data = response.data;
+      if (data is! Map) {
+        return const AiRecommendResult(
+          success: false,
+          errorMessage: 'Unexpected AI response.',
+        );
+      }
+
+      final materials = <AiRecommendedMaterial>[];
+      final seen = <String>{};
+      final raw = data['materials'];
+      if (raw is List) {
+        for (final entry in raw) {
+          final map = entry is Map ? entry : const {};
+          final name = (entry is Map ? map['name'] : entry)?.toString().trim() ?? '';
+          if (name.isEmpty || !seen.add(name.toLowerCase())) continue;
+          materials.add(AiRecommendedMaterial(
+            name: name,
+            category: (map['category'] ?? '').toString().trim(),
+            reason: (map['reason'] ?? '').toString().trim(),
+          ));
+          if (materials.length == maxRecommendations) break;
+        }
+      }
+
+      if (materials.isEmpty) {
+        // The server explains an off-topic description in its own words.
+        final serverError = (data['error'] ?? '').toString().trim();
+        return AiRecommendResult(
+          success: false,
+          errorMessage: serverError.isNotEmpty
+              ? serverError
+              : 'The AI did not recommend any materials. Describe the work in '
+                  'more detail, or chat with the AI instead.',
+        );
+      }
+      return AiRecommendResult(success: true, materials: materials);
+    } on FirebaseFunctionsException catch (e) {
+      return AiRecommendResult(success: false, errorMessage: _friendlyError(e));
+    } catch (_) {
+      return const AiRecommendResult(
+        success: false,
+        errorMessage: 'The AI service is unreachable right now.',
+      );
+    }
+  }
+
   Future<AiConsultResult> consult({
     required String projectType,
     required String userMessage,

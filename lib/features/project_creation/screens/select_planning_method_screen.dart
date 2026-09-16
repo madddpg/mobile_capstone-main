@@ -1,24 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'package:iconstruct/features/project_creation/screens/ai_consultation_screen.dart';
-import 'package:iconstruct/features/project_creation/screens/select_template_screen.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
+import 'package:iconstruct/features/project_creation/screens/describe_project_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
 
 class SelectPlanningMethodScreen extends StatelessWidget {
-  /// Renovation category (e.g. Kitchen Renovation).
+  /// Project picked on the home screen (e.g. Kitchen Renovation).
   final String projectName;
 
-  /// User-entered display name from the estimate naming screen.
+  /// User-entered display name from the naming screen.
   final String? customProjectName;
-  final String? projectNotes;
+
+  final RenovationScope scope;
 
   const SelectPlanningMethodScreen({
     super.key,
     required this.projectName,
     this.customProjectName,
-    this.projectNotes,
+    this.scope = RenovationScope.cosmetic,
   });
+
+  void _open(BuildContext context, PlanningMethod method) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DescribeProjectScreen(
+          projectName: projectName,
+          customProjectName: customProjectName,
+          scope: scope,
+          method: method,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +45,9 @@ class SelectPlanningMethodScreen extends StatelessWidget {
       title: 'Choose Planning\nMethod',
       subtitle: displayName,
       instruction:
-          'Template = pre-defined materials.\nAI Planner = custom material list.',
+          'Template = the standard materials for a ${scope.label.toLowerCase()} '
+          '${projectName.toLowerCase()}.\nAI Planner = materials recommended '
+          'from what you describe.',
       // The two tiles share the panel height when there is room. When there
       // is not, as on a small phone with large text, they keep their natural
       // height and the panel scrolls instead of clipping them.
@@ -45,21 +62,10 @@ class SelectPlanningMethodScreen extends StatelessWidget {
                     child: _MethodTile(
                       title: 'Plan with AI Planner',
                       subtitle:
-                          'Chat with the AI consultant to generate a custom Bill of Materials.',
+                          'Describe what you want and get recommended materials, or chat with the AI consultant.',
                       icon: Icons.auto_awesome,
                       accent: const Color(0xFFC4B5FD),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AIConsultationScreen(
-                              projectName: projectName,
-                              customProjectName: customProjectName,
-                              projectNotes: projectNotes,
-                            ),
-                          ),
-                        );
-                      },
+                      onTap: () => _open(context, PlanningMethod.ai),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -67,21 +73,10 @@ class SelectPlanningMethodScreen extends StatelessWidget {
                     child: _MethodTile(
                       title: 'Use Renovation Template',
                       subtitle:
-                          'Pick a style template with pre-defined materials, then edit quantities or remove items.',
+                          'Start from the materials for your project and renovation type, then edit quantities or remove items.',
                       icon: Icons.grid_view_rounded,
                       accent: const Color(0xFF6EE7B7),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => SelectTemplateScreen(
-                              projectName: projectName,
-                              customProjectName: customProjectName,
-                              projectNotes: projectNotes,
-                            ),
-                          ),
-                        );
-                      },
+                      onTap: () => _open(context, PlanningMethod.template),
                     ),
                   ),
                 ],

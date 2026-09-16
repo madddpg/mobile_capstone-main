@@ -394,6 +394,55 @@ class PhRenovationRates {
       '$ridgeMetersPerCementBag ln.m per 40 kg bag = ${bags.toInt()} bags\n'
       '(Quantity: mortar bedding under the ridge tiles)';
 
+  // Roof drainage. A gable roof sheds water to two eaves, each taken as long as
+  // the ridge, so the gutter length inherits the ridge's rough square-plan
+  // assumption and its formula says to measure the eaves.
+
+  static const double gutterPieceLengthM = 3.0;
+  static const double gutterBracketSpacingM = 0.60;
+  static const double gutterMetersPerDownspout = 9.0;
+  static const double elbowsPerDownspout = 2.0;
+
+  static double gutterLengthM(double planAreaSqm) =>
+      2 * ridgeLengthM(planAreaSqm);
+
+  static double calculateGutterPieces(double planAreaSqm) =>
+      (gutterLengthM(planAreaSqm) / gutterPieceLengthM).ceilToDouble();
+
+  static double calculateGutterBrackets(double planAreaSqm) =>
+      (gutterLengthM(planAreaSqm) / gutterBracketSpacingM).ceilToDouble();
+
+  static double calculateDownspouts(double planAreaSqm) => math.max(
+      2.0,
+      (gutterLengthM(planAreaSqm) / gutterMetersPerDownspout).ceilToDouble());
+
+  static double calculateDownspoutElbows(double planAreaSqm) =>
+      calculateDownspouts(planAreaSqm) * elbowsPerDownspout;
+
+  static String gutterLengthLine(double planAreaSqm) =>
+      '2 eaves × ${ridgeLengthM(planAreaSqm).toInt()} ln.m = '
+      '${gutterLengthM(planAreaSqm).toInt()} ln.m of gutter';
+
+  static String gutterFormulaString(double planAreaSqm, double pcs) =>
+      '${gutterLengthLine(planAreaSqm)} ÷ $gutterPieceLengthM m length = '
+      '${pcs.toInt()} pcs\n'
+      '(Quantity: gutters along both eaves, each eave taken as the ridge length; '
+      'measure the real eaves before ordering)';
+
+  static String gutterBracketFormulaString(double planAreaSqm, double pcs) =>
+      '${gutterLengthLine(planAreaSqm)} ÷ $gutterBracketSpacingM m spacing = '
+      '${pcs.toInt()} pcs\n(Quantity: one bracket every 0.60 m of gutter)';
+
+  static String downspoutFormulaString(double planAreaSqm, double pcs) =>
+      '${gutterLengthLine(planAreaSqm)} ÷ $gutterMetersPerDownspout m per downspout = '
+      '${pcs.toInt()} downspouts (at least 2), one 3 m length each\n'
+      '(Quantity: one-storey house; add a length per downspout for each extra storey)';
+
+  static String downspoutElbowFormulaString(double planAreaSqm, double pcs) =>
+      '${calculateDownspouts(planAreaSqm).toInt()} downspouts × '
+      '${elbowsPerDownspout.toInt()} elbows = ${pcs.toInt()} pcs\n'
+      '(Quantity: one elbow at the gutter outlet and one at the foot)';
+
   // ---------------------------------------------------------------------------
   // 8. MASTER FOREMAN AUXILIARY & CONSUMABLE ITEMS
   // ---------------------------------------------------------------------------

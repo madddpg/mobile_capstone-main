@@ -27,6 +27,7 @@ BomSection bomSectionOf(RenovationTemplateItem item) {
     case MaterialKind.waterproofing:
       return BomSection.floor;
     case MaterialKind.areaGoods:
+      if (name.contains('mesh')) return BomSection.structure;
       return isFloorFinishGoods(item) || name.contains('underlayment')
           ? BomSection.floor
           : BomSection.fixtures;

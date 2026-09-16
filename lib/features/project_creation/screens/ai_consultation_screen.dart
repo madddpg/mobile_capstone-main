@@ -5,12 +5,11 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/core/widgets/user_avatar.dart';
-import 'package:iconstruct/features/auth/presentation/screens/cost_estimation.dart';
 import 'package:iconstruct/features/auth/presentation/screens/profile_screen.dart';
 import 'package:iconstruct/features/project_creation/data/ai_material_consultant_service.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
-import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
+import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
 
 class ChatMessage {
   final String text;
@@ -24,11 +23,15 @@ class AIConsultationScreen extends StatefulWidget {
   final String? customProjectName;
   final String? projectNotes;
 
+  /// Chosen on the renovation type step. The chat no longer asks for it.
+  final RenovationScope scope;
+
   const AIConsultationScreen({
     super.key,
     required this.projectName,
     this.customProjectName,
     this.projectNotes,
+    this.scope = RenovationScope.cosmetic,
   });
 
   @override
@@ -42,24 +45,22 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   final _aiService = AiMaterialConsultantService();
 
   bool _isTyping = false;
-  int _step = 0;
+  int _step = _stepChat;
   String _style = '';
-  double _area = 0.0;
   String _budget = '';
-  RenovationScope? _scope;
   final List<String> _ideaLog = [];
   final List<String> _confirmedMaterials = [];
 
-  /// Area → scope → free chat → optional suggestion chips → budget → BOM.
-  static const int _stepArea = 0;
-  static const int _stepScope = 1;
-  static const int _stepChat = 2;
-  static const int _stepBudget = 3;
-  static const int _stepDone = 4;
+  /// Free chat → optional suggestion chips → budget → measure → BOM. The
+  /// renovation type and the room's size have their own screens, so the chat
+  /// no longer asks for either.
+  static const int _stepChat = 0;
+  static const int _stepBudget = 1;
+  static const int _stepDone = 2;
 
   List<String> _pendingRecommendations = [];
   final Set<String> _pendingSelected = {};
-  bool _showBomChip = false;
+  bool _showBomChip = true;
 
   static const Color _cream = Color(0xFFEDE4D4);
   static const Color _darkBlue = Color(0xFF2C3E50);
@@ -83,58 +84,11 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     );
     await Future.delayed(const Duration(milliseconds: 350));
     await _addBotMessage(
-      "To size quantities later, what's the total floor area? "
-      "Just the number is fine — with or without the unit (e.g. \"20\", "
-      "\"20 sqm\", \"20 square meters\").",
+      "This is a ${widget.scope.label.toLowerCase()} renovation: "
+      "${widget.scope.description.toLowerCase()}. Tell me what you want done "
+      "and I'll suggest materials. When you're ready, tap Build my BOM. "
+      "You'll measure the room next so the quantities fit it.",
     );
-  }
-
-  /// Pulls a positive area value out of free text, tolerating units and noise:
-  /// "30sqm", "30 sq m", "30 square meters", "~30 m²", "about 30", "30m2".
-  double? _parseAreaSqm(String raw) {
-    var s = raw.toLowerCase().trim();
-    s = s.replaceAll(
-        RegExp(
-            r'square\s*met(?:er|re)s?|sq\.?\s*m\.?|sqm|meters?|metres?|m\s*²|m2|㎡|²'),
-        ' ');
-    s = s.replaceAll(RegExp(r'[~≈>≥<≤=+]'), ' ').replaceAll(',', '');
-    final match = RegExp(r'\d+(?:\.\d+)?').firstMatch(s);
-    if (match == null) return null;
-    final value = double.tryParse(match.group(0)!);
-    if (value == null || !value.isFinite || value <= 0 || value > 100000) {
-      return null;
-    }
-    return value;
-  }
-
-  /// True when a message is (just) an area figure, not a sentence of ideas.
-  bool _looksLikeAreaMessage(String raw) {
-    if (_parseAreaSqm(raw) == null) return false;
-    final words = raw.trim().split(RegExp(r'\s+'));
-    if (words.length > 5) return false;
-    // reject if it reads like a sentence about materials
-    return !RegExp(r'[a-z]{4,}').hasMatch(
-        raw.toLowerCase().replaceAll(
-            RegExp(r'square|meters?|metres?|about|around|approx'), ''));
-  }
-
-  RenovationScope? _parseScope(String raw) {
-    final t = raw.toLowerCase();
-    if (RegExp(r'\bextension\b|\bextend|\badd(ing)?\s+(a\s+)?(new\s+)?room|new\s+room|expand|expansion|additional\s+room|bagong\s+kwarto')
-        .hasMatch(t)) {
-      return RenovationScope.extension;
-    }
-    if (RegExp(r'full\s*reno|renovation|redo|refinish|existing\s+room|finish(es|ing)?|remodel')
-        .hasMatch(t)) {
-      return RenovationScope.fullRenovation;
-    }
-    if (t.trim() == '1' || t.contains('first') || t.contains('full')) {
-      return RenovationScope.fullRenovation;
-    }
-    if (t.trim() == '2' || t.contains('second')) {
-      return RenovationScope.extension;
-    }
-    return null;
   }
 
   bool _isReadyToBuild(String text) {
@@ -161,8 +115,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     } else if (t.contains('traditional') || t.contains('classic')) {
       _style = 'Traditional';
     } else if (input.trim().length <= 40 &&
-        !RegExp(r'^\d').hasMatch(input.trim()) &&
-        _parseAreaSqm(input) == null) {
+        !RegExp(r'^\d').hasMatch(input.trim())) {
       _style = input.trim();
     }
   }
@@ -177,17 +130,6 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       setState(() {
         _step = _stepChat;
         _showBomChip = true;
-      });
-      return;
-    }
-
-    if (_area <= 0) {
-      await _addBotMessage(
-        "One number please — what's the project area in sqm? Then we can draft your BOM.",
-      );
-      setState(() {
-        _step = _stepArea;
-        _showBomChip = false;
       });
       return;
     }
@@ -215,48 +157,6 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     _scrollToBottom();
 
     switch (_step) {
-      case _stepArea:
-        final parsedArea = _parseAreaSqm(input);
-        if (parsedArea == null) {
-          // Not an area — let them start describing the project instead.
-          if (input.length > 8) {
-            _area = 0;
-            _step = _stepChat;
-            setState(() => _showBomChip = true);
-            await _handleFreeChat(input);
-          } else {
-            await _addBotMessage(
-              "I just need the floor area — a number works with or without the "
-              "unit (e.g. \"20\", \"20 sqm\", \"20 square meters\"). "
-              "Or describe your project in a sentence to skip this for now.",
-            );
-          }
-        } else {
-          _area = parsedArea;
-          _step = _stepScope;
-          setState(() {});
-          await _addBotMessage(
-            "Noted — ${_area.toStringAsFixed(0)} sqm. "
-            "Is this a Full Renovation (redo finishes in an existing room) or an "
-            "Extension (building a new room / structure)? Tap a choice below, or "
-            "type it — you can also say \"not sure\".",
-          );
-        }
-        break;
-
-      case _stepScope:
-        final s = _parseScope(input);
-        if (s == null && !RegExp(r'not\s*sure|skip|later|dunno|idk').hasMatch(
-            input.toLowerCase())) {
-          await _addBotMessage(
-            "No worries — pick Full Renovation or Extension below, or say "
-            "\"not sure\" and I'll infer it from your materials.",
-          );
-          break;
-        }
-        await _applyScope(s);
-        break;
-
       case _stepChat:
         await _handleFreeChat(input);
         break;
@@ -266,40 +166,14 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
         _step = _stepDone;
         await _addBotMessage(
           "Thanks! Drafting a Bill of Materials from your ideas"
-          "${_area > 0 ? ' for ${_area.toStringAsFixed(0)} sqm' : ''}… "
-          "You can still edit everything on the next screen.",
+          "… Next, measure the room so the quantities fit it.",
         );
         _generateBOM();
         break;
     }
   }
 
-  /// Locks in the chosen (or inferred) scope and moves to free chat.
-  Future<void> _applyScope(RenovationScope? scope) async {
-    _scope = scope;
-    _step = _stepChat;
-    setState(() => _showBomChip = true);
-    final label = scope == null
-        ? "I'll infer the scope from your materials"
-        : "Scope set to ${scope.label}";
-    await _addBotMessage(
-      "$label. Now tell me what you envision for this project — finishes, "
-      "fixtures, tiles, anything. I'll suggest options; you choose what stays.\n\n"
-      "When you're ready, tap Build my BOM.",
-    );
-  }
-
   Future<void> _handleFreeChat(String input) async {
-    // Allow sending area mid-chat
-    if (_looksLikeAreaMessage(input)) {
-      _area = _parseAreaSqm(input)!;
-      await _addBotMessage(
-        "Updated area to ${_area.toStringAsFixed(0)} sqm. Continue with your ideas whenever you're ready.",
-      );
-      setState(() => _showBomChip = true);
-      return;
-    }
-
     if (_isReadyToBuild(input)) {
       await _beginBudgetThenGenerate();
       return;
@@ -319,8 +193,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       projectType: widget.projectName,
       userMessage: input,
       style: _style,
-      areaSqm: _area,
-      scope: _scope?.label,
+      scope: widget.scope.label,
       ideaLog: List<String>.from(_ideaLog),
       selectedMaterials: List<String>.from(_confirmedMaterials),
       projectNotes: widget.projectNotes,
@@ -767,13 +640,11 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       final response = await callable.call(<String, dynamic>{
         'projectType': widget.projectName,
         'style': _style.isEmpty ? 'As described by user' : _style,
-        'areaSqm': _area,
-        'scope': _scope?.label ?? '',
+        'areaSqm': 0,
+        'scope': widget.scope.label,
         'budgetLevel': _budget,
         'additionalNotes': [
-          if (_scope != null)
-            'Renovation scope: ${_scope!.label} — '
-                '${_scope == RenovationScope.extension ? 'new construction, structural items (CHB, rebar, gravel, formwork, roofing) are in scope' : 'finishes only, no structural/roof-framing items'}.',
+          'Renovation type: ${widget.scope.label} — ${widget.scope.description}.',
           'The user picked no materials from suggestions — draft only the '
               'essentials implied by the ideas below.',
           'Do not invent a full sequential package beyond those essentials.',
@@ -797,15 +668,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
         if (!mounted) return;
 
         if (names.isNotEmpty) {
-          _openBomReview(
-            BomQuantityEstimator.buildConsultationTemplate(
-              projectType: widget.projectName,
-              style: _style,
-              areaSqm: _area,
-              materialNames: names,
-              scope: _scope,
-            ),
-          );
+          _openBomReview(names);
         } else {
           _openBomFromSelections(selected);
         }
@@ -840,34 +703,25 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       );
       return;
     }
-    _openBomReview(
-      BomQuantityEstimator.buildConsultationTemplate(
-        projectType: widget.projectName,
-        style: _style,
-        areaSqm: _area <= 0 ? 1 : _area,
-        materialNames: names,
-        scope: _scope,
-      ),
-    );
+    _openBomReview(names);
   }
 
-  void _openBomReview(RenovationTemplate template) {
+  /// Opens the measuring step with exactly the materials the builder chose.
+  void _openBomReview(List<String> materialNames) {
     if (!mounted) return;
-    final scope = _scope ??
-        BomQuantityEstimator.inferScope(
-          widget.projectName,
-          template.items.map((i) => i.name),
-        );
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => CostEstimationScreen(
+        builder: (_) => TemplateAreaScreen(
+          template: BomQuantityEstimator.consultationTemplate(
+            projectType: widget.projectName,
+            materialNames: materialNames,
+            scope: widget.scope,
+          ),
           projectName: widget.projectName,
           customProjectName: widget.customProjectName,
           projectNotes: widget.projectNotes,
-          template: template,
-          projectAreaSqm: _area,
-          scope: scope,
+          scope: widget.scope,
           budgetPreference: _budget,
         ),
       ),
@@ -1070,28 +924,6 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_step == _stepScope) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: _ChoiceChipButton(
-                    label: 'Full Renovation',
-                    filled: true,
-                    onTap: () => _handleSubmitted('Full Renovation'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _ChoiceChipButton(
-                    label: 'Extension',
-                    filled: true,
-                    onTap: () => _handleSubmitted('Extension'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-          ],
           if (_pendingRecommendations.isNotEmpty) ...[
             SizedBox(
               width: double.infinity,
@@ -1123,11 +955,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                   style: const TextStyle(color: Colors.white),
                   scrollPadding: const EdgeInsets.only(bottom: 80),
                   decoration: InputDecoration(
-                    hintText: _step == _stepArea
-                        ? 'Area in sqm, or start describing…'
-                        : _step == _stepScope
-                            ? 'Full Renovation or Extension…'
-                            : 'Describe your project ideas freely…',
+                    hintText: 'Describe your project ideas freely…',
                     hintStyle: TextStyle(
                       color: Colors.white.withValues(alpha: 0.55),
                     ),
