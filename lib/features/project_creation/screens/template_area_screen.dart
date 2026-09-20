@@ -6,6 +6,8 @@ import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/features/auth/presentation/screens/cost_estimation.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
+import 'package:iconstruct/features/project_creation/data/functional_counts.dart';
+import 'package:iconstruct/features/project_creation/data/material_kind.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/data/site_details.dart';
@@ -120,9 +122,39 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   bool _removeOldTiles = false;
   bool _paintCeiling = false;
 
+  /// How many devices the wiring job installs. These, not the floor area,
+  /// size the outlets, switches, lights, wire, conduit and utility boxes.
+  late int _outlets;
+  late int _switches;
+  late int _lights;
+
   /// Functional work replaces pipes and wiring, so only the room's size
   /// matters; doors, windows, tiles and paint are left as they are.
   bool get _finishes => widget.scope.changesFinishes;
+
+  /// Whether to ask for device counts: a functional job whose template
+  /// actually carries wiring. Asked of the template itself rather than of the
+  /// room, because a functional bathroom is plumbing only and a functional
+  /// roof is drainage only — neither has a device to count.
+  ///
+  /// The steppers live in the room section, so a job with no room to measure
+  /// cannot show them. Such a job keeps the template's own rates rather than
+  /// taking counts the builder was never offered, which would read as zero
+  /// devices and empty the wiring out of the list.
+  late final bool _needsFunctionalCounts = !_finishes &&
+      _job != null &&
+      widget.template.items
+          .any((i) => classifyMaterial(i) == MaterialKind.electrical);
+
+  /// The counts as entered, or `null` when this job wires nothing and its
+  /// quantities keep the template's own rates.
+  FunctionalCounts? get _counts => _needsFunctionalCounts
+      ? FunctionalCounts(
+          outlets: _outlets,
+          switches: _switches,
+          lights: _lights,
+        )
+      : null;
 
   @override
   void initState() {
@@ -154,6 +186,13 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         widget.hints.removeOldTiles ?? defaults?.removeOldTiles ?? false;
     _paintCeiling =
         widget.hints.paintCeiling ?? defaults?.paintCeiling ?? false;
+
+    // A starting point for the steppers, not a rule — typical counts for a
+    // room of this kind, which the builder then corrects.
+    final devices = FunctionalCounts.defaultsFor(job);
+    _outlets = devices.outlets;
+    _switches = devices.switches;
+    _lights = devices.lights;
   }
 
   @override
@@ -198,6 +237,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
 
   List<String> _problems(SiteDetails details) => [
         ...details.problems(),
+        // A wiring job that installs nothing has no materials to quote.
+        if (_needsFunctionalCounts && (_counts?.isEmpty ?? false))
+          'Enter at least one outlet, switch or light for a wiring job.',
         if ([..._doors, ..._windows].any((row) => row.isIncomplete))
           'Enter the width and height of each custom door or window size, '
               'between 0.30 and 3.00 m.',
@@ -224,11 +266,13 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   }
 
   void _openEstimate(double area, SiteTakeoff? takeoff) {
+    final counts = _counts;
     final scaled = BomQuantityEstimator.scaleTemplate(
       template: widget.template,
       areaSqm: area,
       scope: widget.scope,
       takeoff: takeoff,
+      counts: counts,
     );
     // An AI list holds exactly what the builder picked, so it gets no type
     // chips to swap one pick for another.
@@ -248,6 +292,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           projectAreaSqm: area,
           scope: widget.scope,
           takeoff: takeoff,
+          counts: counts,
           budgetPreference: widget.budgetPreference,
         ),
       ),
@@ -386,7 +431,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           ? 'Select scope & total area (sqm). Quantities auto-estimate per Philippine DPWH national standards.'
           : _finishes
               ? 'Measure the room first. Floor, wall and paint quantities are each sized from what you enter here.'
-              : 'Measure the room. Wire, conduit and device quantities are sized from its floor area.',
+              : _needsFunctionalCounts
+                  ? 'Measure the room, then say how many devices go in it. Wire, conduit and boxes are sized from the device counts.'
+                  : 'Measure the room. Quantities are sized from the fixtures the job replaces.',
       trailingAction: GlitchedPillButton(
         label: 'Estimate Qty',
         width: 168,
@@ -546,6 +593,24 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           ],
         ],
       ),
+      if (_needsFunctionalCounts) ...[
+        const SizedBox(height: 18),
+        _label('Devices to install *'),
+        const SizedBox(height: 4),
+        // Said plainly, because this is the change: the room no longer decides
+        // how much wire the job needs.
+        _hint(
+          'Wire, conduit and utility boxes are sized from these counts, not '
+          'from the floor area. Set one to 0 to leave it out of the list.',
+        ),
+        const SizedBox(height: 10),
+        _deviceRow('Convenience outlets', 'outlet', _outlets,
+            (value) => setState(() => _outlets = value)),
+        _deviceRow('Light switches', 'switch', _switches,
+            (value) => setState(() => _switches = value)),
+        _deviceRow('Ceiling lights', 'light', _lights,
+            (value) => setState(() => _lights = value)),
+      ],
       if (_finishes) ...[
       const SizedBox(height: 18),
       _label(job.hasWalls ? 'Doors' : 'Doorways (skirting stops at these)'),
@@ -618,6 +683,33 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         fontSize: 11,
         color: const Color(0xFF8FB2D4),
         height: 1.3,
+      ),
+    );
+  }
+
+  /// One wiring device and how many of it the room gets.
+  Widget _deviceRow(
+    String label,
+    String noun,
+    int count,
+    ValueChanged<int> onChanged,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: const Color(0xFFE0D7C9),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _CountStepper(count: count, noun: noun, onChanged: onChanged),
+        ],
       ),
     );
   }
