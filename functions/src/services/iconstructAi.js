@@ -76,62 +76,108 @@ function resolveGeminiKey(secretRef) {
   return env && String(env).trim() ? String(env).trim() : null;
 }
 
-// Real, currently-served model ids, cheapest/fastest first. The previous list
-// led with non-existent "gemini-3.x" ids; the SDK rejected them with an error
-// the retry loop below did not recognise as "try the next model", so every
-// consult turn surfaced as an INTERNAL error.
+// Model ids Google currently serves, cheapest/fastest first.
+//
+// Google retires ids and answers a retired one with a 404 that names its
+// replacement, so the loop below tries each in turn and the older ids stay as
+// fallbacks for projects still served them. When every id 404s, read the
+// function log: the message says which id to put at the top of this list.
 const GEMINI_MODELS = [
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-flash-latest",
   "gemini-2.5-flash",
   "gemini-2.5-flash-lite",
-  "gemini-flash-latest",
   "gemini-2.0-flash",
 ];
+
+/**
+ * The error to raise when no provider produced an answer.
+ *
+ * A missing key and a model that is busy or retired need different people to
+ * do different things about them. Reporting both as "Set GEMINI_API_KEY" sent
+ * a builder to check a key that was configured all along, while the real
+ * cause — a retired model id — sat in the log.
+ */
+function noAnswerError(hasAnyKey) {
+  if (!hasAnyKey) {
+    return new HttpsError(
+      "failed-precondition",
+      "iConstruct AI has no API key configured on the server."
+    );
+  }
+  return new HttpsError(
+    "unavailable",
+    "iConstruct AI could not be reached just now. Try again in a moment, " +
+      "or start from a template instead."
+  );
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** A key that is missing, wrong, or not allowed to call the model. */
+function isKeyProblem(error, message) {
+  return (
+    error?.status === 401 ||
+    error?.status === 403 ||
+    /api[_ ]?key not valid|api_key_invalid|permission[_ ]?denied/i.test(message)
+  );
+}
 
 async function callGeminiJson(apiKey, { system, user, temperature = 0.3 }) {
   const { GoogleGenAI } = require("@google/genai");
   const ai = new GoogleGenAI({ apiKey });
   const contents = `${system}\n\n---\n\nUSER REQUEST:\n${user}`;
 
+  // Two passes over the list. A retired id fails permanently and the next
+  // model answers; congestion ("high demand", 429, 503) is temporary, and a
+  // second pass a moment later usually goes through. Only a key problem is
+  // worth stopping for, because no model will answer without one.
+  const passes = 2;
   let lastError = null;
-  for (const model of GEMINI_MODELS) {
-    try {
-      const response = await ai.models.generateContent({
-        model,
-        contents,
-        config: {
-          responseMimeType: "application/json",
-          temperature,
-        },
-      });
-      const text = response.text || "";
+
+  for (let pass = 0; pass < passes; pass++) {
+    for (const model of GEMINI_MODELS) {
       try {
-        return JSON.parse(text);
-      } catch (parseError) {
-        logger.error("Failed to parse Gemini JSON", { model, text, parseError });
-        throw new HttpsError("internal", "AI returned invalid data format.");
+        const response = await ai.models.generateContent({
+          model,
+          contents,
+          config: {
+            responseMimeType: "application/json",
+            temperature,
+          },
+        });
+        const text = response.text || "";
+        try {
+          return JSON.parse(text);
+        } catch (parseError) {
+          logger.error("Failed to parse Gemini JSON", {
+            model,
+            text,
+            parseError,
+          });
+          throw new HttpsError("internal", "AI returned invalid data format.");
+        }
+      } catch (error) {
+        const msg = String(error?.message || error || "");
+        if (isKeyProblem(error, msg)) {
+          logger.error("Gemini rejected the API key", { msg });
+          throw error;
+        }
+        lastError = error;
+        logger.warn(`Gemini ${model} did not answer, trying the next`, {
+          status: error?.status,
+          msg: msg.slice(0, 300),
+        });
       }
-    } catch (error) {
-      lastError = error;
-      const msg = String(error?.message || error || "");
-      // Any error that looks model-specific -> try the next candidate rather
-      // than failing the whole turn.
-      const modelIssue =
-        error?.status === 404 ||
-        error?.status === 400 ||
-        /not[_ ]?found|no longer available|not supported|unsupported|unknown (name|model)|does not exist|invalid.*model|model.*invalid/i.test(
-          msg
-        );
-      if (modelIssue) {
-        logger.warn(`Gemini model unavailable, trying next: ${model}`, { msg });
-        continue;
-      }
-      throw error;
     }
+    if (pass + 1 < passes) await sleep(600);
   }
 
   logger.error("All Gemini models failed", { lastError });
   throw lastError || new Error("No Gemini model available");
 }
+
 
 async function callOpenAiJson(apiKey, { system, user, temperature = 0.3 }) {
   const axios = require("axios");
@@ -300,9 +346,8 @@ Rules:
   }
 
   if (!parsed) {
-    throw new HttpsError(
-      "internal",
-      "iConstruct AI is currently unavailable. Set GEMINI_API_KEY."
+    throw noAnswerError(
+      Boolean(geminiKey || (openaiKey && String(openaiKey).trim()))
     );
   }
 
@@ -407,9 +452,8 @@ Rules for suggestions:
   }
 
   if (!parsed) {
-    throw new HttpsError(
-      "internal",
-      "iConstruct AI is currently unavailable. Set GEMINI_API_KEY."
+    throw noAnswerError(
+      Boolean(geminiKey || (openaiKey && String(openaiKey).trim()))
     );
   }
 

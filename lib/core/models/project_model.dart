@@ -15,7 +15,11 @@ class ProjectModel {
   final DateTime lastUpdated;
   final String? postId;
 
-  final String projectScope; // Full Renovation, Extension
+  final String projectScope; // Cosmetic, Structural, Functional
+
+  /// Whether the estimate carries room measurements. The area then comes from
+  /// the takeoff and is not the builder's to retype.
+  final bool hasSiteDetails;
 
   RenovationScope get scope => RenovationScope.fromString(projectScope);
 
@@ -30,7 +34,8 @@ class ProjectModel {
     required this.status,
     required this.lastUpdated,
     this.postId,
-    this.projectScope = 'Full Renovation',
+    this.projectScope = 'Cosmetic',
+    this.hasSiteDetails = false,
   });
 
   factory ProjectModel.fromDocument(DocumentSnapshot doc) {
@@ -58,7 +63,8 @@ class ProjectModel {
       lastUpdated: asDate(firstOf(data, ['updatedAt', 'lastUpdated'])) ??
           DateTime.now(),
       postId: asStringOrNull(data['postId']),
-      projectScope: asString(data['projectScope'], fallback: 'Full Renovation'),
+      projectScope: asString(data['projectScope'], fallback: 'Cosmetic'),
+      hasSiteDetails: data['siteDetails'] is Map,
     );
   }
 }

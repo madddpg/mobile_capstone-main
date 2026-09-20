@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -17,6 +18,8 @@ import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
 import 'package:iconstruct/features/bidding/data/quotation_accept_service.dart';
 import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
 import 'package:iconstruct/features/bidding/data/quotation_status.dart';
+import 'package:iconstruct/features/bidding/data/supplier_cancellation.dart';
+import 'package:iconstruct/features/bidding/widgets/cancel_selection_sheet.dart';
 import 'package:iconstruct/features/bidding/widgets/accepted_lines_panel.dart';
 import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
 import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.dart';
@@ -219,7 +222,7 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                       final cov = bomCoverageCount(bom, b.quote)
                           .compareTo(bomCoverageCount(bom, a.quote));
                       if (cov != 0) return cov;
-                      return a.quote.allInTotal.compareTo(b.quote.allInTotal);
+                      return a.quote.estimatedTotal.compareTo(b.quote.estimatedTotal);
                     });
 
                     return ListView(
@@ -262,6 +265,14 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                               shop,
                               selectedQuotationId,
                             ),
+                            onCancelSelection:
+                                selectedQuotationId == shop.quote.id
+                                    ? () => _cancelSelection(
+                                          context,
+                                          shop,
+                                          shops.length - 1,
+                                        )
+                                    : null,
                             onDetails: () => _openQuoteDetails(
                               context,
                               shop: shop,
@@ -327,6 +338,67 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
         await _confirmAccept(context, shop);
       case QuoteDetailAction.message:
         await _openShopChat(context, shop, selectedQuotationId);
+    }
+  }
+
+  /// Cancels a selection the builder already made.
+  ///
+  /// Acceptance is final on purpose — the other shops were told they lost in
+  /// the same transaction — so this is a recorded cancellation rather than an
+  /// undo, and the Cloud Function owns the policy. See
+  /// `functions/src/services/supplierSelection.js`.
+  Future<void> _cancelSelection(
+    BuildContext context,
+    _ShopOffer shop,
+    int otherQuotations,
+  ) async {
+    final choice = await showCancelSelectionSheet(
+      context,
+      shopName: shop.quote.shopName,
+      otherQuotations: otherQuotations,
+    );
+    if (choice == null || !context.mounted) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.cream),
+      ),
+    );
+
+    try {
+      final restored = await SupplierCancellationService().cancel(
+        postId: postId,
+        reason: choice.reason,
+        note: choice.note,
+      );
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      showAppMessage(
+        context,
+        SnackBar(
+          content: Text(
+            restored == 0
+                ? '${shop.quote.shopName} has been told, and your estimate is '
+                    'open for quotations again.'
+                : '${shop.quote.shopName} has been told. '
+                    '$restored quotation${restored == 1 ? '' : 's'} can be '
+                    'chosen again.',
+          ),
+        ),
+        kind: AppMessageKind.success,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      final message = e is FirebaseFunctionsException
+          ? SupplierCancellationService.friendlyError(e)
+          : e.toString().replaceFirst(RegExp(r'^Exception: '), '');
+      showAppMessage(
+        context,
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -499,6 +571,9 @@ class _ShopSummaryCard extends StatelessWidget {
   final VoidCallback onMessage;
   final VoidCallback onDetails;
 
+  /// Offered only on the shop the builder selected. Null elsewhere.
+  final VoidCallback? onCancelSelection;
+
   const _ShopSummaryCard({
     required this.shop,
     required this.bom,
@@ -511,6 +586,7 @@ class _ShopSummaryCard extends StatelessWidget {
     required this.onAccept,
     required this.onMessage,
     required this.onDetails,
+    this.onCancelSelection,
   });
 
   @override
@@ -566,12 +642,10 @@ class _ShopSummaryCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _MiniLabel(
-                      quote.deliveryFee > 0 ? 'All-in total' : 'Quoted total',
-                    ),
+                    const _MiniLabel('Quoted total'),
                     const SizedBox(height: 2),
                     Text(
-                      formatBidMoney(quote.allInTotal),
+                      formatBidMoney(quote.estimatedTotal),
                       style: GoogleFonts.poppins(
                         color: isLowest ? AppColors.success : AppColors.textDark,
                         fontWeight: FontWeight.w800,
@@ -579,17 +653,6 @@ class _ShopSummaryCard extends StatelessWidget {
                         height: 1.1,
                       ),
                     ),
-                    if (quote.deliveryFee > 0) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        '${formatBidMoney(quote.estimatedTotal)} + '
-                        '${formatBidMoney(quote.deliveryFee)} delivery',
-                        style: GoogleFonts.poppins(
-                          color: AppColors.textMuted,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -723,6 +786,30 @@ class _ShopSummaryCard extends StatelessWidget {
               quotationId: shop.quote.id,
               shopName: shop.quote.shopName,
               remainderPostId: remainderPostId.isEmpty ? null : remainderPostId,
+            ),
+          ],
+          // A way out when the shop falls through. Deliberately quiet: it is
+          // an escape hatch, not a second thought about a choice just made.
+          if (isSelected && onCancelSelection != null) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onCancelSelection,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+                icon: const Icon(Icons.cancel_schedule_send_outlined, size: 16),
+                label: Text(
+                  'Cancel this selection',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ),
           ],
         ],
@@ -913,17 +1000,8 @@ class _QuoteDetailsSheet extends StatelessWidget {
                   child: Column(
                     children: [
                       _SheetRow(
-                        label: 'Materials',
+                        label: 'Quoted total',
                         value: formatBidMoney(quote.estimatedTotal),
-                      ),
-                      if (quote.deliveryFee > 0)
-                        _SheetRow(
-                          label: 'Delivery',
-                          value: formatBidMoney(quote.deliveryFee),
-                        ),
-                      _SheetRow(
-                        label: 'All-in total',
-                        value: formatBidMoney(quote.allInTotal),
                         strong: true,
                       ),
                       if (quote.leadTimeRaw.trim().isNotEmpty)
@@ -1091,7 +1169,7 @@ class _QuoteDetailsSheet extends StatelessWidget {
             _SheetRow(label: 'Phone', value: profile.phone.trim()),
           if (profile.coverageCities.isNotEmpty) ...[
             const SizedBox(height: 8),
-            const _MiniLabel('Delivers to', light: true),
+            const _MiniLabel('Coverage areas', light: true),
             const SizedBox(height: 6),
             Wrap(
               spacing: 6,
@@ -1821,6 +1899,11 @@ class _StatusBadge extends StatelessWidget {
           label: 'Partly selected',
           bg: const Color(0xFFD1FAE5),
           fg: const Color(0xFF065F46),
+        ),
+      'cancelled' => (
+          label: 'Cancelled',
+          bg: const Color(0xFFFECACA),
+          fg: const Color(0xFF991B1B),
         ),
       'rejected' => (
           label: 'Not selected',

@@ -1,4 +1,3 @@
-import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -11,7 +10,9 @@ enum AttachmentKind { image, file }
 
 /// A file the builder picked, already reduced and ready to upload.
 class PickedAttachment {
-  final File file;
+  /// The picked bytes. Bytes rather than a file path: on the web a picked
+  /// file has no path at all, and `dart:io` does not exist there.
+  final Uint8List bytes;
   final String name;
   final AttachmentKind kind;
 
@@ -20,7 +21,7 @@ class PickedAttachment {
   final int sizeBytes;
 
   const PickedAttachment({
-    required this.file,
+    required this.bytes,
     required this.name,
     required this.kind,
     required this.sizeBytes,
@@ -104,13 +105,15 @@ class ChatAttachmentService {
     );
     if (shot == null) return null;
 
-    final file = File(shot.path);
-    final size = await file.length();
+    // Bytes, not a path: image_picker hands back a blob URL on the web, and
+    // the same read works on a phone.
+    final bytes = await shot.readAsBytes();
+    _refuseIfTooBig(bytes.length);
     return PickedAttachment(
-      file: file,
+      bytes: bytes,
       name: shot.name,
       kind: AttachmentKind.image,
-      sizeBytes: size,
+      sizeBytes: bytes.length,
     );
   }
 
@@ -125,29 +128,29 @@ class ChatAttachmentService {
     );
     if (picked == null) return null;
 
-    // On some platforms a picked file is content-backed rather than a real
-    // path, so there is nothing to hand to putFile.
-    final path = picked.path;
-    if (path == null) {
-      throw const ChatAttachmentException(
-        'That file could not be read from its location. '
-        'Copy it into your device storage and try again.',
-      );
-    }
-
-    final size = await picked.length();
-    if (size > maxBytes) {
-      throw ChatAttachmentException(
-        'That file is ${_readableSize(size)}. '
-        'Attachments have to be under ${_readableSize(maxBytes)}.',
-      );
-    }
+    // Reading the bytes works wherever the file came from: a real path on a
+    // phone, a content URI, or a browser blob with no path at all. The old
+    // code asked for `picked.path` and refused anything that had none, which
+    // on the web is every file.
+    _refuseIfTooBig(await picked.length());
+    final bytes = await picked.readAsBytes();
+    _refuseIfTooBig(bytes.length);
 
     return PickedAttachment(
-      file: File(path),
+      bytes: bytes,
       name: picked.name,
       kind: AttachmentKind.file,
-      sizeBytes: size,
+      sizeBytes: bytes.length,
+    );
+  }
+
+  /// Stops an oversized attachment at pick time rather than after a slow
+  /// upload that Storage would refuse anyway.
+  void _refuseIfTooBig(int sizeBytes) {
+    if (sizeBytes <= maxBytes) return;
+    throw ChatAttachmentException(
+      'That file is ${_readableSize(sizeBytes)}. '
+      'Attachments have to be under ${_readableSize(maxBytes)}.',
     );
   }
 
@@ -177,8 +180,8 @@ class ChatAttachmentService {
         .child('${stamp}_$safeName');
 
     try {
-      await ref.putFile(
-        picked.file,
+      await ref.putData(
+        picked.bytes,
         SettableMetadata(
           contentType: _contentTypeFor(safeName, picked.kind),
           // Attachments never change once written, so both the app's disk

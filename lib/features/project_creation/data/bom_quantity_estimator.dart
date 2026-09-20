@@ -1,3 +1,4 @@
+import 'package:iconstruct/features/project_creation/data/functional_counts.dart';
 import 'package:iconstruct/features/project_creation/data/material_kind.dart';
 import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
@@ -11,11 +12,17 @@ class BomQuantityEstimator {
   /// [takeoff], when the room was measured, sizes each material from the
   /// surface it covers and fits the template's lines to the room. Without it
   /// every quantity starts from [areaSqm], as before.
+  ///
+  /// [counts], for a functional room, sizes the wiring devices and their wire
+  /// and conduit from how many the builder actually asked for, rather than
+  /// from the room's floor area — a wiring job is sized by the devices it
+  /// installs, not by the room they happen to sit in.
   static List<RenovationTemplateItem> scaleTemplate({
     required RenovationTemplate template,
     required double areaSqm,
     RenovationScope scope = RenovationScope.cosmetic,
     SiteTakeoff? takeoff,
+    FunctionalCounts? counts,
   }) {
     final area = _baseArea(areaSqm, takeoff);
     final isConsultation = template.id.contains('consultation');
@@ -39,8 +46,13 @@ class BomQuantityEstimator {
       // count against an unstated size is a ~4x ambiguity).
       final item = _pinTileDefaults(rawItem);
 
-      final scaledQty =
-          estimateQuantity(item: item, areaSqm: area, takeoff: takeoff);
+      // A device the builder asked for none of needs no wire to it either.
+      // Dropped here rather than shown at a quantity of 0, which would block
+      // the review screen's "every line needs a quantity" check.
+      if (counts != null && _isUnneededWiring(item, counts)) continue;
+
+      final scaledQty = estimateQuantity(
+          item: item, areaSqm: area, takeoff: takeoff, counts: counts);
       items.add(
         ensureSwappable(
           item.copyWith(
@@ -427,6 +439,161 @@ class BomQuantityEstimator {
     return sqm < 1 ? 1.0 : sqm;
   }
 
+  // ── Functional wiring (Functional scope only) ──────────────────────────
+  //
+  // Outlets, switches, lights, and the wire and conduit that serve them, used
+  // to scale off the room's floor area. A 39 sq.m living room and a 12 sq.m
+  // bedroom got wiring proportional to their floors, whichever number of
+  // outlets the builder actually wanted. These size instead from the device
+  // counts a builder enters on the measuring step — [FunctionalCounts].
+
+  static bool _isOutletDevice(RenovationTemplateItem item) =>
+      item.name.toLowerCase().contains('convenience outlet');
+
+  static bool _isLightSwitchDevice(RenovationTemplateItem item) =>
+      item.category.toLowerCase().contains('wiring devices') &&
+      item.name.toLowerCase().contains('switch');
+
+  static bool _isCeilingLightDevice(RenovationTemplateItem item) =>
+      item.category.toLowerCase() == 'lighting' &&
+      item.name.toLowerCase().contains('light');
+
+  static bool _isUtilityBoxDevice(RenovationTemplateItem item) =>
+      item.name.toLowerCase().contains('utility box');
+
+  static bool _isOutletCircuitWire(RenovationTemplateItem item) =>
+      item.name.toLowerCase().contains('3.5 mm');
+
+  static bool _isLightingCircuitWire(RenovationTemplateItem item) =>
+      item.name.toLowerCase().contains('2.0 mm');
+
+  /// The kitchen's dedicated appliance circuit — one run to one appliance,
+  /// not something that scales with how many outlets the rest of the room has.
+  static bool _isApplianceCircuitWire(RenovationTemplateItem item) =>
+      item.name.toLowerCase().contains('5.5 mm');
+
+  static bool _isElectricalConduit(RenovationTemplateItem item) {
+    final name = item.name.toLowerCase();
+    return name.contains('conduit') && !name.contains('coupling');
+  }
+
+  static bool _isConduitCoupling(RenovationTemplateItem item) =>
+      item.name.toLowerCase().contains('coupling');
+
+  /// Average wire run from a circuit's loop to one device. An outlet usually
+  /// sits further from the loop than a switch or a light does.
+  static const double kOutletRunM = 3.0;
+  static const double kLightingRunM = 2.5;
+
+  /// One run from the panel to the appliance location — fixed, because a
+  /// dedicated circuit does not get longer with more outlets in the room.
+  static const double kApplianceCircuitRunM = 8.0;
+
+  static double _outletCircuitRunM(FunctionalCounts counts) =>
+      counts.outlets * kOutletRunM;
+
+  static double _lightingCircuitRunM(FunctionalCounts counts) =>
+      (counts.switches + counts.lights) * kLightingRunM;
+
+  /// A count-driven electrical line the builder asked for none of — no
+  /// outlets requested, so no outlet-circuit wire either. The line is dropped
+  /// rather than shown at a quantity of 0.
+  static bool _isUnneededWiring(
+      RenovationTemplateItem item, FunctionalCounts counts) {
+    if (classifyMaterial(item) != MaterialKind.electrical) return false;
+    final wiring = _functionalWiringQuantity(item, counts);
+    return wiring != null && wiring <= 0;
+  }
+
+  /// Quantity for one of the lines [FunctionalCounts] drives, or `null` when
+  /// [item] is not one of them — a circuit breaker and electrical tape are
+  /// electrical too, but are fixed counts unrelated to how many devices the
+  /// builder asked for, so they fall through to [_scaleByRate] as before.
+  static double? _functionalWiringQuantity(
+    RenovationTemplateItem item,
+    FunctionalCounts counts,
+  ) {
+    if (_isOutletDevice(item)) return counts.outlets.toDouble();
+    if (_isLightSwitchDevice(item)) return counts.switches.toDouble();
+    if (_isCeilingLightDevice(item)) return counts.lights.toDouble();
+    if (_isUtilityBoxDevice(item)) return counts.deviceCount.toDouble();
+    if (_isOutletCircuitWire(item)) {
+      final m = _outletCircuitRunM(counts);
+      return m <= 0 ? 0.0 : (m * 1.08).ceilToDouble();
+    }
+    if (_isLightingCircuitWire(item)) {
+      final m = _lightingCircuitRunM(counts);
+      return m <= 0 ? 0.0 : (m * 1.08).ceilToDouble();
+    }
+    if (_isApplianceCircuitWire(item)) {
+      return (kApplianceCircuitRunM * 1.08).ceilToDouble();
+    }
+    if (_isElectricalConduit(item) || _isConduitCoupling(item)) {
+      final totalRunM = _outletCircuitRunM(counts) + _lightingCircuitRunM(counts);
+      return totalRunM <= 0 ? 0.0 : (totalRunM / 3.0).ceilToDouble();
+    }
+    return null;
+  }
+
+  /// [_functionalWiringQuantity]'s formula string, for the "View Formula"
+  /// panel. `null` for the same lines that function leaves unmatched.
+  static String? _functionalWiringFormula(
+    RenovationTemplateItem item,
+    FunctionalCounts counts,
+    double currentQty,
+  ) {
+    String devicePlural(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';
+
+    if (_isOutletDevice(item)) {
+      return '${devicePlural(counts.outlets, 'outlet')} requested = '
+          '${_fmtQty(currentQty)} ${item.unit}\n'
+          '(Quantity: set by the builder, not scaled from the room)';
+    }
+    if (_isLightSwitchDevice(item)) {
+      return '${devicePlural(counts.switches, 'switch')} requested = '
+          '${_fmtQty(currentQty)} ${item.unit}\n'
+          '(Quantity: set by the builder, not scaled from the room)';
+    }
+    if (_isCeilingLightDevice(item)) {
+      return '${devicePlural(counts.lights, 'light')} requested = '
+          '${_fmtQty(currentQty)} ${item.unit}\n'
+          '(Quantity: set by the builder, not scaled from the room)';
+    }
+    if (_isUtilityBoxDevice(item)) {
+      return '${devicePlural(counts.outlets, 'outlet')} + '
+          '${devicePlural(counts.switches, 'switch')} + '
+          '${devicePlural(counts.lights, 'light')} = '
+          '${_fmtQty(currentQty)} ${item.unit}\n'
+          '(Quantity: one utility box per device)';
+    }
+    if (_isOutletCircuitWire(item)) {
+      return '${devicePlural(counts.outlets, 'outlet')} × $kOutletRunM m per run '
+          '× 1.08 waste = ${_fmtQty(currentQty)} ${item.unit}\n'
+          '(Quantity: app assumption of an average outlet run off the circuit '
+          'loop, plus 8% waste — a wiring diagram may call for more or less)';
+    }
+    if (_isLightingCircuitWire(item)) {
+      final devices = counts.switches + counts.lights;
+      return '${devicePlural(devices, 'switch or light')} × $kLightingRunM m per '
+          'run × 1.08 waste = ${_fmtQty(currentQty)} ${item.unit}\n'
+          '(Quantity: app assumption of an average lighting-circuit run, plus '
+          '8% waste)';
+    }
+    if (_isApplianceCircuitWire(item)) {
+      return '1 dedicated circuit × $kApplianceCircuitRunM m × 1.08 waste = '
+          '${_fmtQty(currentQty)} ${item.unit}\n'
+          '(Quantity: app assumption of one run from the panel to the '
+          'appliance location)';
+    }
+    if (_isElectricalConduit(item) || _isConduitCoupling(item)) {
+      final totalRunM = _outletCircuitRunM(counts) + _lightingCircuitRunM(counts);
+      return '${totalRunM.toStringAsFixed(1)} m of circuit wire ÷ 3 m length = '
+          '${_fmtQty(currentQty)} ${item.unit}\n'
+          '(Quantity: outlet and lighting circuit runs share one raceway)';
+    }
+    return null;
+  }
+
   /// Generic fixed-count / rate-based scaling for items with no dedicated
   /// DPWH formula (fixtures, tools, linear goods, area goods).
   static double _scaleByRate(RenovationTemplateItem item, double area) {
@@ -478,6 +645,7 @@ class BomQuantityEstimator {
     required RenovationTemplateItem item,
     required double areaSqm,
     SiteTakeoff? takeoff,
+    FunctionalCounts? counts,
   }) {
     final area = _baseArea(areaSqm, takeoff);
     final sizeKey = item.size ?? '';
@@ -555,6 +723,10 @@ class BomQuantityEstimator {
         return PhRenovationRates.calculateChbRebar(
             wallArea, sizeKey.isEmpty ? '10mm' : sizeKey).tieWireKg;
       default:
+        if (counts != null) {
+          final wiring = _functionalWiringQuantity(item, counts);
+          if (wiring != null) return wiring;
+        }
         return _roofDrainageQuantity(item, area) ?? _scaleByRate(item, area);
     }
   }
@@ -568,10 +740,11 @@ class BomQuantityEstimator {
     required String newSize,
     required double areaSqm,
     SiteTakeoff? takeoff,
+    FunctionalCounts? counts,
   }) {
     final resized = item.copyWith(size: newSize);
-    final qty =
-        estimateQuantity(item: resized, areaSqm: areaSqm, takeoff: takeoff);
+    final qty = estimateQuantity(
+        item: resized, areaSqm: areaSqm, takeoff: takeoff, counts: counts);
     return (
       newQty: qty,
       formulaString: getFormulaString(
@@ -579,6 +752,7 @@ class BomQuantityEstimator {
         areaSqm: areaSqm,
         currentQty: qty,
         takeoff: takeoff,
+        counts: counts,
       ),
     );
   }
@@ -598,6 +772,7 @@ class BomQuantityEstimator {
     required double currentQty,
     List<RenovationTemplateItem> bom = const [],
     SiteTakeoff? takeoff,
+    FunctionalCounts? counts,
   }) {
     final area = _baseArea(areaSqm, takeoff);
     final sizeKey = item.size ?? '';
@@ -740,6 +915,10 @@ class BomQuantityEstimator {
               wallArea, sizeKey, currentQty.toInt()),
         );
       default:
+        if (counts != null) {
+          final wiring = _functionalWiringFormula(item, counts, currentQty);
+          if (wiring != null) return wiring;
+        }
         final drainage = _roofDrainageFormula(item, area, currentQty);
         if (drainage != null) return drainage;
         return '${area.toStringAsFixed(1)} sq.m x standard rate = ${_fmtQty(currentQty)} ${item.unit}\n(Quantity: Max Fajardo, Simplified Construction Estimate | see docs/material-data-sources.md)';

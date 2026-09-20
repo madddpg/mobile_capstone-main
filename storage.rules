@@ -51,13 +51,27 @@ service firebase.storage {
       allow update, delete: if false;
     }
 
-    // Profile and project images the app already uploads elsewhere. Readable
-    // by any signed-in user, writable only under the owner's own uid.
+    // Profile photos. The app writes them under user_profile_images; the
+    // users/ prefix is kept for records written before that.
+    //
+    // Delete is split out because request.resource is null on a delete, and a
+    // size check against it denies every delete rather than allowing the
+    // owner to remove their own photo.
+    match /user_profile_images/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && withinSizeLimit()
+        && isAllowedType();
+      allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
     match /users/{userId}/{allPaths=**} {
       allow read: if signedIn();
-      allow write: if signedIn()
+      allow create, update: if signedIn()
         && request.auth.uid == userId
         && withinSizeLimit();
+      allow delete: if signedIn() && request.auth.uid == userId;
     }
 
     // Nothing else in the bucket is reachable from the apps.

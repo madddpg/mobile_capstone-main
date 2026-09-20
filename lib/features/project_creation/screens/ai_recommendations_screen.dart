@@ -3,7 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:iconstruct/features/project_creation/data/ai_material_consultant_service.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
+import 'package:iconstruct/features/project_creation/data/description_hints.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/screens/ai_consultation_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
@@ -72,11 +74,14 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
     });
   }
 
+  /// The recommendations still ticked, in the order they were shown.
+  List<String> get _keptNames => [
+        for (var i = 0; i < _materials.length; i++)
+          if (_selected.contains(i)) _materials[i].name,
+      ];
+
   void _continue() {
-    final names = [
-      for (var i = 0; i < _materials.length; i++)
-        if (_selected.contains(i)) _materials[i].name,
-    ];
+    final names = _keptNames;
     if (names.isEmpty) return;
 
     Navigator.push(
@@ -92,11 +97,17 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
           customProjectName: widget.customProjectName,
           projectNotes: widget.description,
           scope: widget.scope,
+          hints: parseSiteHints(widget.description),
         ),
       ),
     );
   }
 
+  /// Carries on in the chat, keeping whatever is ticked.
+  ///
+  /// The description has already been given, so the chat is for adding to the
+  /// list — a material the AI missed, a brand the builder wants — not for
+  /// starting again.
   void _openChat() {
     Navigator.pushReplacement(
       context,
@@ -106,6 +117,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
           customProjectName: widget.customProjectName,
           projectNotes: widget.description,
           scope: widget.scope,
+          initialMaterials: _keptNames,
         ),
       ),
     );
@@ -151,6 +163,28 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
     );
   }
 
+  /// When the AI cannot answer, the template for this project and type still
+  /// can. The description carries over as the estimate's notes, so nothing
+  /// the builder typed is lost.
+  void _useTemplate() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TemplateAreaScreen(
+          template: RenovationTemplatesCatalog.forProject(
+            widget.projectName,
+            widget.scope,
+          ),
+          projectName: widget.projectName,
+          customProjectName: widget.customProjectName,
+          projectNotes: widget.description,
+          scope: widget.scope,
+          hints: parseSiteHints(widget.description),
+        ),
+      ),
+    );
+  }
+
   Widget _buildError(String message) {
     return ListView(
       padding: const EdgeInsets.only(right: 4, bottom: 16),
@@ -159,6 +193,27 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
         const SizedBox(height: 16),
         GlitchedPillButton(label: 'Try again', onPressed: _load),
         const SizedBox(height: 12),
+        // The template needs no model and no network beyond Firestore, so it
+        // is the way through when the AI is busy — not a consolation prize.
+        OutlinedButton.icon(
+          onPressed: _useTemplate,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: GlitchedFlowShell.cream,
+            side: BorderSide(color: GlitchedFlowShell.cream.withAlpha(140)),
+            minimumSize: const Size.fromHeight(44),
+            shape: const StadiumBorder(),
+          ),
+          icon: const Icon(Icons.list_alt_rounded, size: 18),
+          label: Text(
+            'Use the ${widget.scope.label.toLowerCase()} template instead',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
         _chatButton(),
       ],
     );
@@ -175,7 +230,9 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
       ),
       icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
       label: Text(
-        'Chat with the AI instead',
+        _keptNames.isEmpty
+            ? 'Chat with the AI instead'
+            : 'Add more materials in chat',
         style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );

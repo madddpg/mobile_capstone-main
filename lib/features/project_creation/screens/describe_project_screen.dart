@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/features/project_creation/data/description_hints.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/screens/ai_consultation_screen.dart';
@@ -103,6 +104,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
           customProjectName: widget.customProjectName,
           projectNotes: _description.isEmpty ? null : _description,
           scope: widget.scope,
+          hints: parseSiteHints(_description),
         ),
       ),
     );
@@ -135,7 +137,8 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
       subtitle: '${widget.scope.label} · ${widget.projectName}',
       instruction: _isAi
           ? 'Tell us what you want done, in your own words. The AI recommends materials from it.'
-          : 'Tell the shops what you want done. It is saved with your estimate. Next, measure the room.',
+          : 'Tell the shops what you want done. Anything you say about tiles, '
+              'ceiling paint or removing old tiles is set on the next step.',
       trailingAction: GlitchedPillButton(
         label: _isAi ? 'Recommend' : 'Continue',
         width: 160,

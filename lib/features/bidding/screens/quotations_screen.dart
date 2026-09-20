@@ -175,7 +175,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                                     ),
                                   ),
                                   Text(
-                                    _money(quote.allInTotal),
+                                    _money(quote.estimatedTotal),
                                     style: GoogleFonts.poppins(
                                       fontWeight: FontWeight.w800,
                                       fontSize: 16,
@@ -202,8 +202,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                               const SizedBox(height: 10),
                               Text(
                                 'Materials: ${quote.materialsCovered}  ·  '
-                                'Lead: ${quote.leadTimeRaw.isEmpty ? 'N/A' : quote.leadTimeRaw}  ·  '
-                                'Delivery: ${quote.deliveryFee > 0 ? _money(quote.deliveryFee) : '—'}',
+                                'Lead: ${quote.leadTimeRaw.isEmpty ? 'N/A' : quote.leadTimeRaw}',
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
                                   color: Colors.black54,
@@ -502,15 +501,6 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                                           : QuotationsScreen.navyColor,
                                     ),
                                   ),
-                                  if (quote.deliveryFee > 0)
-                                    Text(
-                                      'All-in ${_money(quote.allInTotal)}',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 11,
-                                        color: Colors.black54,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
                                 ],
                               ),
                             ],
@@ -531,14 +521,6 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              Expanded(
-                                child: _buildSubDetail(
-                                  Icons.local_shipping_outlined,
-                                  quote.deliveryFee > 0
-                                      ? 'Fee: ${_money(quote.deliveryFee)}'
-                                      : 'Fee: —',
-                                ),
-                              ),
                               Expanded(
                                 child: _buildSubDetail(
                                   Icons.timer_outlined,

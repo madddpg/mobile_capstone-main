@@ -347,7 +347,7 @@ class CanvassAdvice {
   bool get hasSuggestion => suggestedShopId != null;
 }
 
-/// Prefer the shop that covers more of the estimate; tie-break on lowest all-in.
+/// Prefer the shop that covers more of the estimate; tie-break on the lowest total.
 CanvassAdvice canvassAdvice(List<QuotedLine> bom, List<BidQuote> quotes) {
   if (quotes.isEmpty) {
     return const CanvassAdvice(headline: '', detail: '');
@@ -364,7 +364,7 @@ CanvassAdvice canvassAdvice(List<QuotedLine> bom, List<BidQuote> quotes) {
       final bestCov = bomCoverageCount(bom, best);
       if (cov > bestCov) {
         best = quote;
-      } else if (cov == bestCov && quote.allInTotal < best.allInTotal) {
+      } else if (cov == bestCov && quote.estimatedTotal < best.estimatedTotal) {
         best = quote;
       }
     }
@@ -373,7 +373,7 @@ CanvassAdvice canvassAdvice(List<QuotedLine> bom, List<BidQuote> quotes) {
 
   BidQuote cheapest = quotes.first;
   for (final quote in quotes) {
-    if (quote.allInTotal < cheapest.allInTotal) cheapest = quote;
+    if (quote.estimatedTotal < cheapest.estimatedTotal) cheapest = quote;
   }
 
   final suggested = byCoverageThenPrice(quotes)!;
@@ -441,9 +441,9 @@ CanvassAdvice canvassAdvice(List<QuotedLine> bom, List<BidQuote> quotes) {
     suggestedShopId: suggested.id,
     headline: 'Suggested: ${suggested.shopName}',
     detail:
-        '${cheapest.shopName} looks cheaper at ${formatBidMoney(cheapest.allInTotal)}, '
+        '${cheapest.shopName} looks cheaper at ${formatBidMoney(cheapest.estimatedTotal)}, '
         'but skipped $gapNames. ${suggested.shopName} covers more of the estimate '
-        '($coveredLabel) at ${formatBidMoney(suggested.allInTotal)}. '
+        '($coveredLabel) at ${formatBidMoney(suggested.estimatedTotal)}. '
         'Pick one shop — the other bid does not fill in the gaps.',
     gaps: gaps,
   );
@@ -453,7 +453,6 @@ class BidQuote {
   final String id;
   final String shopName;
   final double estimatedTotal;
-  final double deliveryFee;
   final String leadTimeRaw;
   final int materialsCovered;
   final String message;
@@ -463,15 +462,11 @@ class BidQuote {
     required this.id,
     required this.shopName,
     required this.estimatedTotal,
-    required this.deliveryFee,
     required this.leadTimeRaw,
     required this.materialsCovered,
     this.message = '',
     this.lines = const [],
   });
-
-  /// Total the builder is likely comparing: quote + delivery.
-  double get allInTotal => estimatedTotal + deliveryFee;
 
   /// Rough day count parsed from free-text lead times ("3 days", "1 week").
   int? get leadTimeDays => parseLeadTimeDays(leadTimeRaw);
@@ -486,7 +481,6 @@ class BidQuote {
       estimatedTotal: bidAsDouble(
         data['estimatedTotal'] ?? data['totalAmount'] ?? data['amount'],
       ),
-      deliveryFee: bidAsDouble(data['deliveryFee']),
       leadTimeRaw: (data['estimatedLeadTime'] ?? '').toString(),
       materialsCovered: lines.isNotEmpty
           ? lines.length
@@ -543,9 +537,9 @@ class BidComparison {
     BidQuote? fullest;
 
     for (final q in quotes) {
-      if (lowest == null || q.allInTotal < lowest.allInTotal) {
+      if (lowest == null || q.estimatedTotal < lowest.estimatedTotal) {
         lowest = q;
-      } else if (q.allInTotal == lowest.allInTotal &&
+      } else if (q.estimatedTotal == lowest.estimatedTotal &&
           q.materialsCovered > lowest.materialsCovered) {
         lowest = q;
       }
@@ -555,7 +549,7 @@ class BidComparison {
       if (days != null) {
         if (bestDays == null || days < bestDays) {
           fastest = q;
-        } else if (days == bestDays && q.allInTotal < (fastest?.allInTotal ?? 0)) {
+        } else if (days == bestDays && q.estimatedTotal < (fastest?.estimatedTotal ?? 0)) {
           fastest = q;
         }
       }
@@ -563,7 +557,7 @@ class BidComparison {
       if (fullest == null || q.materialsCovered > fullest.materialsCovered) {
         fullest = q;
       } else if (q.materialsCovered == fullest.materialsCovered &&
-          q.allInTotal < fullest.allInTotal) {
+          q.estimatedTotal < fullest.estimatedTotal) {
         fullest = q;
       }
     }
@@ -592,7 +586,7 @@ class BidComparison {
     if (quotes.length == 1) {
       return [
         '${quotes.first.shopName} submitted the only quotation so far '
-        '(₱${quotes.first.allInTotal.toStringAsFixed(0)} all-in).',
+        '(₱${quotes.first.estimatedTotal.toStringAsFixed(0)} total).',
       ];
     }
 
@@ -611,7 +605,7 @@ class BidComparison {
     final cheap = byId(lowestTotalId);
     if (cheap != null) {
       lines.add(
-        'Lowest all-in: ${cheap.shopName} at ₱${cheap.allInTotal.toStringAsFixed(0)}.',
+        'Lowest total: ${cheap.shopName} at ₱${cheap.estimatedTotal.toStringAsFixed(0)}.',
       );
     }
 

@@ -6,7 +6,7 @@
   },
   "main": "index.js",
   "scripts": {
-    "test": "node test/scopeGuard.test.js && node test/shopRatings.test.js && node test/aiQuota.test.js && node test/chatNotify.test.js && node test/emailTemplates.test.js && node test/recommend.test.js",
+    "test": "node test/scopeGuard.test.js && node test/shopRatings.test.js && node test/aiQuota.test.js && node test/chatNotify.test.js && node test/emailTemplates.test.js && node test/recommend.test.js && node test/supplierSelection.test.js",
     "test:rules": "firebase emulators:exec --only firestore \"node test/rules.test.js\""
   },
   "dependencies": {

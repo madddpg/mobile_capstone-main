@@ -151,4 +151,28 @@ void main() {
       );
     });
   });
+
+  group('a cancelled selection', () {
+    test('shows as cancelled, not as an offer still on the table', () {
+      expect(
+        displayQuotationStatus(
+          rawStatus: 'cancelled',
+          quotationId: 'shop-1',
+          selectedQuotationId: null,
+        ),
+        'cancelled',
+      );
+    });
+
+    test('needs no repair: the estimate no longer selects it', () {
+      expect(
+        quotationNeedsStatusRepair(
+          rawStatus: 'cancelled',
+          quotationId: 'shop-1',
+          selectedQuotationId: null,
+        ),
+        isFalse,
+      );
+    });
+  });
 }
