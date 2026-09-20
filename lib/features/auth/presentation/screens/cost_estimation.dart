@@ -10,6 +10,7 @@ import 'package:iconstruct/features/project_creation/data/bom_sections.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/functional_counts.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/data/site_details.dart';
@@ -33,6 +34,10 @@ class CostEstimationScreen extends StatefulWidget {
   /// reopened Extension estimate is not mistaken for a Full Renovation.
   final RenovationScope scope;
 
+  /// How much of the space the job covers. Recorded with the estimate and the
+  /// post; it never goes into projectScope, which carries the renovation type.
+  final RenovationCoverage coverage;
+
   /// Budget preference collected during AI consultation (Low / Medium / High).
   final String? budgetPreference;
 
@@ -53,6 +58,7 @@ class CostEstimationScreen extends StatefulWidget {
     this.template,
     this.projectAreaSqm,
     this.scope = RenovationScope.cosmetic,
+    this.coverage = RenovationCoverage.full,
     this.budgetPreference,
     this.takeoff,
     this.counts,
@@ -683,6 +689,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
           lockEstimateDetails: true,
           siteDetails: _siteDetailsMap(),
           excludedWork: _excludedWork,
+          coverage: widget.coverage,
         ),
       ),
     );

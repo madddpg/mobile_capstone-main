@@ -9,6 +9,7 @@ import 'package:iconstruct/features/auth/presentation/screens/profile_screen.dar
 import 'package:iconstruct/features/project_creation/data/ai_material_consultant_service.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
 
@@ -27,6 +28,11 @@ class AIConsultationScreen extends StatefulWidget {
   /// Chosen on the renovation type step. The chat no longer asks for it.
   final RenovationScope scope;
 
+  /// How much of the space the job covers. Its own dimension: a partial
+  /// cosmetic job and a full one are the same kind of work over different
+  /// amounts of room.
+  final RenovationCoverage coverage;
+
   /// Materials the builder already kept, when they came here from the AI's
   /// recommendations. The chat continues that list rather than starting an
   /// empty one, so describing the job once is enough.
@@ -38,6 +44,7 @@ class AIConsultationScreen extends StatefulWidget {
     this.customProjectName,
     this.projectNotes,
     this.scope = RenovationScope.cosmetic,
+    this.coverage = RenovationCoverage.full,
     this.initialMaterials = const [],
   });
 
@@ -743,6 +750,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
           customProjectName: widget.customProjectName,
           projectNotes: widget.projectNotes,
           scope: widget.scope,
+          coverage: widget.coverage,
           budgetPreference: _budget,
           hints: parseSiteHints(widget.projectNotes ?? ''),
         ),

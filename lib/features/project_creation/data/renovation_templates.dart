@@ -4,6 +4,7 @@
 /// (sqm). Swappable slots (e.g. tiles) expose alternatives the builder can pick.
 library;
 
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 
 class MaterialAlternative {
@@ -263,6 +264,39 @@ class RenovationTemplatesCatalog {
       RenovationScope.structural => '$type does not change the structure.',
       RenovationScope.functional => '$type has no plumbing or wiring to upgrade.',
       RenovationScope.cosmetic => '$type is not a finishing job.',
+    };
+  }
+
+  /// Every project can be done whole or in part. Only a project that can gain
+  /// floor area can be an extension: a roof repair, a floor, a paint job and a
+  /// wall finish all work on a room that is already there.
+  static const Map<String, List<RenovationCoverage>> _coveragesByType = {
+    'floor renovation': [RenovationCoverage.full, RenovationCoverage.partial],
+    'wall finishing': [RenovationCoverage.full, RenovationCoverage.partial],
+    'interior painting': [RenovationCoverage.full, RenovationCoverage.partial],
+    'roof repair': [RenovationCoverage.full, RenovationCoverage.partial],
+  };
+
+  /// How much of the space [renovationType] can cover.
+  static List<RenovationCoverage> coveragesFor(String renovationType) =>
+      _coveragesByType[_key(renovationType)] ?? RenovationCoverage.values;
+
+  static bool offersCoverage(
+    String renovationType,
+    RenovationCoverage coverage,
+  ) =>
+      coveragesFor(renovationType).contains(coverage);
+
+  /// Why [coverage] is not offered for [renovationType].
+  static String unavailableCoverageReason(
+    String renovationType,
+    RenovationCoverage coverage,
+  ) {
+    final type = normalizeType(renovationType);
+    return switch (coverage) {
+      RenovationCoverage.extension => '$type does not add floor area.',
+      RenovationCoverage.partial => '$type is not done in parts.',
+      RenovationCoverage.full => '$type is not done whole.',
     };
   }
 

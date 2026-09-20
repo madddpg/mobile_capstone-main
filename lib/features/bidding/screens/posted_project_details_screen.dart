@@ -10,6 +10,7 @@ import 'package:iconstruct/features/chat/screens/chat_thread_screen.dart';
 import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
 import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'quotations_screen.dart';
 
 class PostedProjectDetailsScreen extends StatelessWidget {
@@ -204,6 +205,10 @@ class PostedProjectDetailsScreen extends StatelessWidget {
                             const SizedBox(height: 8),
 
                             _buildDetailText("Project Type: $projectType"),
+                            const SizedBox(height: 4),
+                            _buildDetailText(
+                              "Coverage: ${RenovationCoverage.fromString(data['coverage']?.toString()).label}",
+                            ),
                             const SizedBox(height: 4),
                             _buildDetailText(
                               "Project Area: ${totalArea.toStringAsFixed(2)}",

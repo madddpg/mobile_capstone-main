@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/screens/describe_project_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
@@ -14,11 +15,17 @@ class SelectPlanningMethodScreen extends StatelessWidget {
 
   final RenovationScope scope;
 
+  /// How much of the space the job covers. Its own dimension: a partial
+  /// cosmetic job and a full one are the same kind of work over different
+  /// amounts of room.
+  final RenovationCoverage coverage;
+
   const SelectPlanningMethodScreen({
     super.key,
     required this.projectName,
     this.customProjectName,
     this.scope = RenovationScope.cosmetic,
+    this.coverage = RenovationCoverage.full,
   });
 
   void _open(BuildContext context, PlanningMethod method) {
@@ -29,6 +36,7 @@ class SelectPlanningMethodScreen extends StatelessWidget {
           projectName: projectName,
           customProjectName: customProjectName,
           scope: scope,
+          coverage: coverage,
           method: method,
         ),
       ),

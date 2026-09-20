@@ -8,6 +8,7 @@ import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
 import 'package:iconstruct/features/project_creation/data/functional_counts.dart';
 import 'package:iconstruct/features/project_creation/data/material_kind.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/data/site_details.dart';
@@ -28,6 +29,11 @@ class TemplateAreaScreen extends StatefulWidget {
   /// Chosen on the renovation type step, before the project was named.
   final RenovationScope scope;
 
+  /// How much of the space the job covers. Its own dimension: a partial
+  /// cosmetic job and a full one are the same kind of work over different
+  /// amounts of room.
+  final RenovationCoverage coverage;
+
   /// Budget tier from the AI chat, when the list came from there.
   final String? budgetPreference;
 
@@ -42,6 +48,7 @@ class TemplateAreaScreen extends StatefulWidget {
     this.customProjectName,
     this.projectNotes,
     this.scope = RenovationScope.cosmetic,
+    this.coverage = RenovationCoverage.full,
     this.budgetPreference,
     this.hints = SiteHints.none,
   });
@@ -291,6 +298,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           template: widget.template.copyWithItems(scaledItems),
           projectAreaSqm: area,
           scope: widget.scope,
+          coverage: widget.coverage,
           takeoff: takeoff,
           counts: counts,
           budgetPreference: widget.budgetPreference,

@@ -17,6 +17,7 @@ import 'package:iconstruct/features/project_creation/data/bom_export.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/widgets/bom_share_sheet.dart';
 import 'package:iconstruct/features/project_creation/widgets/material_id_sheet.dart';
@@ -50,6 +51,11 @@ class MaterialEstimatorScreen extends StatefulWidget {
   /// what was deliberately left off it.
   final List<ExcludedWork> excludedWork;
 
+  /// How much of the space the job covers. Saved as its own field; it never
+  /// goes into projectScope, which carries the renovation type and is read by
+  /// the shop dashboard under that meaning.
+  final RenovationCoverage coverage;
+
   const MaterialEstimatorScreen({
     super.key,
     required this.projectName,
@@ -65,6 +71,7 @@ class MaterialEstimatorScreen extends StatefulWidget {
     this.lockEstimateDetails = false,
     this.siteDetails,
     this.excludedWork = const [],
+    this.coverage = RenovationCoverage.full,
   });
 
   @override
@@ -112,6 +119,11 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
   late final String _projectScopeLabel = widget.existingProject?.projectScope ??
       widget.scope.label;
+
+  /// A reopened estimate keeps the coverage it was saved with. An estimate
+  /// saved before coverage existed reads as Full, which is what it described.
+  late final RenovationCoverage _coverage =
+      widget.existingProject?.coverage ?? widget.coverage;
 
   bool get _alreadyPosted =>
       _postedThisSession ||
@@ -819,6 +831,9 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         'projectType': _projectType,
         'costLevel': costLevel,
         'projectScope': _projectScopeLabel,
+        // Its own field. projectScope means the renovation type, both here and
+        // on the shop dashboard, and must keep meaning that.
+        'coverage': _coverage.name,
         'materials': materialsList,
         'materialsCount': materialsList.length,
         'totalAreaSqm': _projectArea,
@@ -1041,6 +1056,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           projectName: _projectName,
           projectType: _projectType,
           projectScope: _projectScopeLabel,
+          coverage: _coverage.name,
           ownerName: ownerName,
           materials: materialsList,
           totalAreaSqm: _projectArea,
@@ -1060,6 +1076,9 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         'projectType': _projectType,
         'costLevel': costLevel,
         'projectScope': _projectScopeLabel,
+        // Its own field. projectScope means the renovation type, both here and
+        // on the shop dashboard, and must keep meaning that.
+        'coverage': _coverage.name,
         'materials': materialsList,
         'materialsCount': materialsList.length,
         'totalAreaSqm': _projectArea,
