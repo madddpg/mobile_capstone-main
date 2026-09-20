@@ -9,6 +9,7 @@ import 'package:iconstruct/features/chat/screens/chat_inbox_screen.dart';
 import 'package:iconstruct/features/chat/screens/chat_thread_screen.dart';
 import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
 import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.dart';
+import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'quotations_screen.dart';
 
 class PostedProjectDetailsScreen extends StatelessWidget {
@@ -209,6 +210,10 @@ class PostedProjectDetailsScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             _buildDetailText("Budget: $budget"),
+                            // What the shops were told is not being asked for.
+                            // Shown here because this is the screen a builder
+                            // checks after posting.
+                            ..._buildExcludedLines(data['excludedWork']),
                             const SizedBox(height: 28),
 
                             const Divider(color: Colors.white30, thickness: 1),
@@ -387,6 +392,31 @@ class PostedProjectDetailsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  /// The work this post says it does not want, as sent to the shops.
+  List<Widget> _buildExcludedLines(Object? raw) {
+    final excluded = ExcludedWork.listFrom(raw);
+    if (excluded.isEmpty) return const [];
+    return [
+      const SizedBox(height: 10),
+      _buildDetailText('Not included (${excluded.length}):'),
+      for (final item in excluded) ...[
+        const SizedBox(height: 2),
+        Padding(
+          padding: const EdgeInsets.only(left: 10),
+          child: Text(
+            '- ${item.label}',
+            style: GoogleFonts.poppins(
+              color: textLight.withValues(alpha: 0.8),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w400,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    ];
   }
 
   Widget _buildDetailText(String text) {

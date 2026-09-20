@@ -46,6 +46,7 @@ Map<String, dynamic> projectPostFields({
   required String budget,
   Map<String, dynamic>? siteDetails,
   String remarks = '',
+  List<Map<String, dynamic>> excludedWork = const [],
 }) {
   return {
     'postId': postId,
@@ -64,5 +65,9 @@ Map<String, dynamic> projectPostFields({
     'budget': budget,
     if (siteDetails != null) 'siteDetails': siteDetails,
     if (remarks.trim().isNotEmpty) 'remarks': remarks.trim(),
+    // Work the builder was offered and turned down. Left out entirely when
+    // there is none, so "nothing excluded" reads as absent rather than as an
+    // empty list the dashboard has to special-case.
+    if (excludedWork.isNotEmpty) 'excludedWork': excludedWork,
   };
 }

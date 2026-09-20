@@ -97,6 +97,10 @@ class BomExportService {
           _summary(data, palette),
           pw.SizedBox(height: 16),
           _materialsTable(data, palette),
+          if (data.excluded.isNotEmpty) ...[
+            pw.SizedBox(height: 14),
+            _excludedBlock(data, palette),
+          ],
           pw.SizedBox(height: 18),
           _shopBlock(data, palette),
         ],
@@ -364,6 +368,51 @@ class BomExportService {
           ),
         ],
       ],
+    );
+  }
+
+  /// What the builder left out, printed under the list it was left out of.
+  ///
+  /// A shop reading the sheet can otherwise only guess whether a missing
+  /// material was decided against or forgotten, and quotes for the wrong job
+  /// either way.
+  static pw.Widget _excludedBlock(BomExportData data, _ExportPalette p) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(10),
+      decoration: pw.BoxDecoration(
+        color: p.notesBg,
+        borderRadius: pw.BorderRadius.circular(4),
+        border: pw.Border.all(color: p.line, width: 0.5),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            pdfSafe('NOT INCLUDED (${data.excluded.length})'),
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: p.ink,
+              letterSpacing: 0.6,
+            ),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            pdfSafe('Left out on purpose. Please quote the list above only.'),
+            style: pw.TextStyle(fontSize: 8, color: p.muted),
+          ),
+          pw.SizedBox(height: 6),
+          for (final item in data.excluded)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 2),
+              child: pw.Text(
+                pdfSafe('- ${item.label}'),
+                style: pw.TextStyle(fontSize: 9, color: p.ink),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

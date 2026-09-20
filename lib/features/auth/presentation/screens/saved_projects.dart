@@ -585,6 +585,7 @@ class ProjectCard extends StatelessWidget {
         areaSqm: project.projectArea,
         budgetPreference: project.costLevel,
         materials: project.materials,
+        excluded: project.excludedWork,
       ),
     );
   }
