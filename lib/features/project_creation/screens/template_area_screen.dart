@@ -122,6 +122,15 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   final _counterController = TextEditingController();
   late final TextEditingController _heightController;
 
+  /// The whole space a partial job sits inside, and what the part is called.
+  final _portionLabelController = TextEditingController();
+  final _totalLengthController = TextEditingController();
+  final _totalWidthController = TextEditingController();
+
+  /// A partial job may still cover the whole space — "partial" is the
+  /// builder's intent, and only they know whether it narrows to one part.
+  bool _isPortion = false;
+
   late final RoomJob? _job = roomJobFor(widget.template.renovationType);
   late final List<_OpeningCount> _doors;
   late final List<_OpeningCount> _windows;
@@ -209,6 +218,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     _widthController.dispose();
     _heightController.dispose();
     _counterController.dispose();
+    _portionLabelController.dispose();
+    _totalLengthController.dispose();
+    _totalWidthController.dispose();
     for (final row in [..._doors, ..._windows]) {
       row.dispose();
     }
@@ -239,6 +251,21 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           : 0,
       removeOldTiles: _finishes && job.hasFloor && _removeOldTiles,
       paintCeiling: _finishes && job.hasWalls && _paintCeiling,
+      partial: _partialArea,
+    );
+  }
+
+  /// Whether this job is asked which part of the space it covers. Only a
+  /// partial one has a part; a full job and an extension are measured whole.
+  bool get _asksPortion => widget.coverage.hasPortion;
+
+  /// The whole space, when the builder narrowed the job to a part of it.
+  PartialArea? get _partialArea {
+    if (!_asksPortion || !_isPortion) return null;
+    return PartialArea(
+      label: _portionLabelController.text.trim(),
+      totalLengthM: _parseMetres(_totalLengthController.text) ?? 0,
+      totalWidthM: _parseMetres(_totalWidthController.text) ?? 0,
     );
   }
 
@@ -566,9 +593,64 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     ];
 
     return [
+      if (_asksPortion) ...[
+        _label('How much of the space?'),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _choiceChip(
+              label: 'The whole space',
+              selected: !_isPortion,
+              onTap: () => setState(() => _isPortion = false),
+            ),
+            _choiceChip(
+              label: 'One part of it',
+              selected: _isPortion,
+              onTap: () => setState(() => _isPortion = true),
+            ),
+          ],
+        ),
+        if (_isPortion) ...[
+          const SizedBox(height: 10),
+          // The part is what gets measured below, because the part is what the
+          // materials have to cover. The whole space is context for the shop
+          // and a check that the part is not bigger than the room it is in.
+          _hint(
+            'Measure the part below. The whole space is asked for so the shop '
+            'can see the context, and is never used to scale a quantity.',
+          ),
+          const SizedBox(height: 10),
+          _portionLabelField(),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _metresField(
+                    _totalLengthController, 'Whole length', 'e.g. 4.0'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _metresField(
+                    _totalWidthController, 'Whole width', 'e.g. 3.0'),
+              ),
+            ],
+          ),
+          if (_portionShare != null) ...[
+            const SizedBox(height: 6),
+            _hint(_portionShare!),
+          ],
+        ],
+        const SizedBox(height: 18),
+      ],
       _label(job.hasWalls
-          ? 'Room size: length, width and ceiling height *'
-          : 'Room size: length and width *'),
+          ? (_isPortion && _asksPortion
+              ? 'The part: length, width and ceiling height *'
+              : 'Room size: length, width and ceiling height *')
+          : (_isPortion && _asksPortion
+              ? 'The part: length and width *'
+              : 'Room size: length and width *')),
       const SizedBox(height: 4),
       // Said plainly, because the takeoff treats the room as one rectangle.
       // Two bedrooms are two estimates, and an L-shaped room is entered as the
@@ -691,6 +773,56 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         fontSize: 11,
         color: const Color(0xFF8FB2D4),
         height: 1.3,
+      ),
+    );
+  }
+
+  /// How much of the space the part comes to, as information only.
+  ///
+  /// Stated plainly as a share because a builder thinks in those terms, and
+  /// stated as not-a-calculation because it is not one: every quantity below
+  /// is sized from the part that was measured, never from a percentage of the
+  /// whole.
+  String? get _portionShare {
+    final details = _details;
+    final share = details?.portionOfSpace;
+    if (share == null || share <= 0 || share > 1.0001) return null;
+    return 'About ${(share * 100).round()}% of the space. Shown for context '
+        'only — quantities come from the part you measured.';
+  }
+
+  Widget _portionLabelField() {
+    return TextField(
+      controller: _portionLabelController,
+      textCapitalization: TextCapitalization.sentences,
+      onChanged: (_) => setState(() {}),
+      scrollPadding: const EdgeInsets.only(bottom: 160),
+      style: GoogleFonts.poppins(
+        color: GlitchedFlowShell.darkBlue,
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+      ),
+      decoration: InputDecoration(
+        labelText: 'What is this part called?',
+        labelStyle: GoogleFonts.poppins(
+          color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.7),
+          fontSize: 12,
+        ),
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        hintText: 'e.g. shower area, accent wall',
+        hintStyle: GoogleFonts.poppins(
+          color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.35),
+          fontSize: 13,
+        ),
+        isDense: true,
+        filled: true,
+        fillColor: GlitchedFlowShell.cream,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       ),
     );
   }

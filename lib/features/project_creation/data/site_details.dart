@@ -147,6 +147,58 @@ double _asDouble(Object? value) {
   return double.tryParse('${value ?? ''}') ?? 0;
 }
 
+/// A job that covers one part of a bigger space: what the part is called, and
+/// how big the whole space is.
+///
+/// The measured length and width describe the *part*, because the part is what
+/// the materials have to cover. The whole is carried so the part can be checked
+/// against it and so a shop can see the context — retiling 2 sq.m of a 12 sq.m
+/// bathroom is a different job from retiling a 2 sq.m bathroom.
+class PartialArea {
+  /// What the builder calls the part: "shower area", "accent wall".
+  final String label;
+
+  final double totalLengthM;
+  final double totalWidthM;
+
+  const PartialArea({
+    required this.label,
+    required this.totalLengthM,
+    required this.totalWidthM,
+  });
+
+  double get totalFloorSqm => totalLengthM * totalWidthM;
+
+  Map<String, dynamic> toMap() => {
+        'label': label,
+        'totalLengthM': totalLengthM,
+        'totalWidthM': totalWidthM,
+      };
+
+  static PartialArea? fromMap(Map<String, dynamic>? map) {
+    if (map == null) return null;
+    final length = _asDouble(map['totalLengthM']);
+    final width = _asDouble(map['totalWidthM']);
+    if (length <= 0 || width <= 0) return null;
+    return PartialArea(
+      label: (map['label'] ?? '').toString().trim(),
+      totalLengthM: length,
+      totalWidthM: width,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PartialArea &&
+          label == other.label &&
+          totalLengthM == other.totalLengthM &&
+          totalWidthM == other.totalWidthM);
+
+  @override
+  int get hashCode => Object.hash(label, totalLengthM, totalWidthM);
+}
+
 /// The measurements a builder enters for one room.
 class SiteDetails {
   final RoomJob job;
@@ -168,6 +220,11 @@ class SiteDetails {
 
   final bool paintCeiling;
 
+  /// Set when the job covers one part of a bigger space. The measurements
+  /// above describe the part; this says what the part is and how big the whole
+  /// space is. Null for a job that covers the whole space.
+  final PartialArea? partial;
+
   const SiteDetails({
     required this.job,
     required this.lengthM,
@@ -178,6 +235,7 @@ class SiteDetails {
     this.wallTileHeight = WallTileHeight.none,
     this.counterLengthM = 0,
     this.removeOldTiles = false,
+    this.partial,
     this.paintCeiling = false,
   });
 
@@ -234,6 +292,7 @@ class SiteDetails {
     double? counterLengthM,
     bool? removeOldTiles,
     bool? paintCeiling,
+    PartialArea? partial,
   }) {
     return SiteDetails(
       job: job,
@@ -246,7 +305,20 @@ class SiteDetails {
       counterLengthM: counterLengthM ?? this.counterLengthM,
       removeOldTiles: removeOldTiles ?? this.removeOldTiles,
       paintCeiling: paintCeiling ?? this.paintCeiling,
+      partial: partial ?? this.partial,
     );
+  }
+
+  /// How much of the whole space this job covers, as a fraction, or `null`
+  /// when it covers all of it.
+  ///
+  /// Shown to the builder as context only. No quantity is ever a percentage of
+  /// another: every material is sized from the surface it actually covers,
+  /// which for a partial job is the part that was measured.
+  double? get portionOfSpace {
+    final whole = partial;
+    if (whole == null || whole.totalFloorSqm <= 0) return null;
+    return (lengthM * widthM) / whole.totalFloorSqm;
   }
 
   /// Problems that stop an estimate. Empty when the details can be used.
@@ -260,6 +332,27 @@ class SiteDetails {
     }
     if (job.hasWalls && (heightM < 2.0 || heightM > 6.0)) {
       out.add('Enter a ceiling height between 2.0 and 6.0 m.');
+    }
+    final whole = partial;
+    if (whole != null) {
+      if (whole.label.trim().isEmpty) {
+        out.add('Name the part being worked on, such as "shower area".');
+      }
+      if (whole.totalLengthM < 0.5 || whole.totalLengthM > 30) {
+        out.add('Enter a total length between 0.5 and 30 m for the whole space.');
+      }
+      if (whole.totalWidthM < 0.5 || whole.totalWidthM > 30) {
+        out.add('Enter a total width between 0.5 and 30 m for the whole space.');
+      }
+      // A part bigger than the space it sits in means one of the two was
+      // mistyped, and the quantities would be sized from the wrong one.
+      if (out.isEmpty && lengthM * widthM > whole.totalFloorSqm + 0.01) {
+        out.add(
+          'The part (${(lengthM * widthM).toStringAsFixed(2)} sq.m) cannot be '
+          'bigger than the whole space '
+          '(${whole.totalFloorSqm.toStringAsFixed(2)} sq.m).',
+        );
+      }
     }
     if (out.isNotEmpty) return out;
 
@@ -299,6 +392,7 @@ class SiteDetails {
         'counterLengthM': counterLengthM,
         'removeOldTiles': removeOldTiles,
         'paintCeiling': paintCeiling,
+        if (partial != null) 'partial': partial!.toMap(),
       };
 
   static SiteDetails? fromMap(Map<String, dynamic>? map) {
@@ -325,6 +419,11 @@ class SiteDetails {
       counterLengthM: _asDouble(map['counterLengthM']),
       removeOldTiles: map['removeOldTiles'] == true,
       paintCeiling: map['paintCeiling'] == true,
+      partial: PartialArea.fromMap(
+        map['partial'] is Map
+            ? Map<String, dynamic>.from(map['partial'] as Map)
+            : null,
+      ),
     );
   }
 }
@@ -452,7 +551,18 @@ class SiteTakeoff {
   static String _sq(double v) => v.toStringAsFixed(1);
 
   String get floorLine =>
-      'Floor: ${_m(details.lengthM)} × ${_m(details.widthM)} m = ${_sq(floorSqm)} sq.m';
+      'Floor: ${_m(details.lengthM)} × ${_m(details.widthM)} m = ${_sq(floorSqm)} sq.m'
+      '$_partialSuffix';
+
+  /// Names the part a partial job covers, so a measured 2 sq.m is never read
+  /// as the whole room.
+  String get _partialSuffix {
+    final whole = details.partial;
+    if (whole == null) return '';
+    final name = whole.label.trim().isEmpty ? 'this part' : whole.label.trim();
+    return ' ($name, within ${_m(whole.totalLengthM)} × '
+        '${_m(whole.totalWidthM)} m = ${_sq(whole.totalFloorSqm)} sq.m)';
+  }
 
   String get wallLine =>
       'Walls: ${_m(perimeterM)} m around × ${_m(details.heightM)} m = ${_sq(grossWallSqm)} sq.m, '
