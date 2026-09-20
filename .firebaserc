@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "iconstruct-58a87"
-  }
+  },
+  "targets": {
+    "iconstruct-58a87": {
+      "hosting": {
+        "app": [
+          "iconstruct-builder-app"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

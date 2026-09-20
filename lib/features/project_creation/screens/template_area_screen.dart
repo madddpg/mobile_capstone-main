@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/features/auth/presentation/screens/cost_estimation.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
+import 'package:iconstruct/features/project_creation/data/description_hints.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/data/site_details.dart';
@@ -28,6 +29,10 @@ class TemplateAreaScreen extends StatefulWidget {
   /// Budget tier from the AI chat, when the list came from there.
   final String? budgetPreference;
 
+  /// Finishes read out of what the builder wrote on the describe screen.
+  /// They pre-set the switches below; the builder can still change any of them.
+  final SiteHints hints;
+
   const TemplateAreaScreen({
     super.key,
     required this.template,
@@ -36,6 +41,7 @@ class TemplateAreaScreen extends StatefulWidget {
     this.projectNotes,
     this.scope = RenovationScope.cosmetic,
     this.budgetPreference,
+    this.hints = SiteHints.none,
   });
 
   @override
@@ -141,9 +147,13 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         _OpeningCount.preset(kWindowSizes[i], _windowUses[i],
             countOf(defaults?.windows, kWindowSizes[i])),
     ];
-    _wallTiles = defaults?.wallTileHeight ?? WallTileHeight.none;
-    _removeOldTiles = defaults?.removeOldTiles ?? false;
-    _paintCeiling = defaults?.paintCeiling ?? false;
+    _wallTiles = widget.hints.wallTileHeight ??
+        defaults?.wallTileHeight ??
+        WallTileHeight.none;
+    _removeOldTiles =
+        widget.hints.removeOldTiles ?? defaults?.removeOldTiles ?? false;
+    _paintCeiling =
+        widget.hints.paintCeiling ?? defaults?.paintCeiling ?? false;
   }
 
   @override
@@ -504,6 +514,20 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       _label(job.hasWalls
           ? 'Room size: length, width and ceiling height *'
           : 'Room size: length and width *'),
+      const SizedBox(height: 4),
+      // Said plainly, because the takeoff treats the room as one rectangle.
+      // Two bedrooms are two estimates, and an L-shaped room is entered as the
+      // nearest rectangle with the quantities checked afterwards.
+      _hint(
+        'One room per estimate. For another room, make a separate estimate. '
+        'An L-shaped room: enter the nearest rectangle.',
+      ),
+      if (_finishes && !widget.hints.isEmpty) ...[
+        const SizedBox(height: 6),
+        // Shown so the builder can see that the app read what they wrote, and
+        // can correct it where a keyword guessed wrong.
+        _hint('Set from your description: ${widget.hints.applied.join(' · ')}'),
+      ],
       const SizedBox(height: 8),
       Row(
         children: [

@@ -38,6 +38,14 @@ const {
 const { recomputeShopRating } = require("./src/services/shopRatings");
 const { consumeAiCall } = require("./src/services/aiQuota");
 const {
+  normalizeCancelReason,
+  sanitizeCancelNote,
+  restorableQuotationIds,
+  reopenedPostStatus,
+  reopenedProjectStatus,
+  cancellationMessage,
+} = require("./src/services/supplierSelection");
+const {
   recipientFor,
   previewFor,
   senderLabelFor,
@@ -1167,3 +1175,203 @@ exports.onChatMessageCreated = onDocumentCreated(
     return null;
   }
 );
+
+/**
+ * Cancels a supplier selection and reopens the estimate.
+ *
+ * Acceptance is deliberately final on the client: the rules let a builder set
+ * a quotation to accepted, never back. Undoing one touches the other shops'
+ * documents as well, so it runs here, in one place, with the Admin SDK — and
+ * leaves a record rather than erasing the old one.
+ */
+exports.cancelSupplierSelection = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "Sign in to cancel a supplier selection."
+    );
+  }
+
+  const uid = request.auth.uid;
+  const data = request.data || {};
+  const postId = String(data.postId || "").trim();
+  const reason = normalizeCancelReason(data.reason);
+  const note = sanitizeCancelNote(data.note);
+
+  if (!postId) {
+    throw new HttpsError("invalid-argument", "Which estimate is this for?");
+  }
+  if (!reason) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Pick a reason so the shop is told why."
+    );
+  }
+
+  const postRef = db.collection("projectPosts").doc(postId);
+  // Firestore forbids queries inside a transaction, so the sibling quotations
+  // are read first. Their statuses are re-checked on write below.
+  const siblings = await postRef.collection("quotations").get();
+
+  const outcome = await db.runTransaction(async (txn) => {
+    // ---- reads first ----
+    const postSnap = await txn.get(postRef);
+    if (!postSnap.exists) {
+      throw new HttpsError("not-found", "That estimate no longer exists.");
+    }
+    const post = postSnap.data() || {};
+    const owner = ["userId", "builderId", "ownerId", "postedBy"].some(
+      (key) => String(post[key] || "") === uid
+    );
+    if (!owner) {
+      throw new HttpsError("permission-denied", "That estimate is not yours.");
+    }
+
+    const selectedId = String(post.selectedQuotationId || "").trim();
+    if (!selectedId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "No supplier is selected on this estimate."
+      );
+    }
+    // One cancellation per estimate. Without a limit a builder could accept
+    // and cancel repeatedly, and every shop on the list would be notified
+    // each time.
+    if (post.supplierCancelledAt) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This estimate has already had a cancellation. Post it again to canvass afresh."
+      );
+    }
+
+    const quotationRef = postRef.collection("quotations").doc(selectedId);
+    const quotationSnap = await txn.get(quotationRef);
+    if (!quotationSnap.exists) {
+      throw new HttpsError(
+        "not-found",
+        "That quotation no longer exists."
+      );
+    }
+    const quotation = quotationSnap.data() || {};
+    const shopId = String(quotation.shopId || selectedId).trim();
+
+    const projectId = String(post.projectId || "").trim();
+    const builderId = String(post.userId || post.builderId || uid).trim();
+    const savedRef =
+      projectId && builderId
+        ? db
+            .collection("users")
+            .doc(builderId)
+            .collection("saved_projects")
+            .doc(projectId)
+        : null;
+    const savedSnap = savedRef ? await txn.get(savedRef) : null;
+
+    // ---- writes ----
+    const now = Timestamp.now();
+    const restored = restorableQuotationIds(
+      siblings.docs.map((doc) => ({
+        id: doc.id,
+        status: (doc.data() || {}).status,
+      })),
+      selectedId
+    );
+
+    txn.update(quotationRef, {
+      status: "cancelled",
+      cancelledAt: now,
+      cancelledBy: uid,
+      cancelReason: reason,
+      ...(note ? { cancelNote: note } : {}),
+    });
+
+    for (const id of restored) {
+      txn.update(postRef.collection("quotations").doc(id), {
+        status: "submitted",
+        acceptedAt: admin.firestore.FieldValue.delete(),
+      });
+    }
+
+    txn.update(postRef, {
+      selectedQuotationId: admin.firestore.FieldValue.delete(),
+      selectedShopId: admin.firestore.FieldValue.delete(),
+      selectedShopName: admin.firestore.FieldValue.delete(),
+      acceptedAt: admin.firestore.FieldValue.delete(),
+      status: reopenedPostStatus(restored.length),
+      supplierCancelledAt: now,
+      supplierCancelReason: reason,
+      updatedAt: now,
+    });
+
+    if (savedRef && savedSnap && savedSnap.exists) {
+      txn.update(savedRef, {
+        status: reopenedProjectStatus(restored.length),
+        selectedShopName: admin.firestore.FieldValue.delete(),
+        supplierSelectedAt: admin.firestore.FieldValue.delete(),
+        updatedAt: now,
+      });
+    }
+
+    // Appended, not overwritten: what the estimate went through stays
+    // readable after the fields it changed have moved on.
+    txn.set(postRef.collection("events").doc(), {
+      type: "supplier_cancelled",
+      actorId: uid,
+      actorRole: "builder",
+      quotationId: selectedId,
+      shopId: shopId,
+      shopName: quotation.shopName || null,
+      reason: reason,
+      note: note || null,
+      restoredQuotationIds: restored,
+      at: now,
+    });
+
+    return {
+      shopId,
+      restored: restored.length,
+      projectName: post.projectName || "",
+    };
+  });
+
+  // Telling the shop is the point of a cancellation over an undo. A failure
+  // here must not undo the cancellation itself, so it is logged, not thrown.
+  try {
+    const message = cancellationMessage({
+      projectName: outcome.projectName,
+      reasonKey: reason,
+      note,
+    });
+
+    await db.collection("notifications").add({
+      type: "selection_cancelled",
+      postId: postId,
+      recipientId: outcome.shopId,
+      title: "A selection was cancelled",
+      message: message,
+      isRead: false,
+      createdAt: Timestamp.now(),
+    });
+
+    const shopSnap = await db.collection("shops").doc(outcome.shopId).get();
+    const raw = shopSnap.exists ? (shopSnap.data() || {}).fcmTokens : null;
+    const tokens = Array.isArray(raw)
+      ? [...new Set(raw.filter((t) => typeof t === "string" && t.trim() !== ""))]
+      : [];
+    if (tokens.length > 0) {
+      await admin.messaging().sendEachForMulticast({
+        notification: { title: "A selection was cancelled", body: message },
+        data: {
+          type: "selection_cancelled",
+          postId: String(postId),
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+        tokens,
+      });
+    }
+  } catch (error) {
+    logger.error("Could not notify the shop of a cancellation:", error);
+  }
+
+  return { success: true, restored: outcome.restored };
+});

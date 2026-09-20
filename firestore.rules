@@ -303,6 +303,23 @@ service cloud.firestore {
 
       allow delete: if isAdmin() || isPostOwner(resource.data);
 
+      // What the estimate went through, appended by Cloud Functions only.
+      //
+      // A cancelled selection is recorded here rather than by rewriting the
+      // fields it changed, so both sides can still see that it happened and
+      // why. Nothing client-side may write to it: a record either party can
+      // edit afterwards settles no argument.
+      match /events/{eventId} {
+        allow read: if isAdmin()
+          // An event carries no userId of its own, so ownership is read from
+          // the estimate it belongs to.
+          || (signedIn()
+              && get(/databases/$(database)/documents/projectPosts/$(postId)).data.userId
+                   == request.auth.uid)
+          || isApprovedShop();
+        allow write: if false;
+      }
+
       match /quotations/{quotationId} {
         allow get, list: if isAdmin()
           || (signedIn() && (
@@ -346,7 +363,7 @@ service cloud.firestore {
               && request.resource.data.shopId == resource.data.shopId
               && request.resource.data.postId == resource.data.postId
               && !(resource.data.get('status', 'submitted') in
-                   ['accepted', 'partially_accepted', 'rejected'])
+                   ['accepted', 'partially_accepted', 'rejected', 'cancelled'])
               // Any decision, accepting or rejecting, is the builder's act. A
               // shop's revision stays an open offer.
               && request.resource.data.get('status', 'submitted') == 'submitted'

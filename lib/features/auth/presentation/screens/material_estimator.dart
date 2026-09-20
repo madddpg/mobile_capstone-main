@@ -12,6 +12,7 @@ import 'package:iconstruct/core/state/active_project_state.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/bidding/screens/posted_project_details_screen.dart';
+import 'package:iconstruct/features/bidding/data/project_post_payload.dart';
 import 'package:iconstruct/features/project_creation/data/bom_export.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
@@ -110,6 +111,13 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
       _localPlumbing.any((p) => !(p.quantity > 0));
 
   bool get _detailsLocked => widget.lockEstimateDetails || _alreadyPosted;
+
+  /// Whether the area came from a measured room rather than a typed figure.
+  /// The BOM quantities were sized from it, so editing it here would leave
+  /// the post disagreeing with the materials under it.
+  bool get _areaIsMeasured =>
+      widget.siteDetails != null ||
+      (widget.existingProject?.hasSiteDetails ?? false);
 
   @override
   void initState() {
@@ -286,16 +294,21 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
                   },
           ),
           const SizedBox(height: 14),
+          // A measured room already set this area, and the BOM quantities were
+          // sized from it. Letting it be edited here would leave the number on
+          // the post disagreeing with the quantities under it.
           _buildInputLabel(
-            _detailsLocked
-                ? 'Project Area (sqm):'
-                : 'Project Area (sqm) — optional:',
+            _areaIsMeasured
+                ? 'Project Area (sqm) — measured from the room:'
+                : _detailsLocked
+                    ? 'Project Area (sqm):'
+                    : 'Project Area (sqm) — optional:',
           ),
           _buildTextField(
             '0.00',
             controller: _projectAreaController,
-            readOnly: _detailsLocked,
-            onChanged: _detailsLocked
+            readOnly: _detailsLocked || _areaIsMeasured,
+            onChanged: _detailsLocked || _areaIsMeasured
                 ? null
                 : (val) {
                     setState(() {
@@ -324,7 +337,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
                 : 'Remarks for suppliers — optional:',
           ),
           _buildTextField(
-            'Brand preferences, delivery notes, or scope remarks',
+            'Brand preferences or scope remarks',
             controller: _remarksController,
             maxLines: 3,
             readOnly: _alreadyPosted,
@@ -990,25 +1003,35 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           .collection('projectPosts')
           .doc();
 
+      // The shop side reads the builder's name off the post: a quotation is a
+      // reply to a person, not to a uid.
+      final profile = await firestore.collection('users').doc(uid).get();
+      final profileData = profile.data() ?? const <String, dynamic>{};
+      final ownerName = ownerDisplayName(
+        firstName: profileData['firstName']?.toString(),
+        lastName: profileData['lastName']?.toString(),
+        email: user.email,
+      );
+
       final Map<String, dynamic> projectPostData = {
-        'postId': newPostRef.id,
-        'userId': uid,
-        'builderId': uid,
-        'projectId': savedProjectRef.id,
-        'projectName': _projectName,
-        'projectType': _projectType,
-        'projectScope': _projectScopeLabel,
-        'materials': materialsList,
-        'materialsCount': materialsList.length,
-        'totalAreaSqm': _projectArea,
-        if (widget.siteDetails != null) 'siteDetails': widget.siteDetails,
-        'budget': costLevel,
+        ...projectPostFields(
+          postId: newPostRef.id,
+          userId: uid,
+          projectId: savedProjectRef.id,
+          projectName: _projectName,
+          projectType: _projectType,
+          projectScope: _projectScopeLabel,
+          ownerName: ownerName,
+          materials: materialsList,
+          totalAreaSqm: _projectArea,
+          budget: costLevel,
+          siteDetails: widget.siteDetails,
+          remarks: _remarksController.text,
+        ),
         'status': 'open',
         'quotationCount': 0,
         'postedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-        if (_remarksController.text.trim().isNotEmpty)
-          'remarks': _remarksController.text.trim(),
       };
 
       final Map<String, dynamic> savedProjectData = {

@@ -8,6 +8,7 @@ import 'package:iconstruct/core/widgets/user_avatar.dart';
 import 'package:iconstruct/features/auth/presentation/screens/profile_screen.dart';
 import 'package:iconstruct/features/project_creation/data/ai_material_consultant_service.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
+import 'package:iconstruct/features/project_creation/data/description_hints.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
 
@@ -26,12 +27,18 @@ class AIConsultationScreen extends StatefulWidget {
   /// Chosen on the renovation type step. The chat no longer asks for it.
   final RenovationScope scope;
 
+  /// Materials the builder already kept, when they came here from the AI's
+  /// recommendations. The chat continues that list rather than starting an
+  /// empty one, so describing the job once is enough.
+  final List<String> initialMaterials;
+
   const AIConsultationScreen({
     super.key,
     required this.projectName,
     this.customProjectName,
     this.projectNotes,
     this.scope = RenovationScope.cosmetic,
+    this.initialMaterials = const [],
   });
 
   @override
@@ -69,6 +76,13 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   @override
   void initState() {
     super.initState();
+    for (final name in widget.initialMaterials) {
+      final trimmed = name.trim();
+      if (trimmed.isEmpty) continue;
+      final isNew = !_confirmedMaterials
+          .any((m) => m.toLowerCase() == trimmed.toLowerCase());
+      if (isNew) _confirmedMaterials.add(trimmed);
+    }
     _startConversation();
   }
 
@@ -78,17 +92,24 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     );
     await Future.delayed(const Duration(milliseconds: 350));
     await _addBotMessage(
-      "I use an AI API (not a custom-trained model) and I'm limited to iConstruct only: "
-      "material planning and estimate help for canvassing — not general chat or construction site management.\n\n"
-      "You lead: describe your ideas freely. I only suggest options; you decide what to keep.",
-    );
-    await Future.delayed(const Duration(milliseconds: 350));
-    await _addBotMessage(
       "This is a ${widget.scope.label.toLowerCase()} renovation: "
       "${widget.scope.description.toLowerCase()}. Tell me what you want done "
       "and I'll suggest materials. When you're ready, tap Build my BOM. "
       "You'll measure the room next so the quantities fit it.",
     );
+
+    // Arriving from the AI's recommendations with a list already ticked: say
+    // so, or the builder cannot tell whether those materials survived the
+    // move and starts describing the job a second time.
+    if (_confirmedMaterials.isNotEmpty) {
+      final count = _confirmedMaterials.length;
+      await Future.delayed(const Duration(milliseconds: 350));
+      await _addBotMessage(
+        "I've kept the $count material${count == 1 ? '' : 's'} you ticked, so "
+        "your list is not empty. Tell me what else you need and I'll suggest "
+        "options to add to it.",
+      );
+    }
   }
 
   bool _isReadyToBuild(String text) {
@@ -723,6 +744,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
           projectNotes: widget.projectNotes,
           scope: widget.scope,
           budgetPreference: _budget,
+          hints: parseSiteHints(widget.projectNotes ?? ''),
         ),
       ),
     );

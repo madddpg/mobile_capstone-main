@@ -1,5 +1,3 @@
-﻿import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -62,14 +60,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       setState(() => _isUploading = true);
 
-      final File imageFile = File(pickedFile.path);
+      // Bytes, not a path: a picked file has no path in a browser.
+      final bytes = await pickedFile.readAsBytes();
       final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
 
       final Reference storageRef = FirebaseStorage.instance.ref().child(
         'user_profile_images/${user.uid}/$timestamp.jpg',
       );
 
-      final UploadTask uploadTask = storageRef.putFile(imageFile);
+      final UploadTask uploadTask = storageRef.putData(
+        bytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
       final TaskSnapshot snapshot = await uploadTask;
       final String downloadUrl = await snapshot.ref.getDownloadURL();
 

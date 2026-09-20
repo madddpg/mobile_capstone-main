@@ -1,5 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
+import 'package:iconstruct/features/project_creation/data/recommendation_cache.dart';
+
 /// Result of one iConstruct AI consultation turn (Gemini/OpenAI via Cloud Functions).
 class AiConsultResult {
   final bool success;
@@ -46,6 +48,11 @@ class AiRecommendResult {
 
 /// Calls Firebase Cloud Functions that proxy Gemini (iConstruct-scoped only).
 class AiMaterialConsultantService {
+  AiMaterialConsultantService({RecommendationCache? cache})
+      : _cache = cache ?? RecommendationCache();
+
+  final RecommendationCache _cache;
+
   /// The most recommendations shown; beyond this the list stops being a
   /// starting point and becomes a package nobody asked for.
   static const int maxRecommendations = 15;
@@ -61,6 +68,18 @@ class AiMaterialConsultantService {
     required String scope,
     required String description,
   }) async {
+    // A description already answered is answered again from the device. The
+    // model is shared and returns 503 under load; a builder repeating a
+    // question should not be at the mercy of that.
+    final cached = await _cache.read(
+      projectType: projectType,
+      scope: scope,
+      description: description,
+    );
+    if (cached != null) {
+      return AiRecommendResult(success: true, materials: cached);
+    }
+
     try {
       final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
           .httpsCallable(
@@ -113,6 +132,12 @@ class AiMaterialConsultantService {
                   'more detail, or chat with the AI instead.',
         );
       }
+      await _cache.write(
+        projectType: projectType,
+        scope: scope,
+        description: description,
+        materials: materials,
+      );
       return AiRecommendResult(success: true, materials: materials);
     } on FirebaseFunctionsException catch (e) {
       return AiRecommendResult(success: false, errorMessage: _friendlyError(e));
@@ -256,12 +281,17 @@ class AiMaterialConsultantService {
         message.contains('not deployed')) {
       return 'The AI service is not deployed yet.';
     }
-    if (message.contains('gemini_api_key') ||
-        message.contains('api key') ||
-        message.contains('set gemini')) {
+    // Only when the server says the key itself is missing. A retired or busy
+    // model used to land here too, which sent builders to check a key that
+    // was configured all along.
+    if (code == 'failed-precondition' && message.contains('api key')) {
       return 'The AI key is not configured on the server.';
     }
-    if (code == 'deadline-exceeded' || code == 'unavailable') {
+    if (code == 'unavailable') {
+      return 'The AI is busy right now. Try again in a moment, or start from '
+          'a template instead.';
+    }
+    if (code == 'deadline-exceeded') {
       return 'The AI took too long to respond. Try again in a moment.';
     }
     if (code == 'resource-exhausted') {

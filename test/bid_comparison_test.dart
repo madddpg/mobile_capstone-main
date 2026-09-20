@@ -16,7 +16,6 @@ void main() {
         id: 'a',
         shopName: 'Alpha Hardware',
         estimatedTotal: 10000,
-        deliveryFee: 500,
         leadTimeRaw: '5 days',
         materialsCovered: 4,
       ),
@@ -24,7 +23,6 @@ void main() {
         id: 'b',
         shopName: 'Beta Supply',
         estimatedTotal: 9500,
-        deliveryFee: 0,
         leadTimeRaw: '2 weeks',
         materialsCovered: 8,
       ),
@@ -32,16 +30,15 @@ void main() {
         id: 'c',
         shopName: 'QuickBuild',
         estimatedTotal: 11000,
-        deliveryFee: 200,
         leadTimeRaw: '2 days',
         materialsCovered: 5,
       ),
     ];
 
-    test('highlights lowest all-in, fastest lead, and most complete', () {
+    test('highlights lowest total, fastest lead, and most complete', () {
       final comparison = BidComparison.fromQuotes(quotes);
 
-      expect(comparison.lowestTotalId, 'b'); // 9500 all-in
+      expect(comparison.lowestTotalId, 'b'); // 9500, the lowest quoted total
       expect(comparison.fastestLeadId, 'c'); // 2 days
       expect(comparison.mostCompleteId, 'b'); // 8 materials
     });
@@ -235,6 +232,28 @@ void main() {
       final advice = canvassAdvice(bom, [fullDear, fullCheap]);
       expect(advice.suggestedShopId, 'cheap');
       expect(advice.detail, contains('full estimate'));
+    });
+  });
+
+  group('formatBidMoney', () {
+    test('groups thousands, the way a price is read', () {
+      expect(formatBidMoney(23146.18), '₱23,146.18');
+      expect(formatBidMoney(1250), '₱1,250');
+      expect(formatBidMoney(1234567.5), '₱1,234,567.50');
+    });
+
+    test('centavos appear only when there are any', () {
+      expect(formatBidMoney(900), '₱900');
+      expect(formatBidMoney(900.4), '₱900.40');
+    });
+
+    test('small amounts and zero are left alone', () {
+      expect(formatBidMoney(0), '₱0');
+      expect(formatBidMoney(75.5), '₱75.50');
+    });
+
+    test('a negative amount keeps its sign outside the peso mark', () {
+      expect(formatBidMoney(-2500), '-₱2,500');
     });
   });
 }

@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import 'package:iconstruct/core/firebase/firestore_coerce.dart';
 import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
-import 'package:iconstruct/features/auth/presentation/models/shop_rating.dart';
 
 class ShopRankingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -11,9 +9,13 @@ class ShopRankingService {
   static DateTime? _cachedAt;
   static const Duration _ttl = Duration(minutes: 5);
 
+  /// Storefronts already read this session, keyed by shop uid.
+  static final Map<String, RankedShop> _byId = {};
+
   /// Clears the in-memory ranking cache (e.g. after pull-to-refresh).
   static void clearCache() {
     _cache = null;
+    _byId.clear();
     _cachedAt = null;
   }
 
@@ -43,33 +45,9 @@ class ShopRankingService {
       // and silently returned an empty list. The web dashboard is expected to
       // maintain one of these counters on the shop doc; absent that, shops sort
       // by name so the list is at least stable and populated.
-      final rankedShops = shopsQuery.docs.map((doc) {
-        final data = doc.data();
-        final uid = asString(data['uid'], fallback: doc.id);
-        final count = asInt(firstOf(data, const [
-          'quotationCount',
-          'quotationsCount',
-          'totalQuotations',
-          'completedQuotations',
-          'quotesSubmitted',
-        ]));
-
-        return RankedShop(
-          uid: uid,
-          rating: ShopRating.fromShopData(data),
-          suppliedCategories: RankedShop.readList(data['suppliedCategories']),
-          description: asString(data['description']),
-          businessHours: asString(data['businessHours']),
-          coverageCities: RankedShop.readList(data['coverageCities']),
-          storefrontAbout: asString(data['storefrontAbout']),
-          shopName: asString(data['shopName'], fallback: 'Unknown Shop'),
-          address: asString(data['address']),
-          barangay: asString(data['barangay']),
-          city: asString(data['city']),
-          subscriptionPlan: asStringOrNull(data['subscriptionPlan']),
-          quotationCount: count,
-        );
-      }).toList()
+      final rankedShops = shopsQuery.docs
+          .map((doc) => RankedShop.fromMap(doc.id, doc.data()))
+          .toList()
         // Rated shops first, best first. A builder choosing who to canvass
         // cares what other builders thought, not how many quotes a shop has
         // fired off. Unrated shops keep their place below rather than being
@@ -101,5 +79,43 @@ class ShopRankingService {
       if (_cache != null) return _cache!;
       rethrow;
     }
+  }
+
+  /// Storefronts for named shops, such as the ones that quoted an estimate.
+  ///
+  /// Each shop is read once per session and kept, because a comparison screen
+  /// rebuilds on every quotation snapshot and the storefront does not change
+  /// between them. A shop that cannot be read is left out: its quotation is
+  /// still shown, just without a profile behind it.
+  Future<Map<String, RankedShop>> fetchByIds(Iterable<String> shopIds) async {
+    final wanted = <String>{
+      for (final id in shopIds)
+        if (id.trim().isNotEmpty) id.trim(),
+    };
+
+    final found = <String, RankedShop>{};
+    final missing = <String>[];
+    for (final id in wanted) {
+      final cached = _byId[id];
+      if (cached != null) {
+        found[id] = cached;
+      } else {
+        missing.add(id);
+      }
+    }
+
+    await Future.wait(missing.map((id) async {
+      try {
+        final snap = await _firestore.collection('shops').doc(id).get();
+        if (!snap.exists) return;
+        final shop = RankedShop.fromMap(snap.id, snap.data() ?? {});
+        _byId[id] = shop;
+        found[id] = shop;
+      } catch (e) {
+        debugPrint('ShopRankingService: could not read shop $id: $e');
+      }
+    }));
+
+    return found;
   }
 }

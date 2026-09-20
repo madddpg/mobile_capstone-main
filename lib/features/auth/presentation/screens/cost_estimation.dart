@@ -7,6 +7,7 @@ import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/auth/presentation/screens/material_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/bom_sections.dart';
+import 'package:iconstruct/features/project_creation/data/functional_counts.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
@@ -38,6 +39,11 @@ class CostEstimationScreen extends StatefulWidget {
   /// all sized from it, and the list is grouped into floor, walls and the rest.
   final SiteTakeoff? takeoff;
 
+  /// For a functional room, how many outlets, switches and lights the builder
+  /// asked for. Wiring, conduit and device quantities are sized from this
+  /// rather than from the room's floor area.
+  final FunctionalCounts? counts;
+
   const CostEstimationScreen({
     super.key,
     required this.projectName,
@@ -48,6 +54,7 @@ class CostEstimationScreen extends StatefulWidget {
     this.scope = RenovationScope.cosmetic,
     this.budgetPreference,
     this.takeoff,
+    this.counts,
   });
 
   @override
@@ -412,6 +419,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                               currentQty: selected.quantity,
                               bom: _templateItems,
                               takeoff: widget.takeoff,
+                              counts: widget.counts,
                             ),
                             onSizeChanged: item.availableSizes.isEmpty
                                 ? null
@@ -422,6 +430,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                                       newSize: newSize,
                                       areaSqm: widget.projectAreaSqm ?? 1.0,
                                       takeoff: widget.takeoff,
+                                      counts: widget.counts,
                                     );
                                     setState(() {
                                       selected.size = newSize;
@@ -546,12 +555,24 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
           aiBudget: widget.budgetPreference,
           scope: widget.scope,
           lockEstimateDetails: true,
-          siteDetails: widget.takeoff?.details.toMap(),
+          siteDetails: _siteDetailsMap(),
         ),
       ),
     );
   }
 
+  /// What gets saved with the estimate and the post: the measured room, plus
+  /// the device counts for a functional room, so reopening a draft or reading
+  /// the post shows what the quantities were actually sized from.
+  Map<String, dynamic>? _siteDetailsMap() {
+    final details = widget.takeoff?.details.toMap();
+    final counts = widget.counts;
+    if (details == null && counts == null) return null;
+    return {
+      ...?details,
+      if (counts != null && !counts.isEmpty) 'functionalCounts': counts.toMap(),
+    };
+  }
 }
 
 class _SectionLabel extends StatelessWidget {
