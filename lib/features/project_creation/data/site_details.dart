@@ -199,6 +199,58 @@ class PartialArea {
   int get hashCode => Object.hash(label, totalLengthM, totalWidthM);
 }
 
+/// A room that is not a simple rectangle.
+///
+/// The app used to tell the builder to "enter the nearest rectangle" for an
+/// L-shaped room. That threw off the floor and every wall quantity at once,
+/// and in opposite directions: the bounding rectangle overstates the floor
+/// while understating nothing, so tiles, paint, skirting and CHB all came out
+/// wrong together. A foreman measures such a room the way it is built — wall
+/// by wall, with the floor split into rectangles and added up — which is what
+/// this holds.
+class IrregularRoom {
+  /// Each wall's length, in the order they are walked.
+  final List<double> wallRunsM;
+
+  /// Floor area, worked out on site by splitting the room into rectangles.
+  final double floorSqm;
+
+  const IrregularRoom({required this.wallRunsM, required this.floorSqm});
+
+  double get perimeterM =>
+      wallRunsM.fold(0.0, (sum, m) => sum + math.max(0.0, m));
+
+  Map<String, dynamic> toMap() => {
+        'wallRunsM': wallRunsM,
+        'floorSqm': floorSqm,
+      };
+
+  static IrregularRoom? fromMap(Map<String, dynamic>? map) {
+    if (map == null) return null;
+    final raw = map['wallRunsM'];
+    final runs = raw is List
+        ? [for (final m in raw) _asDouble(m)].where((m) => m > 0).toList()
+        : const <double>[];
+    final floor = _asDouble(map['floorSqm']);
+    if (runs.isEmpty || floor <= 0) return null;
+    return IrregularRoom(wallRunsM: runs, floorSqm: floor);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is IrregularRoom &&
+          floorSqm == other.floorSqm &&
+          wallRunsM.length == other.wallRunsM.length &&
+          [
+            for (var i = 0; i < wallRunsM.length; i++)
+              wallRunsM[i] == other.wallRunsM[i],
+          ].every((same) => same));
+
+  @override
+  int get hashCode => Object.hash(floorSqm, Object.hashAll(wallRunsM));
+}
+
 /// The measurements a builder enters for one room.
 class SiteDetails {
   final RoomJob job;
@@ -225,6 +277,10 @@ class SiteDetails {
   /// space is. Null for a job that covers the whole space.
   final PartialArea? partial;
 
+  /// Set when the room is not a rectangle, and then it — not length × width —
+  /// is what the floor and the walls are measured from.
+  final IrregularRoom? irregular;
+
   const SiteDetails({
     required this.job,
     required this.lengthM,
@@ -236,6 +292,7 @@ class SiteDetails {
     this.counterLengthM = 0,
     this.removeOldTiles = false,
     this.partial,
+    this.irregular,
     this.paintCeiling = false,
   });
 
@@ -293,6 +350,7 @@ class SiteDetails {
     bool? removeOldTiles,
     bool? paintCeiling,
     PartialArea? partial,
+    IrregularRoom? irregular,
   }) {
     return SiteDetails(
       job: job,
@@ -306,8 +364,13 @@ class SiteDetails {
       removeOldTiles: removeOldTiles ?? this.removeOldTiles,
       paintCeiling: paintCeiling ?? this.paintCeiling,
       partial: partial ?? this.partial,
+      irregular: irregular ?? this.irregular,
     );
   }
+
+  /// The floor area the quantities are sized from: the measured area of an
+  /// irregular room, otherwise length × width.
+  double get measuredFloorSqm => irregular?.floorSqm ?? lengthM * widthM;
 
   /// How much of the whole space this job covers, as a fraction, or `null`
   /// when it covers all of it.
@@ -318,17 +381,32 @@ class SiteDetails {
   double? get portionOfSpace {
     final whole = partial;
     if (whole == null || whole.totalFloorSqm <= 0) return null;
-    return (lengthM * widthM) / whole.totalFloorSqm;
+    return measuredFloorSqm / whole.totalFloorSqm;
   }
 
   /// Problems that stop an estimate. Empty when the details can be used.
   List<String> problems() {
     final out = <String>[];
-    if (lengthM < 0.5 || lengthM > 30) {
-      out.add('Enter a room length between 0.5 and 30 m.');
-    }
-    if (widthM < 0.5 || widthM > 30) {
-      out.add('Enter a room width between 0.5 and 30 m.');
+    final shape = irregular;
+    if (shape != null) {
+      // Three walls is the fewest that can enclose a room; an L needs six.
+      if (shape.wallRunsM.length < 3) {
+        out.add('Enter at least three wall lengths for a room that is not a '
+            'rectangle.');
+      }
+      if (shape.wallRunsM.any((m) => m < 0.3 || m > 30)) {
+        out.add('Enter each wall length between 0.3 and 30 m.');
+      }
+      if (shape.floorSqm < 0.5 || shape.floorSqm > 500) {
+        out.add('Enter a floor area between 0.5 and 500 sq.m.');
+      }
+    } else {
+      if (lengthM < 0.5 || lengthM > 30) {
+        out.add('Enter a room length between 0.5 and 30 m.');
+      }
+      if (widthM < 0.5 || widthM > 30) {
+        out.add('Enter a room width between 0.5 and 30 m.');
+      }
     }
     if (job.hasWalls && (heightM < 2.0 || heightM > 6.0)) {
       out.add('Enter a ceiling height between 2.0 and 6.0 m.');
@@ -346,9 +424,9 @@ class SiteDetails {
       }
       // A part bigger than the space it sits in means one of the two was
       // mistyped, and the quantities would be sized from the wrong one.
-      if (out.isEmpty && lengthM * widthM > whole.totalFloorSqm + 0.01) {
+      if (out.isEmpty && measuredFloorSqm > whole.totalFloorSqm + 0.01) {
         out.add(
-          'The part (${(lengthM * widthM).toStringAsFixed(2)} sq.m) cannot be '
+          'The part (${measuredFloorSqm.toStringAsFixed(2)} sq.m) cannot be '
           'bigger than the whole space '
           '(${whole.totalFloorSqm.toStringAsFixed(2)} sq.m).',
         );
@@ -371,7 +449,7 @@ class SiteDetails {
   /// Unusual but possible values the builder should double-check.
   List<String> warnings() {
     final out = <String>[];
-    final floor = lengthM * widthM;
+    final floor = measuredFloorSqm;
     if (job == RoomJob.wetRoom && floor > 15) {
       out.add('${floor.toStringAsFixed(1)} sq.m is large for a bathroom or laundry.');
     }
@@ -393,6 +471,7 @@ class SiteDetails {
         'removeOldTiles': removeOldTiles,
         'paintCeiling': paintCeiling,
         if (partial != null) 'partial': partial!.toMap(),
+        if (irregular != null) 'irregular': irregular!.toMap(),
       };
 
   static SiteDetails? fromMap(Map<String, dynamic>? map) {
@@ -419,6 +498,11 @@ class SiteDetails {
       counterLengthM: _asDouble(map['counterLengthM']),
       removeOldTiles: map['removeOldTiles'] == true,
       paintCeiling: map['paintCeiling'] == true,
+      irregular: IrregularRoom.fromMap(
+        map['irregular'] is Map
+            ? Map<String, dynamic>.from(map['irregular'] as Map)
+            : null,
+      ),
       partial: PartialArea.fromMap(
         map['partial'] is Map
             ? Map<String, dynamic>.from(map['partial'] as Map)
@@ -483,8 +567,13 @@ class SiteTakeoff {
     final height = math.max(0.0, d.heightM);
     final job = d.job;
 
-    final floor = length * width;
-    final perimeter = 2 * (length + width);
+    // An irregular room is measured, not derived: its walls were walked one by
+    // one and its floor split into rectangles. Every figure below follows from
+    // these two, so nothing downstream needs to know the room's shape.
+    final shape = d.irregular;
+    final floor = shape != null ? math.max(0.0, shape.floorSqm) : length * width;
+    final perimeter =
+        shape != null ? shape.perimeterM : 2 * (length + width);
 
     double openingArea(List<Opening> list) => list.fold(
           0.0,
@@ -550,9 +639,16 @@ class SiteTakeoff {
   static String _m(double v) => v.toStringAsFixed(2);
   static String _sq(double v) => v.toStringAsFixed(1);
 
-  String get floorLine =>
-      'Floor: ${_m(details.lengthM)} × ${_m(details.widthM)} m = ${_sq(floorSqm)} sq.m'
-      '$_partialSuffix';
+  String get floorLine {
+    final shape = details.irregular;
+    if (shape != null) {
+      return 'Floor: ${_sq(floorSqm)} sq.m measured, '
+          '${shape.wallRunsM.length} walls totalling ${_m(perimeterM)} m'
+          '$_partialSuffix';
+    }
+    return 'Floor: ${_m(details.lengthM)} × ${_m(details.widthM)} m = '
+        '${_sq(floorSqm)} sq.m$_partialSuffix';
+  }
 
   /// Names the part a partial job covers, so a measured 2 sq.m is never read
   /// as the whole room.

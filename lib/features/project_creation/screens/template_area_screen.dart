@@ -131,6 +131,14 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   /// builder's intent, and only they know whether it narrows to one part.
   bool _isPortion = false;
 
+  /// An L-shaped or otherwise irregular room, measured wall by wall instead of
+  /// squashed into the nearest rectangle.
+  bool _isIrregular = false;
+  final _floorAreaController = TextEditingController();
+  final List<TextEditingController> _wallRuns = [
+    for (var i = 0; i < 4; i++) TextEditingController(),
+  ];
+
   late final RoomJob? _job = roomJobFor(widget.template.renovationType);
   late final List<_OpeningCount> _doors;
   late final List<_OpeningCount> _windows;
@@ -221,6 +229,10 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     _portionLabelController.dispose();
     _totalLengthController.dispose();
     _totalWidthController.dispose();
+    _floorAreaController.dispose();
+    for (final run in _wallRuns) {
+      run.dispose();
+    }
     for (final row in [..._doors, ..._windows]) {
       row.dispose();
     }
@@ -252,6 +264,27 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       removeOldTiles: _finishes && job.hasFloor && _removeOldTiles,
       paintCeiling: _finishes && job.hasWalls && _paintCeiling,
       partial: _partialArea,
+      irregular: _irregularRoom,
+    );
+  }
+
+  /// How far round the room the entered walls reach, so the builder can check
+  /// it against what they paced out.
+  double get _wallPerimeter => _wallRuns.fold(0.0, (sum, run) {
+        final metres = _parseMetres(run.text) ?? 0;
+        return sum + (metres > 0 ? metres : 0);
+      });
+
+  /// The room as walked wall by wall, when it is not a rectangle.
+  IrregularRoom? get _irregularRoom {
+    if (!_isIrregular) return null;
+    return IrregularRoom(
+      wallRunsM: [
+        for (final run in _wallRuns)
+          if (_parseMetres(run.text) != null && _parseMetres(run.text)! > 0)
+            _parseMetres(run.text)!,
+      ],
+      floorSqm: _parseMetres(_floorAreaController.text) ?? 0,
     );
   }
 
@@ -652,12 +685,11 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
               ? 'The part: length and width *'
               : 'Room size: length and width *')),
       const SizedBox(height: 4),
-      // Said plainly, because the takeoff treats the room as one rectangle.
-      // Two bedrooms are two estimates, and an L-shaped room is entered as the
-      // nearest rectangle with the quantities checked afterwards.
+      // One room per estimate is still the rule. The shape of that room is no
+      // longer forced into a rectangle: an L-shaped room is measured wall by
+      // wall below.
       _hint(
-        'One room per estimate. For another room, make a separate estimate. '
-        'An L-shaped room: enter the nearest rectangle.',
+        'One room per estimate. For another room, make a separate estimate.',
       ),
       if (_finishes && !widget.hints.isEmpty) ...[
         const SizedBox(height: 6),
@@ -666,6 +698,65 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         _hint('Set from your description: ${widget.hints.applied.join(' · ')}'),
       ],
       const SizedBox(height: 8),
+      _switchRow(
+        title: 'Not a simple rectangle',
+        subtitle: 'An L-shaped room, or one with a recess or a bay',
+        value: _isIrregular,
+        onChanged: (v) => setState(() => _isIrregular = v),
+      ),
+      if (_isIrregular) ...[
+        const SizedBox(height: 8),
+        // A foreman measures such a room the way it is built: each wall in
+        // turn, and the floor split into rectangles and added up.
+        _hint(
+          'Enter each wall in turn, walking the room. For the floor, split it '
+          'into rectangles and add them up.',
+        ),
+        const SizedBox(height: 10),
+        _metresField(_floorAreaController, 'Floor area (sq.m)', 'e.g. 14.5'),
+        const SizedBox(height: 10),
+        _label('Wall lengths'),
+        const SizedBox(height: 6),
+        for (var i = 0; i < _wallRuns.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _metresField(
+                      _wallRuns[i], 'Wall ${i + 1}', 'e.g. 3.0',
+                      dense: true),
+                ),
+                if (_wallRuns.length > 3)
+                  IconButton(
+                    tooltip: 'Remove wall ${i + 1}',
+                    onPressed: () => setState(() {
+                      final removed = _wallRuns.removeAt(i);
+                      WidgetsBinding.instance
+                          .addPostFrameCallback((_) => removed.dispose());
+                    }),
+                    icon: const Icon(Icons.close_rounded, size: 16),
+                    color: GlitchedFlowShell.cream,
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          ),
+        _addSizeButton(
+          'Add another wall',
+          () => setState(() => _wallRuns.add(TextEditingController())),
+        ),
+        if (_wallPerimeter > 0) ...[
+          const SizedBox(height: 4),
+          _hint('${_wallRuns.length} walls, '
+              '${_wallPerimeter.toStringAsFixed(2)} m around.'),
+        ],
+        if (job.hasWalls) ...[
+          const SizedBox(height: 10),
+          _metresField(_heightController, 'Ceiling height', 'e.g. 2.7'),
+        ],
+      ],
+      if (!_isIrregular)
       Row(
         children: [
           Expanded(
