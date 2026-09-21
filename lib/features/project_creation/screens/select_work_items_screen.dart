@@ -27,6 +27,10 @@ class SelectWorkItemsScreen extends StatefulWidget {
   final RenovationTypes types;
   final SiteHints hints;
 
+  /// Work picked by the AI from the builder's description, ticked in place of
+  /// the kinds' starting packages, with the AI's reason for each.
+  final Map<String, String>? recommended;
+
   const SelectWorkItemsScreen({
     super.key,
     required this.catalogue,
@@ -36,6 +40,7 @@ class SelectWorkItemsScreen extends StatefulWidget {
     this.coverage = RenovationCoverage.full,
     required this.types,
     this.hints = SiteHints.none,
+    this.recommended,
   });
 
   @override
@@ -49,8 +54,10 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
     RenovationScope.functional: Color(0xFF8FB2D4),
   };
 
-  late final Set<String> _selected =
+  late final Set<String> _selected = widget.recommended?.keys.toSet() ??
       widget.catalogue.startingSelection(widget.types);
+
+  bool get _fromAi => widget.recommended != null;
 
   WorkCatalogue get _catalogue => widget.catalogue;
 
@@ -114,11 +121,13 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
   Widget build(BuildContext context) {
     final matching = _catalogue.packageMatching(_selected);
     return GlitchedFlowShell(
-      title: 'What Work\nIs Included?',
+      title: _fromAi ? 'Recommended\nWork' : 'What Work\nIs Included?',
       subtitle: widget.projectName,
-      instruction:
-          'Pick a package or tick each piece of work. The materials list is '
-          'built from what you tick, and shops are told what you left out.',
+      instruction: _fromAi
+          ? 'Ticked from your description. Untick anything you do not want or '
+              'tick more. The materials come from what you tick.'
+          : 'Pick a package or tick each piece of work. The materials list is '
+              'built from what you tick, and shops are told what you left out.',
       trailingAction: GlitchedPillButton(
         label: 'Continue',
         width: 150,
@@ -152,6 +161,7 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: _WorkTile(
                       item: item,
+                      reason: widget.recommended?[item.id],
                       accent: _accents[scope]!,
                       selected: _selected.contains(item.id),
                       onTap: () => _toggle(item.id),
@@ -221,12 +231,16 @@ class _PackageChip extends StatelessWidget {
 
 class _WorkTile extends StatelessWidget {
   final WorkItem item;
+
+  /// Why the AI picked this item, when it did.
+  final String? reason;
   final Color accent;
   final bool selected;
   final VoidCallback onTap;
 
   const _WorkTile({
     required this.item,
+    this.reason,
     required this.accent,
     required this.selected,
     required this.onTap,
@@ -276,6 +290,18 @@ class _WorkTile extends StatelessWidget {
                           height: 1.35,
                         ),
                       ),
+                      if ((reason ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          'AI: $reason',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: accent,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

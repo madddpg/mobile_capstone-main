@@ -1,6 +1,8 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
+import 'package:iconstruct/features/project_creation/data/material_kind.dart';
 import 'package:iconstruct/features/project_creation/data/recommendation_cache.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 
 /// Result of one iConstruct AI consultation turn (Gemini/OpenAI via Cloud Functions).
 class AiConsultResult {
@@ -34,14 +36,24 @@ class AiRecommendedMaterial {
   });
 }
 
-class AiRecommendResult {
+/// One work item the AI picked from the project's catalogue.
+class AiWorkPick {
+  final String id;
+
+  /// Why the description calls for it, in a short phrase.
+  final String reason;
+
+  const AiWorkPick({required this.id, this.reason = ''});
+}
+
+class AiWorkRecommendResult {
   final bool success;
-  final List<AiRecommendedMaterial> materials;
+  final List<AiWorkPick> picks;
   final String? errorMessage;
 
-  const AiRecommendResult({
+  const AiWorkRecommendResult({
     required this.success,
-    this.materials = const [],
+    this.picks = const [],
     this.errorMessage,
   });
 }
@@ -53,31 +65,41 @@ class AiMaterialConsultantService {
 
   final RecommendationCache _cache;
 
-  /// The most recommendations shown; beyond this the list stops being a
-  /// starting point and becomes a package nobody asked for.
-  static const int maxRecommendations = 15;
-
-  /// Recommends materials for [description], a builder's own account of the
-  /// job, given the project and its renovation type.
+  /// Recommends, from [catalogue], the work [description] calls for — a
+  /// builder's own account of the job, given the project and its renovation
+  /// type.
   ///
-  /// Uses `generateAIBOM` in recommend mode. A copy deployed before that mode
-  /// existed ignores it and drafts a BOM from `additionalNotes`, which carries
-  /// the same description, so this works on either version.
-  Future<AiRecommendResult> recommend({
+  /// The AI is shown the catalogue and answers with ids from it, so it can
+  /// only pick work the app already has materials and formulas for. Anything
+  /// it answers outside the catalogue is dropped.
+  ///
+  /// Uses `generateAIBOM` in recommend mode. A copy deployed before work items
+  /// existed ignores them and recommends materials; those are matched to the
+  /// work items that bring the same kinds of material, so this works on either
+  /// version.
+  Future<AiWorkRecommendResult> recommendWork({
     required String projectType,
     required String scope,
     required String description,
+    required WorkCatalogue catalogue,
   }) async {
     // A description already answered is answered again from the device. The
     // model is shared and returns 503 under load; a builder repeating a
-    // question should not be at the mercy of that.
+    // question should not be at the mercy of that. Work picks are kept apart
+    // from any materials an older version cached for the same description.
+    final cacheType = 'work|$projectType';
     final cached = await _cache.read(
-      projectType: projectType,
+      projectType: cacheType,
       scope: scope,
       description: description,
     );
-    if (cached != null) {
-      return AiRecommendResult(success: true, materials: cached);
+    final cachedPicks = [
+      for (final entry in cached ?? const <AiRecommendedMaterial>[])
+        if (catalogue.byId(entry.name) != null)
+          AiWorkPick(id: entry.name, reason: entry.reason),
+    ];
+    if (cachedPicks.isNotEmpty) {
+      return AiWorkRecommendResult(success: true, picks: cachedPicks);
     }
 
     try {
@@ -91,6 +113,15 @@ class AiMaterialConsultantService {
         'projectType': projectType,
         'scope': scope,
         'description': description,
+        'workItems': [
+          for (final item in catalogue.items)
+            {
+              'id': item.id,
+              'label': item.label,
+              'detail': item.detail,
+              'kind': item.scope.label,
+            },
+        ],
         'style': 'As described by the builder',
         'additionalNotes':
             'Renovation type: $scope\nWhat the builder wants:\n$description',
@@ -98,55 +129,97 @@ class AiMaterialConsultantService {
 
       final data = response.data;
       if (data is! Map) {
-        return const AiRecommendResult(
+        return const AiWorkRecommendResult(
           success: false,
           errorMessage: 'Unexpected AI response.',
         );
       }
 
-      final materials = <AiRecommendedMaterial>[];
-      final seen = <String>{};
-      final raw = data['materials'];
-      if (raw is List) {
-        for (final entry in raw) {
-          final map = entry is Map ? entry : const {};
-          final name = (entry is Map ? map['name'] : entry)?.toString().trim() ?? '';
-          if (name.isEmpty || !seen.add(name.toLowerCase())) continue;
-          materials.add(AiRecommendedMaterial(
-            name: name,
-            category: (map['category'] ?? '').toString().trim(),
-            reason: (map['reason'] ?? '').toString().trim(),
-          ));
-          if (materials.length == maxRecommendations) break;
-        }
-      }
+      final picks = data.containsKey('workItems')
+          ? workPicksFrom(data['workItems'], catalogue)
+          : workPicksFromMaterials(data['materials'], catalogue);
 
-      if (materials.isEmpty) {
+      if (picks.isEmpty) {
         // The server explains an off-topic description in its own words.
         final serverError = (data['error'] ?? '').toString().trim();
-        return AiRecommendResult(
+        return AiWorkRecommendResult(
           success: false,
           errorMessage: serverError.isNotEmpty
               ? serverError
-              : 'The AI did not recommend any materials. Describe the work in '
-                  'more detail, or chat with the AI instead.',
+              : 'The AI did not pick any work. Describe the work in more '
+                  'detail, or start from the checklist instead.',
         );
       }
       await _cache.write(
-        projectType: projectType,
+        projectType: cacheType,
         scope: scope,
         description: description,
-        materials: materials,
+        materials: [
+          for (final pick in picks)
+            AiRecommendedMaterial(name: pick.id, reason: pick.reason),
+        ],
       );
-      return AiRecommendResult(success: true, materials: materials);
+      return AiWorkRecommendResult(success: true, picks: picks);
     } on FirebaseFunctionsException catch (e) {
-      return AiRecommendResult(success: false, errorMessage: _friendlyError(e));
+      return AiWorkRecommendResult(
+          success: false, errorMessage: _friendlyError(e));
     } catch (_) {
-      return const AiRecommendResult(
+      return const AiWorkRecommendResult(
         success: false,
         errorMessage: 'The AI service is unreachable right now.',
       );
     }
+  }
+
+  /// The picks in a work answer that name an item in [catalogue], once each.
+  static List<AiWorkPick> workPicksFrom(Object? raw, WorkCatalogue catalogue) {
+    if (raw is! List) return const [];
+    final seen = <String>{};
+    return [
+      for (final entry in raw)
+        if (entry is Map &&
+            catalogue.byId('${entry['id'] ?? ''}'.trim()) != null &&
+            seen.add('${entry['id']}'.trim()))
+          AiWorkPick(
+            id: '${entry['id']}'.trim(),
+            reason: '${entry['reason'] ?? ''}'.trim(),
+          ),
+    ];
+  }
+
+  /// Kinds too general to say which work a material belongs to.
+  static const Set<MaterialKind> _vagueKinds = {
+    MaterialKind.genericConsumable,
+    MaterialKind.unknown,
+  };
+
+  /// Work items for a materials answer from a server that predates work
+  /// items: each item whose materials include a recommended kind of material.
+  /// The reason given is the first matching material's.
+  static List<AiWorkPick> workPicksFromMaterials(
+    Object? raw,
+    WorkCatalogue catalogue,
+  ) {
+    if (raw is! List) return const [];
+    final recommended = <MaterialKind, String>{};
+    for (final entry in raw) {
+      final name = (entry is Map ? entry['name'] : entry)?.toString() ?? '';
+      if (name.trim().isEmpty) continue;
+      final kind = classifyMaterialParts(
+        name: name,
+        category: entry is Map ? '${entry['category'] ?? ''}' : '',
+      );
+      if (_vagueKinds.contains(kind)) continue;
+      recommended.putIfAbsent(
+          kind, () => entry is Map ? '${entry['reason'] ?? ''}'.trim() : '');
+    }
+    return [
+      for (final item in catalogue.items)
+        for (final kind in {for (final m in item.materials) classifyMaterial(m)}
+            .where(recommended.containsKey)
+            .take(1))
+          AiWorkPick(id: item.id, reason: recommended[kind]!),
+    ];
   }
 
   Future<AiConsultResult> consult({

@@ -13,6 +13,8 @@ const assert = require("assert");
 const {
   renovationTypeLine,
   sanitizeRecommendations,
+  cleanWorkItems,
+  sanitizeWorkPicks,
 } = require("../src/services/iconstructAi");
 
 let passed = 0;
@@ -83,6 +85,57 @@ test("the list stops at fifteen", () => {
 test("an answer without a list gives an empty one", () => {
   assert.deepStrictEqual(sanitizeRecommendations(undefined), []);
   assert.deepStrictEqual(sanitizeRecommendations({ name: "x" }), []);
+});
+
+// ── Work items ──────────────────────────────────────────────────────────
+
+test("the work list from the app keeps only well-formed items", () => {
+  const out = cleanWorkItems([
+    { id: "retile_floor", label: "Retile the floor", kind: "Cosmetic" },
+    { id: "retile_floor", label: "again" },
+    { id: "Drop Table", label: "not an id" },
+    { label: "no id" },
+    null,
+  ]);
+  assert.deepStrictEqual(out.map((w) => w.id), ["retile_floor"]);
+});
+
+test("the work list stops at forty", () => {
+  const many = Array.from({ length: 60 }, (_, i) => ({ id: `item_${i}` }));
+  assert.strictEqual(cleanWorkItems(many).length, 40);
+});
+
+test("no work list means the materials answer, as before", () => {
+  assert.deepStrictEqual(cleanWorkItems(undefined), []);
+});
+
+test("only work the app offered can be picked", () => {
+  const out = sanitizeWorkPicks(
+    [
+      { id: "retile_floor", reason: "Old tiles are cracked" },
+      { id: "install_jacuzzi", reason: "Invented" },
+      { id: "retile_floor", reason: "again" },
+      "repaint",
+    ],
+    ["retile_floor", "repaint"]
+  );
+  assert.deepStrictEqual(
+    out.map((p) => p.id),
+    ["retile_floor", "repaint"]
+  );
+  assert.strictEqual(out[0].reason, "Old tiles are cracked");
+});
+
+test("nothing about price reaches the builder in a work reason", () => {
+  const out = sanitizeWorkPicks(
+    [{ id: "repaint", reason: "Costs about ₱2,000" }],
+    ["repaint"]
+  );
+  assert.strictEqual(out[0].reason, "");
+});
+
+test("an answer without picks gives an empty list", () => {
+  assert.deepStrictEqual(sanitizeWorkPicks(undefined, ["repaint"]), []);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
