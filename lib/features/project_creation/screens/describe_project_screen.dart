@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/screens/ai_consultation_screen.dart';
@@ -21,6 +22,11 @@ class DescribeProjectScreen extends StatefulWidget {
   final String projectName;
   final String? customProjectName;
   final RenovationScope scope;
+
+  /// How much of the space the job covers. Its own dimension: a partial
+  /// cosmetic job and a full one are the same kind of work over different
+  /// amounts of room.
+  final RenovationCoverage coverage;
   final PlanningMethod method;
 
   const DescribeProjectScreen({
@@ -28,6 +34,7 @@ class DescribeProjectScreen extends StatefulWidget {
     required this.projectName,
     this.customProjectName,
     required this.scope,
+    this.coverage = RenovationCoverage.full,
     required this.method,
   });
 
@@ -85,6 +92,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
             projectName: widget.projectName,
             customProjectName: widget.customProjectName,
             scope: widget.scope,
+            coverage: widget.coverage,
             description: _description,
           ),
         ),
@@ -104,6 +112,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
           customProjectName: widget.customProjectName,
           projectNotes: _description.isEmpty ? null : _description,
           scope: widget.scope,
+          coverage: widget.coverage,
           hints: parseSiteHints(_description),
         ),
       ),
@@ -119,6 +128,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
           projectName: widget.projectName,
           customProjectName: widget.customProjectName,
           scope: widget.scope,
+          coverage: widget.coverage,
         ),
       ),
     );

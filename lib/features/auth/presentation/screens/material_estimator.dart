@@ -14,8 +14,10 @@ import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/bidding/screens/posted_project_details_screen.dart';
 import 'package:iconstruct/features/bidding/data/project_post_payload.dart';
 import 'package:iconstruct/features/project_creation/data/bom_export.dart';
+import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/widgets/bom_share_sheet.dart';
 import 'package:iconstruct/features/project_creation/widgets/material_id_sheet.dart';
@@ -44,6 +46,16 @@ class MaterialEstimatorScreen extends StatefulWidget {
   /// and the post, so the builder and the shops can see what was measured.
   final Map<String, dynamic>? siteDetails;
 
+  /// Work the builder took out of the bill of materials on the review screen.
+  /// Carried to the post so a shop quotes the list it was given and is told
+  /// what was deliberately left off it.
+  final List<ExcludedWork> excludedWork;
+
+  /// How much of the space the job covers. Saved as its own field; it never
+  /// goes into projectScope, which carries the renovation type and is read by
+  /// the shop dashboard under that meaning.
+  final RenovationCoverage coverage;
+
   const MaterialEstimatorScreen({
     super.key,
     required this.projectName,
@@ -58,6 +70,8 @@ class MaterialEstimatorScreen extends StatefulWidget {
     this.scope = RenovationScope.cosmetic,
     this.lockEstimateDetails = false,
     this.siteDetails,
+    this.excludedWork = const [],
+    this.coverage = RenovationCoverage.full,
   });
 
   @override
@@ -83,6 +97,16 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
   List<AddedPlumbingSelection> _localPlumbing = [];
   List<String> _localMaterials = [];
 
+  /// What the builder left out: the review screen's removals, plus anything
+  /// removed here. Saved with the estimate and sent with the post.
+  ///
+  /// A reopened draft carries the exclusions it was saved with, so a decision
+  /// made once does not have to be made again.
+  late final List<ExcludedWork> _excludedWork = [
+    ...widget.excludedWork,
+    if (widget.excludedWork.isEmpty) ...?widget.existingProject?.excludedWork,
+  ];
+
   int get _materialCount =>
       _localTiles.length + _localPlumbing.length + _localMaterials.length;
 
@@ -95,6 +119,11 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
   late final String _projectScopeLabel = widget.existingProject?.projectScope ??
       widget.scope.label;
+
+  /// A reopened estimate keeps the coverage it was saved with. An estimate
+  /// saved before coverage existed reads as Full, which is what it described.
+  late final RenovationCoverage _coverage =
+      widget.existingProject?.coverage ?? widget.coverage;
 
   bool get _alreadyPosted =>
       _postedThisSession ||
@@ -802,10 +831,15 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         'projectType': _projectType,
         'costLevel': costLevel,
         'projectScope': _projectScopeLabel,
+        // Its own field. projectScope means the renovation type, both here and
+        // on the shop dashboard, and must keep meaning that.
+        'coverage': _coverage.name,
         'materials': materialsList,
         'materialsCount': materialsList.length,
         'totalAreaSqm': _projectArea,
         if (widget.siteDetails != null) 'siteDetails': widget.siteDetails,
+        if (_excludedWork.isNotEmpty)
+          'excludedWork': ExcludedWork.listToMaps(_excludedWork),
         'status': widget.existingProject?.status ?? ProjectLifecycle.draft,
         'updatedAt': FieldValue.serverTimestamp(),
         if (widget.existingProject == null)
@@ -902,6 +936,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
             ? null
             : _remarksController.text.trim(),
         materials: _buildMaterialMaps(),
+        excluded: _excludedWork,
       ),
     );
   }
@@ -1021,12 +1056,14 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           projectName: _projectName,
           projectType: _projectType,
           projectScope: _projectScopeLabel,
+          coverage: _coverage.name,
           ownerName: ownerName,
           materials: materialsList,
           totalAreaSqm: _projectArea,
           budget: costLevel,
           siteDetails: widget.siteDetails,
           remarks: _remarksController.text,
+          excludedWork: ExcludedWork.listToMaps(_excludedWork),
         ),
         'status': 'open',
         'quotationCount': 0,
@@ -1039,10 +1076,15 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         'projectType': _projectType,
         'costLevel': costLevel,
         'projectScope': _projectScopeLabel,
+        // Its own field. projectScope means the renovation type, both here and
+        // on the shop dashboard, and must keep meaning that.
+        'coverage': _coverage.name,
         'materials': materialsList,
         'materialsCount': materialsList.length,
         'totalAreaSqm': _projectArea,
         if (widget.siteDetails != null) 'siteDetails': widget.siteDetails,
+        if (_excludedWork.isNotEmpty)
+          'excludedWork': ExcludedWork.listToMaps(_excludedWork),
         'status': ProjectLifecycle.waitingForQuotations,
         'postId': newPostRef.id,
         'postedAt': FieldValue.serverTimestamp(),
@@ -1233,6 +1275,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           : () {
               setState(() {
                 _localMaterials.remove(material);
+                _excludedWork.insert(0, ExcludedWork(name: material));
               });
             },
     );
@@ -1251,6 +1294,16 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           : () {
               setState(() {
                 _localTiles.remove(tile);
+                _excludedWork.insert(
+                  0,
+                  ExcludedWork(
+                    name: tile.tileTypeName,
+                    category: 'Tiles',
+                    size: tile.tileSizeName,
+                    quantity: tile.quantity,
+                    unit: 'pcs',
+                  ),
+                );
               });
             },
     );
@@ -1270,6 +1323,16 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           : () {
               setState(() {
                 _localPlumbing.remove(plumbing);
+                _excludedWork.insert(
+                  0,
+                  ExcludedWork(
+                    name: plumbing.materialName,
+                    category: plumbing.categoryTitle,
+                    size: plumbing.size,
+                    unit: plumbing.unit,
+                    quantity: plumbing.quantity,
+                  ),
+                );
               });
             },
     );

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:iconstruct/core/firebase/firestore_coerce.dart';
+import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 
 /// Saved material-estimate document for the planning / canvassing cycle.
@@ -21,6 +23,15 @@ class ProjectModel {
   /// the takeoff and is not the builder's to retype.
   final bool hasSiteDetails;
 
+  /// Work the builder was offered and left out. Reopened with the estimate and
+  /// printed on the canvass sheet, so a decision made once is not lost.
+  final List<ExcludedWork> excludedWork;
+
+  /// How much of the space the job covers. Its own field: `projectScope` holds
+  /// the renovation type, and the words "Full Renovation" and "Extension" are
+  /// already read as types there.
+  final RenovationCoverage coverage;
+
   RenovationScope get scope => RenovationScope.fromString(projectScope);
 
   ProjectModel({
@@ -36,6 +47,8 @@ class ProjectModel {
     this.postId,
     this.projectScope = 'Cosmetic',
     this.hasSiteDetails = false,
+    this.excludedWork = const [],
+    this.coverage = RenovationCoverage.full,
   });
 
   factory ProjectModel.fromDocument(DocumentSnapshot doc) {
@@ -65,6 +78,8 @@ class ProjectModel {
       postId: asStringOrNull(data['postId']),
       projectScope: asString(data['projectScope'], fallback: 'Cosmetic'),
       hasSiteDetails: data['siteDetails'] is Map,
+      excludedWork: ExcludedWork.listFrom(data['excludedWork']),
+      coverage: RenovationCoverage.fromString(asStringOrNull(data['coverage'])),
     );
   }
 }

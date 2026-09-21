@@ -32,6 +32,7 @@ import 'package:iconstruct/features/onboarding/presentation/screens/display_scre
 import 'package:iconstruct/features/onboarding/presentation/screens/landing_screen.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/main_display.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/data/site_details.dart';
@@ -184,6 +185,11 @@ void main() {
     'TemplateAreaScreen (kitchen site details)': () => TemplateAreaScreen(
           template: kitchen,
           projectName: 'Kitchen Renovation',
+        ),
+    'TemplateAreaScreen (partial)': () => TemplateAreaScreen(
+          template: kitchen,
+          projectName: 'Kitchen Renovation',
+          coverage: RenovationCoverage.partial,
         ),
     'TemplateAreaScreen (roof area)': () => TemplateAreaScreen(
           template:

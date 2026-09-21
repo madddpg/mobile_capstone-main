@@ -6,6 +6,9 @@ import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/features/auth/presentation/screens/cost_estimation.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
+import 'package:iconstruct/features/project_creation/data/functional_counts.dart';
+import 'package:iconstruct/features/project_creation/data/material_kind.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/data/site_details.dart';
@@ -26,6 +29,11 @@ class TemplateAreaScreen extends StatefulWidget {
   /// Chosen on the renovation type step, before the project was named.
   final RenovationScope scope;
 
+  /// How much of the space the job covers. Its own dimension: a partial
+  /// cosmetic job and a full one are the same kind of work over different
+  /// amounts of room.
+  final RenovationCoverage coverage;
+
   /// Budget tier from the AI chat, when the list came from there.
   final String? budgetPreference;
 
@@ -40,6 +48,7 @@ class TemplateAreaScreen extends StatefulWidget {
     this.customProjectName,
     this.projectNotes,
     this.scope = RenovationScope.cosmetic,
+    this.coverage = RenovationCoverage.full,
     this.budgetPreference,
     this.hints = SiteHints.none,
   });
@@ -113,6 +122,23 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   final _counterController = TextEditingController();
   late final TextEditingController _heightController;
 
+  /// The whole space a partial job sits inside, and what the part is called.
+  final _portionLabelController = TextEditingController();
+  final _totalLengthController = TextEditingController();
+  final _totalWidthController = TextEditingController();
+
+  /// A partial job may still cover the whole space — "partial" is the
+  /// builder's intent, and only they know whether it narrows to one part.
+  bool _isPortion = false;
+
+  /// An L-shaped or otherwise irregular room, measured wall by wall instead of
+  /// squashed into the nearest rectangle.
+  bool _isIrregular = false;
+  final _floorAreaController = TextEditingController();
+  final List<TextEditingController> _wallRuns = [
+    for (var i = 0; i < 4; i++) TextEditingController(),
+  ];
+
   late final RoomJob? _job = roomJobFor(widget.template.renovationType);
   late final List<_OpeningCount> _doors;
   late final List<_OpeningCount> _windows;
@@ -120,9 +146,39 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   bool _removeOldTiles = false;
   bool _paintCeiling = false;
 
+  /// How many devices the wiring job installs. These, not the floor area,
+  /// size the outlets, switches, lights, wire, conduit and utility boxes.
+  late int _outlets;
+  late int _switches;
+  late int _lights;
+
   /// Functional work replaces pipes and wiring, so only the room's size
   /// matters; doors, windows, tiles and paint are left as they are.
   bool get _finishes => widget.scope.changesFinishes;
+
+  /// Whether to ask for device counts: a functional job whose template
+  /// actually carries wiring. Asked of the template itself rather than of the
+  /// room, because a functional bathroom is plumbing only and a functional
+  /// roof is drainage only — neither has a device to count.
+  ///
+  /// The steppers live in the room section, so a job with no room to measure
+  /// cannot show them. Such a job keeps the template's own rates rather than
+  /// taking counts the builder was never offered, which would read as zero
+  /// devices and empty the wiring out of the list.
+  late final bool _needsFunctionalCounts = !_finishes &&
+      _job != null &&
+      widget.template.items
+          .any((i) => classifyMaterial(i) == MaterialKind.electrical);
+
+  /// The counts as entered, or `null` when this job wires nothing and its
+  /// quantities keep the template's own rates.
+  FunctionalCounts? get _counts => _needsFunctionalCounts
+      ? FunctionalCounts(
+          outlets: _outlets,
+          switches: _switches,
+          lights: _lights,
+        )
+      : null;
 
   @override
   void initState() {
@@ -154,6 +210,13 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         widget.hints.removeOldTiles ?? defaults?.removeOldTiles ?? false;
     _paintCeiling =
         widget.hints.paintCeiling ?? defaults?.paintCeiling ?? false;
+
+    // A starting point for the steppers, not a rule — typical counts for a
+    // room of this kind, which the builder then corrects.
+    final devices = FunctionalCounts.defaultsFor(job);
+    _outlets = devices.outlets;
+    _switches = devices.switches;
+    _lights = devices.lights;
   }
 
   @override
@@ -163,6 +226,13 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     _widthController.dispose();
     _heightController.dispose();
     _counterController.dispose();
+    _portionLabelController.dispose();
+    _totalLengthController.dispose();
+    _totalWidthController.dispose();
+    _floorAreaController.dispose();
+    for (final run in _wallRuns) {
+      run.dispose();
+    }
     for (final row in [..._doors, ..._windows]) {
       row.dispose();
     }
@@ -193,11 +263,50 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           : 0,
       removeOldTiles: _finishes && job.hasFloor && _removeOldTiles,
       paintCeiling: _finishes && job.hasWalls && _paintCeiling,
+      partial: _partialArea,
+      irregular: _irregularRoom,
+    );
+  }
+
+  /// How far round the room the entered walls reach, so the builder can check
+  /// it against what they paced out.
+  double get _wallPerimeter => _wallRuns.fold(0.0, (sum, run) {
+        final metres = _parseMetres(run.text) ?? 0;
+        return sum + (metres > 0 ? metres : 0);
+      });
+
+  /// The room as walked wall by wall, when it is not a rectangle.
+  IrregularRoom? get _irregularRoom {
+    if (!_isIrregular) return null;
+    return IrregularRoom(
+      wallRunsM: [
+        for (final run in _wallRuns)
+          if (_parseMetres(run.text) != null && _parseMetres(run.text)! > 0)
+            _parseMetres(run.text)!,
+      ],
+      floorSqm: _parseMetres(_floorAreaController.text) ?? 0,
+    );
+  }
+
+  /// Whether this job is asked which part of the space it covers. Only a
+  /// partial one has a part; a full job and an extension are measured whole.
+  bool get _asksPortion => widget.coverage.hasPortion;
+
+  /// The whole space, when the builder narrowed the job to a part of it.
+  PartialArea? get _partialArea {
+    if (!_asksPortion || !_isPortion) return null;
+    return PartialArea(
+      label: _portionLabelController.text.trim(),
+      totalLengthM: _parseMetres(_totalLengthController.text) ?? 0,
+      totalWidthM: _parseMetres(_totalWidthController.text) ?? 0,
     );
   }
 
   List<String> _problems(SiteDetails details) => [
         ...details.problems(),
+        // A wiring job that installs nothing has no materials to quote.
+        if (_needsFunctionalCounts && (_counts?.isEmpty ?? false))
+          'Enter at least one outlet, switch or light for a wiring job.',
         if ([..._doors, ..._windows].any((row) => row.isIncomplete))
           'Enter the width and height of each custom door or window size, '
               'between 0.30 and 3.00 m.',
@@ -224,11 +333,13 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   }
 
   void _openEstimate(double area, SiteTakeoff? takeoff) {
+    final counts = _counts;
     final scaled = BomQuantityEstimator.scaleTemplate(
       template: widget.template,
       areaSqm: area,
       scope: widget.scope,
       takeoff: takeoff,
+      counts: counts,
     );
     // An AI list holds exactly what the builder picked, so it gets no type
     // chips to swap one pick for another.
@@ -247,7 +358,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           template: widget.template.copyWithItems(scaledItems),
           projectAreaSqm: area,
           scope: widget.scope,
+          coverage: widget.coverage,
           takeoff: takeoff,
+          counts: counts,
           budgetPreference: widget.budgetPreference,
         ),
       ),
@@ -386,7 +499,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           ? 'Select scope & total area (sqm). Quantities auto-estimate per Philippine DPWH national standards.'
           : _finishes
               ? 'Measure the room first. Floor, wall and paint quantities are each sized from what you enter here.'
-              : 'Measure the room. Wire, conduit and device quantities are sized from its floor area.',
+              : _needsFunctionalCounts
+                  ? 'Measure the room, then say how many devices go in it. Wire, conduit and boxes are sized from the device counts.'
+                  : 'Measure the room. Quantities are sized from the fixtures the job replaces.',
       trailingAction: GlitchedPillButton(
         label: 'Estimate Qty',
         width: 168,
@@ -511,16 +626,70 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     ];
 
     return [
+      if (_asksPortion) ...[
+        _label('How much of the space?'),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _choiceChip(
+              label: 'The whole space',
+              selected: !_isPortion,
+              onTap: () => setState(() => _isPortion = false),
+            ),
+            _choiceChip(
+              label: 'One part of it',
+              selected: _isPortion,
+              onTap: () => setState(() => _isPortion = true),
+            ),
+          ],
+        ),
+        if (_isPortion) ...[
+          const SizedBox(height: 10),
+          // The part is what gets measured below, because the part is what the
+          // materials have to cover. The whole space is context for the shop
+          // and a check that the part is not bigger than the room it is in.
+          _hint(
+            'Measure the part below. The whole space is asked for so the shop '
+            'can see the context, and is never used to scale a quantity.',
+          ),
+          const SizedBox(height: 10),
+          _portionLabelField(),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _metresField(
+                    _totalLengthController, 'Whole length', 'e.g. 4.0'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _metresField(
+                    _totalWidthController, 'Whole width', 'e.g. 3.0'),
+              ),
+            ],
+          ),
+          if (_portionShare != null) ...[
+            const SizedBox(height: 6),
+            _hint(_portionShare!),
+          ],
+        ],
+        const SizedBox(height: 18),
+      ],
       _label(job.hasWalls
-          ? 'Room size: length, width and ceiling height *'
-          : 'Room size: length and width *'),
+          ? (_isPortion && _asksPortion
+              ? 'The part: length, width and ceiling height *'
+              : 'Room size: length, width and ceiling height *')
+          : (_isPortion && _asksPortion
+              ? 'The part: length and width *'
+              : 'Room size: length and width *')),
       const SizedBox(height: 4),
-      // Said plainly, because the takeoff treats the room as one rectangle.
-      // Two bedrooms are two estimates, and an L-shaped room is entered as the
-      // nearest rectangle with the quantities checked afterwards.
+      // One room per estimate is still the rule. The shape of that room is no
+      // longer forced into a rectangle: an L-shaped room is measured wall by
+      // wall below.
       _hint(
-        'One room per estimate. For another room, make a separate estimate. '
-        'An L-shaped room: enter the nearest rectangle.',
+        'One room per estimate. For another room, make a separate estimate.',
       ),
       if (_finishes && !widget.hints.isEmpty) ...[
         const SizedBox(height: 6),
@@ -529,6 +698,65 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         _hint('Set from your description: ${widget.hints.applied.join(' · ')}'),
       ],
       const SizedBox(height: 8),
+      _switchRow(
+        title: 'Not a simple rectangle',
+        subtitle: 'An L-shaped room, or one with a recess or a bay',
+        value: _isIrregular,
+        onChanged: (v) => setState(() => _isIrregular = v),
+      ),
+      if (_isIrregular) ...[
+        const SizedBox(height: 8),
+        // A foreman measures such a room the way it is built: each wall in
+        // turn, and the floor split into rectangles and added up.
+        _hint(
+          'Enter each wall in turn, walking the room. For the floor, split it '
+          'into rectangles and add them up.',
+        ),
+        const SizedBox(height: 10),
+        _metresField(_floorAreaController, 'Floor area (sq.m)', 'e.g. 14.5'),
+        const SizedBox(height: 10),
+        _label('Wall lengths'),
+        const SizedBox(height: 6),
+        for (var i = 0; i < _wallRuns.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _metresField(
+                      _wallRuns[i], 'Wall ${i + 1}', 'e.g. 3.0',
+                      dense: true),
+                ),
+                if (_wallRuns.length > 3)
+                  IconButton(
+                    tooltip: 'Remove wall ${i + 1}',
+                    onPressed: () => setState(() {
+                      final removed = _wallRuns.removeAt(i);
+                      WidgetsBinding.instance
+                          .addPostFrameCallback((_) => removed.dispose());
+                    }),
+                    icon: const Icon(Icons.close_rounded, size: 16),
+                    color: GlitchedFlowShell.cream,
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          ),
+        _addSizeButton(
+          'Add another wall',
+          () => setState(() => _wallRuns.add(TextEditingController())),
+        ),
+        if (_wallPerimeter > 0) ...[
+          const SizedBox(height: 4),
+          _hint('${_wallRuns.length} walls, '
+              '${_wallPerimeter.toStringAsFixed(2)} m around.'),
+        ],
+        if (job.hasWalls) ...[
+          const SizedBox(height: 10),
+          _metresField(_heightController, 'Ceiling height', 'e.g. 2.7'),
+        ],
+      ],
+      if (!_isIrregular)
       Row(
         children: [
           Expanded(
@@ -546,6 +774,24 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           ],
         ],
       ),
+      if (_needsFunctionalCounts) ...[
+        const SizedBox(height: 18),
+        _label('Devices to install *'),
+        const SizedBox(height: 4),
+        // Said plainly, because this is the change: the room no longer decides
+        // how much wire the job needs.
+        _hint(
+          'Wire, conduit and utility boxes are sized from these counts, not '
+          'from the floor area. Set one to 0 to leave it out of the list.',
+        ),
+        const SizedBox(height: 10),
+        _deviceRow('Convenience outlets', 'outlet', _outlets,
+            (value) => setState(() => _outlets = value)),
+        _deviceRow('Light switches', 'switch', _switches,
+            (value) => setState(() => _switches = value)),
+        _deviceRow('Ceiling lights', 'light', _lights,
+            (value) => setState(() => _lights = value)),
+      ],
       if (_finishes) ...[
       const SizedBox(height: 18),
       _label(job.hasWalls ? 'Doors' : 'Doorways (skirting stops at these)'),
@@ -618,6 +864,83 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         fontSize: 11,
         color: const Color(0xFF8FB2D4),
         height: 1.3,
+      ),
+    );
+  }
+
+  /// How much of the space the part comes to, as information only.
+  ///
+  /// Stated plainly as a share because a builder thinks in those terms, and
+  /// stated as not-a-calculation because it is not one: every quantity below
+  /// is sized from the part that was measured, never from a percentage of the
+  /// whole.
+  String? get _portionShare {
+    final details = _details;
+    final share = details?.portionOfSpace;
+    if (share == null || share <= 0 || share > 1.0001) return null;
+    return 'About ${(share * 100).round()}% of the space. Shown for context '
+        'only — quantities come from the part you measured.';
+  }
+
+  Widget _portionLabelField() {
+    return TextField(
+      controller: _portionLabelController,
+      textCapitalization: TextCapitalization.sentences,
+      onChanged: (_) => setState(() {}),
+      scrollPadding: const EdgeInsets.only(bottom: 160),
+      style: GoogleFonts.poppins(
+        color: GlitchedFlowShell.darkBlue,
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+      ),
+      decoration: InputDecoration(
+        labelText: 'What is this part called?',
+        labelStyle: GoogleFonts.poppins(
+          color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.7),
+          fontSize: 12,
+        ),
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        hintText: 'e.g. shower area, accent wall',
+        hintStyle: GoogleFonts.poppins(
+          color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.35),
+          fontSize: 13,
+        ),
+        isDense: true,
+        filled: true,
+        fillColor: GlitchedFlowShell.cream,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      ),
+    );
+  }
+
+  /// One wiring device and how many of it the room gets.
+  Widget _deviceRow(
+    String label,
+    String noun,
+    int count,
+    ValueChanged<int> onChanged,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: const Color(0xFFE0D7C9),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _CountStepper(count: count, noun: noun, onChanged: onChanged),
+        ],
       ),
     );
   }

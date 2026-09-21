@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:iconstruct/core/theme/app_theme.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/screens/select_planning_method_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
@@ -11,10 +12,16 @@ class CreateProjectScreen extends StatefulWidget {
   final String renovationType;
   final RenovationScope scope;
 
+  /// How much of the space the job covers. Its own dimension: a partial
+  /// cosmetic job and a full one are the same kind of work over different
+  /// amounts of room.
+  final RenovationCoverage coverage;
+
   const CreateProjectScreen({
     super.key,
     required this.renovationType,
     this.scope = RenovationScope.cosmetic,
+    this.coverage = RenovationCoverage.full,
   });
 
   @override
@@ -40,6 +47,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
           projectName: widget.renovationType,
           customProjectName: _nameController.text.trim(),
           scope: widget.scope,
+          coverage: widget.coverage,
         ),
       ),
     );

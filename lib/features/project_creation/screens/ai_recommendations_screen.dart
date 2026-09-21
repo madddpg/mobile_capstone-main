@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/features/project_creation/data/ai_material_consultant_service.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/screens/ai_consultation_screen.dart';
@@ -19,6 +20,11 @@ class AiRecommendationsScreen extends StatefulWidget {
   final String projectName;
   final String? customProjectName;
   final RenovationScope scope;
+
+  /// How much of the space the job covers. Its own dimension: a partial
+  /// cosmetic job and a full one are the same kind of work over different
+  /// amounts of room.
+  final RenovationCoverage coverage;
   final String description;
 
   /// Injected in tests; the app uses the Cloud Functions service.
@@ -29,6 +35,7 @@ class AiRecommendationsScreen extends StatefulWidget {
     required this.projectName,
     this.customProjectName,
     required this.scope,
+    this.coverage = RenovationCoverage.full,
     required this.description,
     this.service,
   });
@@ -97,6 +104,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
           customProjectName: widget.customProjectName,
           projectNotes: widget.description,
           scope: widget.scope,
+          coverage: widget.coverage,
           hints: parseSiteHints(widget.description),
         ),
       ),
@@ -117,6 +125,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
           customProjectName: widget.customProjectName,
           projectNotes: widget.description,
           scope: widget.scope,
+          coverage: widget.coverage,
           initialMaterials: _keptNames,
         ),
       ),
@@ -179,6 +188,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
           customProjectName: widget.customProjectName,
           projectNotes: widget.description,
           scope: widget.scope,
+          coverage: widget.coverage,
           hints: parseSiteHints(widget.description),
         ),
       ),

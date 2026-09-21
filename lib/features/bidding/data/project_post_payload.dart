@@ -46,6 +46,8 @@ Map<String, dynamic> projectPostFields({
   required String budget,
   Map<String, dynamic>? siteDetails,
   String remarks = '',
+  List<Map<String, dynamic>> excludedWork = const [],
+  String coverage = '',
 }) {
   return {
     'postId': postId,
@@ -56,7 +58,12 @@ Map<String, dynamic> projectPostFields({
     'projectId': projectId,
     'projectName': projectName.trim(),
     'projectType': projectType.trim(),
+    // The renovation type: Cosmetic, Structural or Functional. The dashboard
+    // reads it under that meaning, and the app parses the words "Full
+    // Renovation" and "Extension" here as types, so how much of the space the
+    // job covers is a separate field and never written into this one.
     'projectScope': projectScope,
+    if (coverage.trim().isNotEmpty) 'coverage': coverage.trim(),
     'ownerName': ownerName.trim(),
     'materials': materials,
     'materialsCount': materials.length,
@@ -64,5 +71,9 @@ Map<String, dynamic> projectPostFields({
     'budget': budget,
     if (siteDetails != null) 'siteDetails': siteDetails,
     if (remarks.trim().isNotEmpty) 'remarks': remarks.trim(),
+    // Work the builder was offered and turned down. Left out entirely when
+    // there is none, so "nothing excluded" reads as absent rather than as an
+    // empty list the dashboard has to special-case.
+    if (excludedWork.isNotEmpty) 'excludedWork': excludedWork,
   };
 }

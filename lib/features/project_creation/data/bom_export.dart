@@ -5,6 +5,8 @@
 /// to fill in, matching how quotations work inside iConstruct.
 library;
 
+import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
+
 class BomExportItem {
   final String name;
   final String category;
@@ -62,6 +64,12 @@ class BomExportData {
   final String? budgetPreference;
   final String? notes;
   final List<BomExportItem> materials;
+
+  /// Work the builder deliberately left out. Printed on the sheet so a shop
+  /// quotes the list above it and knows the rest was a decision, not an
+  /// omission.
+  final List<ExcludedWork> excluded;
+
   final DateTime generatedAt;
 
   BomExportData({
@@ -69,6 +77,7 @@ class BomExportData {
     required this.renovationType,
     required this.areaSqm,
     required this.materials,
+    this.excluded = const [],
     this.budgetPreference,
     this.notes,
     DateTime? generatedAt,
@@ -82,6 +91,7 @@ class BomExportData {
     required String renovationType,
     required double areaSqm,
     required List<dynamic> materials,
+    List<ExcludedWork> excluded = const [],
     String? budgetPreference,
     String? notes,
     DateTime? generatedAt,
@@ -113,6 +123,7 @@ class BomExportData {
       renovationType: renovationType.replaceAll('\n', ' ').trim(),
       areaSqm: areaSqm,
       materials: items,
+      excluded: excluded,
       budgetPreference: budgetPreference,
       notes: notes,
       generatedAt: generatedAt,

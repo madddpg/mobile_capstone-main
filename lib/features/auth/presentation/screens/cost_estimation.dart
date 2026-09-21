@@ -7,8 +7,10 @@ import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/auth/presentation/screens/material_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/bom_sections.dart';
+import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/functional_counts.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/data/site_details.dart';
@@ -32,6 +34,10 @@ class CostEstimationScreen extends StatefulWidget {
   /// reopened Extension estimate is not mistaken for a Full Renovation.
   final RenovationScope scope;
 
+  /// How much of the space the job covers. Recorded with the estimate and the
+  /// post; it never goes into projectScope, which carries the renovation type.
+  final RenovationCoverage coverage;
+
   /// Budget preference collected during AI consultation (Low / Medium / High).
   final String? budgetPreference;
 
@@ -52,6 +58,7 @@ class CostEstimationScreen extends StatefulWidget {
     this.template,
     this.projectAreaSqm,
     this.scope = RenovationScope.cosmetic,
+    this.coverage = RenovationCoverage.full,
     this.budgetPreference,
     this.takeoff,
     this.counts,
@@ -69,6 +76,22 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
 
   /// Parallel template line items (supports type swap / alternatives).
   List<RenovationTemplateItem> _templateItems = [];
+
+  /// Lines the builder took out, newest first, kept whole so any of them can
+  /// be put back exactly as it was. They travel with the estimate so the shop
+  /// is told what is deliberately not being asked for.
+  final List<RenovationTemplateItem> _excludedItems = [];
+
+  List<ExcludedWork> get _excludedWork => [
+        for (final item in _excludedItems)
+          ExcludedWork(
+            name: item.name,
+            category: item.category,
+            unit: item.unit,
+            size: item.size,
+            quantity: item.defaultQuantity,
+          ),
+      ];
 
   @override
   void initState() {
@@ -162,6 +185,100 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
         selection.qtyController.text = _formatQty(next.defaultQuantity);
       }
     }
+  }
+
+  /// The lines the builder took out, with a way to put each one back.
+  ///
+  /// Shown under the list rather than hidden behind a link: a shop is going to
+  /// be told about these, so the builder should be able to see exactly what
+  /// they are saying no to before they post.
+  Widget _buildExcludedPanel() {
+    if (_excludedItems.isEmpty) return const SizedBox.shrink();
+    final excluded = _excludedWork;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 18, bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFEDE4D4).withValues(alpha: 0.45)),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Not included (${excluded.length})',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFEDE4D4),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Sent with your request so shops quote the list above and '
+              'nothing else.',
+              style: GoogleFonts.poppins(
+                fontSize: 10.5,
+                color: const Color(0xFFE0D7C9).withValues(alpha: 0.75),
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (var i = 0; i < excluded.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        excluded[i].label,
+                        style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          color: const Color(0xFFE0D7C9),
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => _restoreExcluded(i),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFEDE4D4),
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        minimumSize: const Size(0, 36),
+                      ),
+                      child: Text(
+                        'Put back',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Puts an excluded line back, at the end of the list so every other row
+  /// keeps the quantity the builder may have typed into it.
+  void _restoreExcluded(int index) {
+    if (index < 0 || index >= _excludedItems.length) return;
+    setState(() {
+      final item = _excludedItems.removeAt(index);
+      _templateItems.add(item);
+      _selectedProducts.add(_selectionForItem(item));
+      if (BomQuantityEstimator.affectsTileSetting(item)) {
+        _resyncTileSetting();
+      }
+    });
   }
 
   /// Whether row [index] opens a new section. Only a measured room's list is
@@ -300,6 +417,9 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
               height: 1.4,
             ),
           ),
+          // Without this the builder who removed everything has nothing to put
+          // back, and the only way out is to start the estimate again.
+          _buildExcludedPanel(),
         ],
       );
     }
@@ -310,9 +430,12 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
         Expanded(
           child: ListView.builder(
             controller: _materialsScrollController,
-            itemCount: _templateItems.length + 1,
+            itemCount: _templateItems.length + 2,
             itemBuilder: (context, listIndex) {
               if (listIndex == 0) return header;
+              if (listIndex == _templateItems.length + 1) {
+                return _buildExcludedPanel();
+              }
               final index = listIndex - 1;
               final item = _templateItems[index];
               final selected = _selectedProducts[index];
@@ -462,9 +585,18 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                             },
                             onRemove: () {
                               setState(() {
-                                _templateItems.removeAt(index);
+                                final dropped = _templateItems.removeAt(index);
                                 final removed =
                                     _selectedProducts.removeAt(index);
+                                // Keep the quantity the builder is looking at,
+                                // not the template's, so the excluded line says
+                                // what it would actually have cost them.
+                                _excludedItems.insert(
+                                  0,
+                                  dropped.copyWith(
+                                    defaultQuantity: removed.quantity,
+                                  ),
+                                );
                                 removed.qtyController.dispose();
                                 if (BomQuantityEstimator.affectsTileSetting(item)) {
                                   _resyncTileSetting();
@@ -556,6 +688,8 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
           scope: widget.scope,
           lockEstimateDetails: true,
           siteDetails: _siteDetailsMap(),
+          excludedWork: _excludedWork,
+          coverage: widget.coverage,
         ),
       ),
     );
