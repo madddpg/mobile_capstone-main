@@ -9,7 +9,6 @@ import 'package:iconstruct/features/project_creation/data/renovation_templates.d
 import 'package:iconstruct/features/project_creation/screens/ai_consultation_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/ai_recommendations_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/select_work_items_screen.dart';
-import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
 
 enum PlanningMethod { ai, template }
@@ -109,40 +108,17 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
       return;
     }
 
-    final catalogue =
-        RenovationTemplatesCatalog.workCatalogueFor(widget.projectName);
-    if (catalogue != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SelectWorkItemsScreen(
-            catalogue: catalogue,
-            projectName: widget.projectName,
-            customProjectName: widget.customProjectName,
-            projectNotes: _description.isEmpty ? null : _description,
-            coverage: widget.coverage,
-            types: widget.types,
-            hints: parseSiteHints(_description),
-          ),
-        ),
-      );
-      return;
-    }
-
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TemplateAreaScreen(
-          template: RenovationTemplatesCatalog.forProjectTypes(
-            widget.projectName,
-            widget.types,
-          ),
+        builder: (_) => SelectWorkItemsScreen(
+          catalogue:
+              RenovationTemplatesCatalog.workCatalogueFor(widget.projectName),
           projectName: widget.projectName,
           customProjectName: widget.customProjectName,
           projectNotes: _description.isEmpty ? null : _description,
-          scope: widget.scope,
           coverage: widget.coverage,
-          renovationTypes: widget.types,
+          types: widget.types,
           hints: parseSiteHints(_description),
         ),
       ),

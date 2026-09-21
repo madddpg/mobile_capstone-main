@@ -210,7 +210,7 @@ void main() {
     // Structural work ticked from the start, so the disclaimer renders too.
     'SelectWorkItemsScreen': () => SelectWorkItemsScreen(
           catalogue: RenovationTemplatesCatalog.workCatalogueFor(
-              'Bathroom Renovation')!,
+              'Bathroom Renovation'),
           projectName: 'Bathroom Renovation',
           types: RenovationTypes([
             RenovationScope.cosmetic,
@@ -220,9 +220,30 @@ void main() {
         ),
     'TemplateAreaScreen (work items)': () => TemplateAreaScreen(
           template: RenovationTemplatesCatalog.workCatalogueFor(
-                  'Bathroom Renovation')!
+                  'Bathroom Renovation')
               .templateFor({'retile_floor', 'replace_toilet'}),
           projectName: 'Bathroom Renovation',
+        ),
+    // A room with the most kinds of work ticked at once, including wiring.
+    'SelectWorkItemsScreen (kitchen)': () => SelectWorkItemsScreen(
+          catalogue: RenovationTemplatesCatalog.workCatalogueFor(
+              'Kitchen Renovation'),
+          projectName: 'Kitchen Renovation',
+          types: RenovationTypes([
+            RenovationScope.cosmetic,
+            RenovationScope.functional,
+          ]),
+        ),
+    'TemplateAreaScreen (kitchen work items)': () => TemplateAreaScreen(
+          template: RenovationTemplatesCatalog.workCatalogueFor(
+                  'Kitchen Renovation')
+              .templateFor({'tile_backsplash', 'rewire'}),
+          projectName: 'Kitchen Renovation',
+          scope: RenovationScope.functional,
+          renovationTypes: RenovationTypes([
+            RenovationScope.cosmetic,
+            RenovationScope.functional,
+          ]),
         ),
     'BiddingHubScreen': () => const BiddingHubScreen(),
     'EstimateUnavailableView': () => Scaffold(

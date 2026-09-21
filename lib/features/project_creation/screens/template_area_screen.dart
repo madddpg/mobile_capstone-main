@@ -197,8 +197,13 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   late final bool _asksPaint =
       _asks((i) => kPaintKinds.contains(classifyMaterial(i)));
 
-  /// Doors and windows only change the tiled and painted wall.
-  bool get _asksOpenings => _asksWallTiles || _asksPaint;
+  /// Doors and windows change the tiled and painted wall and the new CHB, and
+  /// doorways shorten the skirting.
+  late final bool _asksOpenings = _asksWallTiles ||
+      _asksPaint ||
+      _asks((i) =>
+          classifyMaterial(i) == MaterialKind.chbBlock ||
+          i.name.toLowerCase().contains('skirting'));
 
   /// The counts as entered, or `null` when this job wires nothing and its
   /// quantities keep the template's own rates.

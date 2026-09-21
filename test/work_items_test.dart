@@ -16,7 +16,9 @@ const _structural = RenovationScope.structural;
 const _functional = RenovationScope.functional;
 
 final _bathroom =
-    RenovationTemplatesCatalog.workCatalogueFor('Bathroom Renovation')!;
+    RenovationTemplatesCatalog.workCatalogueFor('Bathroom Renovation');
+
+const _projects = RenovationTemplatesCatalog.projectTypes;
 
 Set<String> _names(Iterable<RenovationTemplateItem> items) =>
     {for (final i in items) i.name.trim().toLowerCase()};
@@ -24,50 +26,94 @@ Set<String> _names(Iterable<RenovationTemplateItem> items) =>
 bool _hasKind(Iterable<RenovationTemplateItem> items, MaterialKind kind) =>
     items.any((i) => classifyMaterial(i) == kind);
 
+/// Materials a starting package may carry that its old template did not.
+/// A structural room's paint work now brings the masking tape every other
+/// paint job already had.
+const _allowedExtras = {'masking tape (1")'};
+
 void main() {
-  group('which projects use work items', () {
-    test('the bathroom does', () {
-      expect(RenovationTemplatesCatalog.workCatalogueFor('Bathroom\nRenovation'),
-          isNotNull);
-    });
-
-    test('every other project still uses its template', () {
-      for (final type in RenovationTemplatesCatalog.projectTypes) {
-        if (type.contains('Bathroom')) continue;
-        expect(RenovationTemplatesCatalog.workCatalogueFor(type), isNull,
-            reason: type);
+  group('every project', () {
+    test('has a catalogue named for it', () {
+      for (final type in _projects) {
+        expect(RenovationTemplatesCatalog.workCatalogueFor(type).renovationType,
+            type);
       }
     });
-  });
 
-  group('the catalogue itself', () {
-    test('every package names work items that exist', () {
-      for (final package in _bathroom.packages) {
-        for (final id in package.itemIds) {
-          expect(_bathroom.byId(id), isNotNull, reason: '${package.id}: $id');
+    test('a room not on the home screen gets the room catalogue', () {
+      final attic = RenovationTemplatesCatalog.workCatalogueFor('Attic');
+      expect(attic.renovationType, 'Attic');
+      expect(attic.byId('retile_floor'), isNotNull);
+    });
+
+    for (final type in _projects) {
+      group(type, () {
+        final catalogue = RenovationTemplatesCatalog.workCatalogueFor(type);
+        final offered = RenovationTemplatesCatalog.scopesFor(type);
+
+        test('names each work item once', () {
+          final ids = [for (final i in catalogue.items) i.id];
+          expect(ids.length, ids.toSet().length);
+        });
+
+        test('offers only the kinds of work the project can be', () {
+          for (final item in catalogue.items) {
+            expect(offered, contains(item.scope), reason: item.id);
+          }
+        });
+
+        test('every work item brings at least one material', () {
+          for (final item in catalogue.items) {
+            expect(item.materials, isNotEmpty, reason: item.id);
+          }
+        });
+
+        test('every package names work items that exist', () {
+          for (final package in catalogue.packages) {
+            for (final id in package.itemIds) {
+              expect(catalogue.byId(id), isNotNull,
+                  reason: '${package.id}: $id');
+            }
+          }
+        });
+
+        test('keeps every material its templates carried', () {
+          final all = {
+            for (final item in catalogue.items) ..._names(item.materials),
+          };
+          for (final scope in offered) {
+            expect(
+                all,
+                containsAll(_names(
+                    RenovationTemplatesCatalog.forProject(type, scope).items)),
+                reason: scope.label);
+          }
+        });
+
+        for (final scope in offered) {
+          test('starts ${scope.label} work with the list its template gave',
+              () {
+            final package = catalogue.packageById(
+                catalogue.startingPackages[scope] ?? '');
+            expect(package, isNotNull);
+            final after = _names(catalogue
+                .templateFor(
+                    catalogue.startingSelection(RenovationTypes.only(scope)))
+                .items);
+            final before = _names(
+                RenovationTemplatesCatalog.forProject(type, scope).items);
+            expect(after, containsAll(before));
+            expect(after.difference(before).difference(_allowedExtras),
+                isEmpty);
+          });
         }
-      }
-    });
-
-    test('every kind of work starts from a package that exists', () {
-      for (final scope in RenovationScope.values) {
-        expect(_bathroom.packageById(_bathroom.startingPackages[scope]!),
-            isNotNull,
-            reason: scope.label);
-      }
-    });
-
-    test('every work item brings at least one material', () {
-      for (final item in _bathroom.items) {
-        expect(item.materials, isNotEmpty, reason: item.id);
-      }
-    });
+      });
+    }
   });
 
   group('the starting ticks', () {
     for (final scope in RenovationScope.values) {
-      test('for ${scope.label} work give the list its template always gave',
-          () {
+      test('for a ${scope.label} bathroom give exactly its old list', () {
         final ticks = _bathroom.startingSelection(RenovationTypes.only(scope));
         final before =
             RenovationTemplatesCatalog.forProject('Bathroom Renovation', scope);

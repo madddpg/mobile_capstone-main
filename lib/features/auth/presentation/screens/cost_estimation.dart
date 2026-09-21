@@ -99,7 +99,6 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
     }
     final catalogue =
         RenovationTemplatesCatalog.workCatalogueFor(template.renovationType);
-    if (catalogue == null) return const <ExcludedWork>[];
     return [
       for (final item in catalogue.leftOut(template.workItemIds.toSet()))
         ExcludedWork(name: item.label, category: 'Work'),

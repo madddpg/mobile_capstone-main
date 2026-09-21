@@ -383,10 +383,32 @@ class RenovationTemplatesCatalog {
     );
   }
 
-  /// The work items [renovationType] is estimated from, or `null` for a
-  /// project still estimated from its whole template.
-  static WorkCatalogue? workCatalogueFor(String renovationType) =>
-      _key(renovationType).contains('bath') ? _bathroomWork : null;
+  /// The work items [renovationType] is estimated from. Matched the same way
+  /// as its template, so a living room, a bedroom, a dining room and any other
+  /// room share the room catalogue.
+  static WorkCatalogue workCatalogueFor(String renovationType) {
+    final key = _key(renovationType);
+    final WorkCatalogue base;
+    if (key.contains('roof')) {
+      base = _roofWork;
+    } else if (key.contains('floor')) {
+      base = _floorWork;
+    } else if (key.contains('paint')) {
+      base = _paintingWork;
+    } else if (key.contains('wall')) {
+      base = _wallWork;
+    } else if (key.contains('bath')) {
+      base = _bathroomWork;
+    } else if (key.contains('laundry')) {
+      base = _laundryWork;
+    } else if (key.contains('kitchen')) {
+      base = _kitchenWork;
+    } else {
+      base = _roomWork;
+    }
+    final type = normalizeType(renovationType);
+    return base.forType(type.isEmpty ? 'Renovation' : type);
+  }
 
   /// Every template the app offers.
   static List<RenovationTemplate> get allTemplates => [
@@ -655,17 +677,19 @@ class RenovationTemplatesCatalog {
     _maskingTape,
   ];
 
+  static const _paintBrush = RenovationTemplateItem(
+    name: 'Paint Brush (2")',
+    category: 'Painting Supplies',
+    unit: 'pcs',
+    defaultQuantity: 2,
+  );
+
   static const _painting = [
     _skimCoat,
     _primer,
     _paint,
     _maskingTape,
-    RenovationTemplateItem(
-      name: 'Paint Brush (2")',
-      category: 'Painting Supplies',
-      unit: 'pcs',
-      defaultQuantity: 2,
-    ),
+    _paintBrush,
   ];
 
   // ── Fixtures ─────────────────────────────────────────────────────────────
@@ -808,18 +832,20 @@ class RenovationTemplatesCatalog {
     ..._formwork,
   ];
 
+  static const _weldedMesh = RenovationTemplateItem(
+    name: 'Welded Mesh Reinforcement 6"x6" (Ga.10)',
+    category: 'Slab Reinforcement',
+    unit: 'sqm',
+    defaultQuantity: 1,
+    qtyPerSqm: 1.1,
+    notes: 'Laid mid-depth in the new slab, with a 150 mm lap',
+  );
+
   static const _floorSlabRepair = [
     _slabCement,
     _slabSand,
     _gravel,
-    RenovationTemplateItem(
-      name: 'Welded Mesh Reinforcement 6"x6" (Ga.10)',
-      category: 'Slab Reinforcement',
-      unit: 'sqm',
-      defaultQuantity: 1,
-      qtyPerSqm: 1.1,
-      notes: 'Laid mid-depth in the new slab, with a 150 mm lap',
-    ),
+    _weldedMesh,
     _floorTile,
     _skirting,
   ];
@@ -840,97 +866,121 @@ class RenovationTemplatesCatalog {
     defaultQuantity: 1,
   );
 
+  static const _roofPaint = RenovationTemplateItem(
+    name: 'Roof Paint (4 L)',
+    category: 'Roof Painting',
+    unit: 'gal',
+    defaultQuantity: 1,
+  );
+
+  static const _steelBrush = RenovationTemplateItem(
+    name: 'Steel Brush (for rust removal)',
+    category: 'Painting Supplies',
+    unit: 'pcs',
+    defaultQuantity: 2,
+  );
+
   static const _roofRepaint = [
     _metalPrimer,
-    RenovationTemplateItem(
-      name: 'Roof Paint (4 L)',
-      category: 'Roof Painting',
-      unit: 'gal',
-      defaultQuantity: 1,
-    ),
+    _roofPaint,
     _roofSealant,
-    RenovationTemplateItem(
-      name: 'Steel Brush (for rust removal)',
-      category: 'Painting Supplies',
-      unit: 'pcs',
-      defaultQuantity: 2,
-    ),
+    _steelBrush,
   ];
+
+  // Rib-type is cut to order and sold by the linear metre, so a piece count
+  // with no length is not something a shop can quote.
+  static const _ribRoofing = RenovationTemplateItem(
+    name: 'Pre-painted Rib-type Roofing Ga.26',
+    category: 'Roofing',
+    unit: 'ln.m',
+    defaultQuantity: 1,
+  );
+
+  static const _ridgeRoll = RenovationTemplateItem(
+    name: 'Ridge Roll (Pre-painted)',
+    category: 'Roofing',
+    unit: 'ln.m',
+    defaultQuantity: 1,
+  );
+
+  static const _cPurlin = RenovationTemplateItem(
+    name: 'C-Purlin 2" x 4" x 1.5 mm (6 m length)',
+    category: 'Roof Framing',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    qtyPerSqm: 0.32,
+    notes: 'Purlins at 600 mm on centre',
+  );
+
+  static const _tekscrew = RenovationTemplateItem(
+    name: 'Tekscrew with Rubber Washer',
+    category: 'Roof Installation',
+    unit: 'pcs',
+    defaultQuantity: 1,
+  );
+
+  static const _weldingRod = RenovationTemplateItem(
+    name: 'Welding Rod 1/8" (E6013)',
+    category: 'Roof Framing',
+    unit: 'kg',
+    defaultQuantity: 1,
+    qtyPerSqm: 0.05,
+  );
 
   static const _roofReplacement = [
-    // Rib-type is cut to order and sold by the linear metre, so a piece count
-    // with no length is not something a shop can quote.
-    RenovationTemplateItem(
-      name: 'Pre-painted Rib-type Roofing Ga.26',
-      category: 'Roofing',
-      unit: 'ln.m',
-      defaultQuantity: 1,
-    ),
-    RenovationTemplateItem(
-      name: 'Ridge Roll (Pre-painted)',
-      category: 'Roofing',
-      unit: 'ln.m',
-      defaultQuantity: 1,
-    ),
-    RenovationTemplateItem(
-      name: 'C-Purlin 2" x 4" x 1.5 mm (6 m length)',
-      category: 'Roof Framing',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      qtyPerSqm: 0.32,
-      notes: 'Purlins at 600 mm on centre',
-    ),
-    RenovationTemplateItem(
-      name: 'Tekscrew with Rubber Washer',
-      category: 'Roof Installation',
-      unit: 'pcs',
-      defaultQuantity: 1,
-    ),
-    RenovationTemplateItem(
-      name: 'Welding Rod 1/8" (E6013)',
-      category: 'Roof Framing',
-      unit: 'kg',
-      defaultQuantity: 1,
-      qtyPerSqm: 0.05,
-    ),
+    _ribRoofing,
+    _ridgeRoll,
+    _cPurlin,
+    _tekscrew,
+    _weldingRod,
     _roofSealant,
   ];
 
+  static const _gutter = RenovationTemplateItem(
+    name: 'Pre-painted Roof Gutter Ga.24 (3 m length)',
+    category: 'Roof Drainage',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    notes: 'Along both eaves',
+  );
+
+  static const _gutterBracket = RenovationTemplateItem(
+    name: 'Gutter Bracket',
+    category: 'Roof Drainage',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    notes: 'One every 0.60 m of gutter',
+  );
+
+  static const _downspout = RenovationTemplateItem(
+    name: 'PVC Downspout Pipe 3" (3 m length)',
+    category: 'Roof Drainage',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    notes: 'One downspout per 9 m of gutter, one storey high',
+  );
+
+  static const _downspoutElbow = RenovationTemplateItem(
+    name: 'PVC Downspout Elbow 3"',
+    category: 'Roof Drainage',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    notes: 'Two per downspout',
+  );
+
+  static const _blindRivets = RenovationTemplateItem(
+    name: 'Blind Rivets 1/8" (box of 100)',
+    category: 'Roof Drainage',
+    unit: 'box',
+    defaultQuantity: 1,
+  );
+
   static const _roofDrainage = [
-    RenovationTemplateItem(
-      name: 'Pre-painted Roof Gutter Ga.24 (3 m length)',
-      category: 'Roof Drainage',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      notes: 'Along both eaves',
-    ),
-    RenovationTemplateItem(
-      name: 'Gutter Bracket',
-      category: 'Roof Drainage',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      notes: 'One every 0.60 m of gutter',
-    ),
-    RenovationTemplateItem(
-      name: 'PVC Downspout Pipe 3" (3 m length)',
-      category: 'Roof Drainage',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      notes: 'One downspout per 9 m of gutter, one storey high',
-    ),
-    RenovationTemplateItem(
-      name: 'PVC Downspout Elbow 3"',
-      category: 'Roof Drainage',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      notes: 'Two per downspout',
-    ),
-    RenovationTemplateItem(
-      name: 'Blind Rivets 1/8" (box of 100)',
-      category: 'Roof Drainage',
-      unit: 'box',
-      defaultQuantity: 1,
-    ),
+    _gutter,
+    _gutterBracket,
+    _downspout,
+    _downspoutElbow,
+    _blindRivets,
     _roofSealant,
   ];
 
