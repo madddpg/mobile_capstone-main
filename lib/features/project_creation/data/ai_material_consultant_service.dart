@@ -10,6 +10,10 @@ class AiConsultResult {
   final bool inScope;
   final String reply;
   final List<String> suggestions;
+
+  /// Work item ids suggested from the catalogue sent with the message, when
+  /// one was sent. Only ids in that catalogue.
+  final List<String> suggestedWork;
   final String? errorMessage;
 
   const AiConsultResult({
@@ -17,6 +21,7 @@ class AiConsultResult {
     required this.inScope,
     required this.reply,
     required this.suggestions,
+    this.suggestedWork = const [],
     this.errorMessage,
   });
 }
@@ -113,15 +118,7 @@ class AiMaterialConsultantService {
         'projectType': projectType,
         'scope': scope,
         'description': description,
-        'workItems': [
-          for (final item in catalogue.items)
-            {
-              'id': item.id,
-              'label': item.label,
-              'detail': item.detail,
-              'kind': item.scope.label,
-            },
-        ],
+        'workItems': workItemsPayload(catalogue),
         'style': 'As described by the builder',
         'additionalNotes':
             'Renovation type: $scope\nWhat the builder wants:\n$description',
@@ -169,6 +166,40 @@ class AiMaterialConsultantService {
         errorMessage: 'The AI service is unreachable right now.',
       );
     }
+  }
+
+  /// The catalogue as the AI is shown it.
+  static List<Map<String, String>> workItemsPayload(WorkCatalogue catalogue) =>
+      [
+        for (final item in catalogue.items)
+          {
+            'id': item.id,
+            'label': item.label,
+            'detail': item.detail,
+            'kind': item.scope.label,
+          },
+      ];
+
+  /// Work ids suggested in a chat answer. A server that predates work items
+  /// suggests material names instead, which are matched to work by kind.
+  static List<String> suggestedWorkFrom(
+    Map<dynamic, dynamic> answer,
+    WorkCatalogue catalogue,
+  ) {
+    final raw = answer['suggestedWork'];
+    if (raw is List) {
+      final seen = <String>{};
+      return [
+        for (final entry in raw)
+          if (catalogue.byId('$entry'.trim()) != null &&
+              seen.add('$entry'.trim()))
+            '$entry'.trim(),
+      ];
+    }
+    return [
+      for (final pick in workPicksFromMaterials(answer['suggestions'], catalogue))
+        pick.id,
+    ];
   }
 
   /// The picks in a work answer that name an item in [catalogue], once each.
@@ -231,6 +262,7 @@ class AiMaterialConsultantService {
     List<String> ideaLog = const [],
     List<String> selectedMaterials = const [],
     String? projectNotes,
+    WorkCatalogue? catalogue,
   }) async {
     final payload = <String, dynamic>{
       'projectType': projectType,
@@ -242,19 +274,18 @@ class AiMaterialConsultantService {
       'selectedMaterials': selectedMaterials,
       if (projectNotes != null && projectNotes.trim().isNotEmpty)
         'projectNotes': projectNotes.trim(),
+      if (catalogue != null) 'workItems': workItemsPayload(catalogue),
     };
 
     // Prefer dedicated function; fall back to generateAIBOM(mode: consult)
     // when consultAIMaterials is not deployed yet (NOT_FOUND).
     try {
-      return await _call('consultAIMaterials', payload);
+      return await _call('consultAIMaterials', payload, catalogue);
     } on FirebaseFunctionsException catch (e) {
       if (e.code == 'not-found' || e.code == 'NOT_FOUND') {
         try {
-          return await _call('generateAIBOM', {
-            ...payload,
-            'mode': 'consult',
-          });
+          return await _call(
+              'generateAIBOM', {...payload, 'mode': 'consult'}, catalogue);
         } on FirebaseFunctionsException catch (e2) {
           return AiConsultResult(
             success: false,
@@ -285,8 +316,9 @@ class AiMaterialConsultantService {
 
   Future<AiConsultResult> _call(
     String functionName,
-    Map<String, dynamic> payload,
-  ) async {
+    Map<String, dynamic> payload, [
+    WorkCatalogue? catalogue,
+  ]) async {
     final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
         .httpsCallable(
       functionName,
@@ -336,6 +368,9 @@ class AiMaterialConsultantService {
       inScope: map['inScope'] != false,
       reply: (map['reply'] ?? '').toString().trim(),
       suggestions: suggestions.take(8).toList(),
+      suggestedWork: catalogue == null
+          ? const []
+          : suggestedWorkFrom(map, catalogue),
       errorMessage: ok
           ? null
           : (map['error']?.toString() ?? 'AI returned an empty response.'),

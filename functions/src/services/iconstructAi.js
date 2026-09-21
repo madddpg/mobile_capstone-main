@@ -549,8 +549,13 @@ async function runMaterialConsult({
   ideaLog = [],
   selectedMaterials = [],
   projectNotes = "",
+  workItems,
   geminiSecret,
 }) {
+  // When the app sends the project's work items, the chat suggests work from
+  // them rather than materials, and chosen work arrives as selectedMaterials.
+  const offered = cleanWorkItems(workItems);
+  const byWork = offered.length > 0;
   const message = String(userMessage || "").trim();
   if (!message) {
     throw new HttpsError("invalid-argument", "Message is required.");
@@ -566,19 +571,58 @@ async function runMaterialConsult({
       inScope: false,
       reply: screened.reply,
       suggestions: [],
+      suggestedWork: [],
       provider: "scope-guard",
     };
   }
+
+  const chosen =
+    Array.isArray(selectedMaterials) && selectedMaterials.length
+      ? selectedMaterials.map((s) => clip(s, 120)).join(", ")
+      : "(none yet)";
+
+  const shape = byWork
+    ? `Respond ONLY as JSON with this exact shape:
+{
+  "inScope": true,
+  "reply": "Short helpful message. Suggest work; do not decide for the builder. If off-topic, set inScope false and redirect to iConstruct renovation planning.",
+  "suggestedWork": ["ids copied exactly from the work list", "Max 6", "Empty array if none or off-topic"]
+}
+
+Rules for suggestedWork:
+- Only ids from the work list above; never invent one
+- Only work this conversation calls for, and not work already chosen
+- If the builder wants something no item covers, say so in the reply and suggest nothing for it
+- Empty if the message is off-topic or not about the work`
+    : `Respond ONLY as JSON with this exact shape:
+{
+  "inScope": true,
+  "reply": "Short helpful message. Suggest options; do not decide for the builder. If off-topic, set inScope false and redirect to iConstruct material planning.",
+  "suggestions": ["Concrete material names only", "Max 6 items", "Empty array if none or off-topic"]
+}
+
+Rules for suggestions:
+- Only basic essential materials for THIS renovation estimate
+- Empty suggestions if the message is off-topic or not about materials
+- Never invent a full forced package unless the builder asked for ideas`;
+
+  const workMenu = byWork
+    ? `The work this project can include, one per line as "id (kind): label — what it covers":
+${offered
+  .map(
+    (w) =>
+      `- ${w.id} (${w.kind || "work"}): ${w.label}${w.detail ? " — " + w.detail : ""}`
+  )
+  .join("\n")}
+`
+    : "";
 
   const userPrompt = `Project type: ${projectType}
 Renovation type: ${renovationTypeLine(scope)}
 Style notes: ${style || "(not set)"}
 Area (sqm): ${areaSqm || "(not set)"}
-Materials already chosen by builder: ${
-    Array.isArray(selectedMaterials) && selectedMaterials.length
-      ? selectedMaterials.join(", ")
-      : "(none yet)"
-  }
+${byWork ? "Work already chosen by builder" : "Materials already chosen by builder"}: ${chosen}
+${workMenu}
 Earlier ideas from builder:
 ${
   Array.isArray(ideaLog) && ideaLog.length
@@ -590,17 +634,7 @@ Estimate notes: ${projectNotes || "(none)"}
 Latest builder message:
 ${message}
 
-Respond ONLY as JSON with this exact shape:
-{
-  "inScope": true,
-  "reply": "Short helpful message. Suggest options; do not decide for the builder. If off-topic, set inScope false and redirect to iConstruct material planning.",
-  "suggestions": ["Concrete material names only", "Max 6 items", "Empty array if none or off-topic"]
-}
-
-Rules for suggestions:
-- Only basic essential materials for THIS renovation estimate
-- Empty suggestions if the message is off-topic or not about materials
-- Never invent a full forced package unless the builder asked for ideas`;
+${shape}`;
 
   const geminiKey = resolveGeminiKey(geminiSecret);
   const openaiKey = process.env.OPENAI_API_KEY;
@@ -663,11 +697,24 @@ Rules for suggestions:
     logger.info("consult reply adjusted by scope guard:", checked.adjusted);
   }
 
+  // Work ids are checked against the list the app sent, not the material
+  // word list, which an id would never match.
+  const suggestedWork =
+    byWork && checked.inScope
+      ? sanitizeWorkPicks(
+          parsed.suggestedWork,
+          offered.map((w) => w.id)
+        )
+          .map((p) => p.id)
+          .slice(0, 6)
+      : [];
+
   return {
     success: true,
     inScope: checked.inScope,
     reply: checked.reply,
-    suggestions: checked.suggestions,
+    suggestions: byWork ? [] : checked.suggestions,
+    suggestedWork,
     provider: geminiKey ? "gemini" : "openai",
   };
 }

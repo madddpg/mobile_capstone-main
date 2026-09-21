@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/core/widgets/user_avatar.dart';
 import 'package:iconstruct/features/auth/presentation/screens/profile_screen.dart';
 import 'package:iconstruct/features/project_creation/data/ai_material_consultant_service.dart';
-import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
-import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
+import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
+import 'package:iconstruct/features/project_creation/screens/select_work_items_screen.dart';
 
 class ChatMessage {
   final String text;
@@ -19,7 +18,10 @@ class ChatMessage {
   const ChatMessage({required this.text, required this.isUser});
 }
 
-/// AI-first material consultation. Template packages are a separate planning path.
+/// AI chat about the job. The AI suggests work from the project's checklist,
+/// never materials, and the builder's picks open that checklist ticked, so a
+/// chatted estimate is built from the same work items and formulas as any
+/// other.
 class AIConsultationScreen extends StatefulWidget {
   final String projectName;
   final String? customProjectName;
@@ -39,11 +41,6 @@ class AIConsultationScreen extends StatefulWidget {
 
   RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
 
-  /// Materials the builder already kept, when they came here from the AI's
-  /// recommendations. The chat continues that list rather than starting an
-  /// empty one, so describing the job once is enough.
-  final List<String> initialMaterials;
-
   const AIConsultationScreen({
     super.key,
     required this.projectName,
@@ -52,7 +49,6 @@ class AIConsultationScreen extends StatefulWidget {
     this.scope = RenovationScope.cosmetic,
     this.coverage = RenovationCoverage.full,
     this.renovationTypes,
-    this.initialMaterials = const [],
   });
 
   @override
@@ -65,20 +61,29 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   final ScrollController _scrollController = ScrollController();
   final _aiService = AiMaterialConsultantService();
 
+  late final WorkCatalogue _catalogue =
+      RenovationTemplatesCatalog.workCatalogueFor(widget.projectName);
+
   bool _isTyping = false;
   int _step = _stepChat;
   String _style = '';
   String _budget = '';
   final List<String> _ideaLog = [];
-  final List<String> _confirmedMaterials = [];
 
-  /// Free chat → optional suggestion chips → budget → measure → BOM. The
+  /// Work item ids the builder added from the AI's suggestions, in order.
+  final List<String> _confirmedWork = [];
+
+  String _labelOf(String id) => _catalogue.byId(id)?.label ?? id;
+
+  /// Free chat → optional work suggestions → budget → checklist → measure →
+  /// BOM. The
   /// renovation type and the room's size have their own screens, so the chat
   /// no longer asks for either.
   static const int _stepChat = 0;
   static const int _stepBudget = 1;
   static const int _stepDone = 2;
 
+  /// Work item ids the AI just suggested, not yet added.
   List<String> _pendingRecommendations = [];
   final Set<String> _pendingSelected = {};
   bool _showBomChip = true;
@@ -90,40 +95,21 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   @override
   void initState() {
     super.initState();
-    for (final name in widget.initialMaterials) {
-      final trimmed = name.trim();
-      if (trimmed.isEmpty) continue;
-      final isNew = !_confirmedMaterials
-          .any((m) => m.toLowerCase() == trimmed.toLowerCase());
-      if (isNew) _confirmedMaterials.add(trimmed);
-    }
     _startConversation();
   }
 
   void _startConversation() async {
     await _addBotMessage(
-      "Hi! I'm the iConstruct AI Material Consultant for ${widget.projectName}.",
+      "Hi! I'm the iConstruct AI Consultant for ${widget.projectName}.",
     );
     await Future.delayed(const Duration(milliseconds: 350));
     await _addBotMessage(
       "This is a ${widget.types.label.toLowerCase()} renovation: "
       "${widget.types.description.toLowerCase()}. Tell me what you want done "
-      "and I'll suggest materials. When you're ready, tap Build my BOM. "
-      "You'll measure the room next so the quantities fit it.",
+      "and I'll suggest work from this project's checklist. When you're "
+      "ready, tap Build my BOM to review the checklist, then measure the room "
+      "so the quantities fit it.",
     );
-
-    // Arriving from the AI's recommendations with a list already ticked: say
-    // so, or the builder cannot tell whether those materials survived the
-    // move and starts describing the job a second time.
-    if (_confirmedMaterials.isNotEmpty) {
-      final count = _confirmedMaterials.length;
-      await Future.delayed(const Duration(milliseconds: 350));
-      await _addBotMessage(
-        "I've kept the $count material${count == 1 ? '' : 's'} you ticked, so "
-        "your list is not empty. Tell me what else you need and I'll suggest "
-        "options to add to it.",
-      );
-    }
   }
 
   bool _isReadyToBuild(String text) {
@@ -156,19 +142,6 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   }
 
   Future<void> _beginBudgetThenGenerate() async {
-    if (_confirmedMaterials.isEmpty) {
-      await _addBotMessage(
-        "You haven't added any materials to your list yet. "
-        "Describe what you want and pick optional suggestions. "
-        "I won't decide the BOM for you.",
-      );
-      setState(() {
-        _step = _stepChat;
-        _showBomChip = true;
-      });
-      return;
-    }
-
     setState(() {
       _showBomChip = false;
       _pendingRecommendations = [];
@@ -176,8 +149,9 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       _step = _stepBudget;
     });
     await _addBotMessage(
-      "Before I draft your Bill of Materials from what you chose: "
-      "Low, Medium, or High budget for material quality? (Guides tier only — not a fixed price.)",
+      "${_confirmedWork.isEmpty ? "You haven't added any work yet, so the checklist will start from the usual work for this project. " : ''}"
+      "Before you review it: Low, Medium, or High budget for material "
+      "quality? (Guides tier only — not a fixed price.)",
     );
   }
 
@@ -200,10 +174,10 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
         _budget = input;
         _step = _stepDone;
         await _addBotMessage(
-          "Thanks! Drafting a Bill of Materials from your ideas"
-          "… Next, measure the room so the quantities fit it.",
+          "Thanks! Opening the checklist with the work you chose. Check it, "
+          "then measure the room so the quantities fit it.",
         );
-        _generateBOM();
+        _openChecklist();
         break;
     }
   }
@@ -230,8 +204,9 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       style: _style,
       scope: widget.types.label,
       ideaLog: List<String>.from(_ideaLog),
-      selectedMaterials: List<String>.from(_confirmedMaterials),
+      selectedMaterials: [for (final id in _confirmedWork) _labelOf(id)],
       projectNotes: widget.projectNotes,
+      catalogue: _catalogue,
     );
 
     if (!mounted) return;
@@ -241,8 +216,8 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       final reason = (result.errorMessage ?? '').trim();
       await _addBotMessage(
         "${reason.isEmpty ? 'iConstruct AI is unavailable right now.' : reason} "
-        "You can still list the materials you want here, then tap "
-        "“Build my BOM” to continue — quantities are estimated for you.",
+        "You can still tap “Build my BOM” and pick the work from the "
+        "checklist yourself — quantities are estimated for you.",
       );
       return;
     }
@@ -250,15 +225,20 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     final reply = result.reply.isNotEmpty
         ? result.reply
         : (result.inScope
-            ? "Tell me more about the materials you want — I only suggest; you decide."
-            : "I can only help with iConstruct material planning for this estimate.");
+            ? "Tell me more about the work you want — I only suggest; you decide."
+            : "I can only help with iConstruct renovation planning for this estimate.");
 
     setState(() {
       _messages.add(ChatMessage(text: reply, isUser: false));
     });
     _scrollToBottom();
 
-    if (!result.inScope || result.suggestions.isEmpty) {
+    // Work already on the list is not suggested again.
+    final fresh = [
+      for (final id in result.suggestedWork)
+        if (!_confirmedWork.contains(id)) id,
+    ];
+    if (!result.inScope || fresh.isEmpty) {
       setState(() {
         _pendingRecommendations = [];
         _pendingSelected.clear();
@@ -267,7 +247,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       return;
     }
 
-    _pendingRecommendations = List<String>.from(result.suggestions);
+    _pendingRecommendations = fresh;
     _pendingSelected.clear();
     setState(() => _showBomChip = true);
     await Future.delayed(const Duration(milliseconds: 200));
@@ -318,7 +298,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Suggested materials',
+                                  'Suggested work',
                                   style: GoogleFonts.poppins(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
@@ -361,7 +341,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                               showCheckmark: true,
                               checkmarkColor: _darkBlue,
                               label: Text(
-                                name,
+                                _labelOf(name),
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -442,20 +422,20 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   Future<void> _confirmPendingSelection() async {
     if (_pendingSelected.isEmpty) {
       await _addBotMessage(
-        "No materials selected — that's fine. Keep describing your idea, or open suggestions again to pick some.",
+        "Nothing selected — that's fine. Keep describing your idea, or open suggestions again to pick some.",
       );
       return;
     }
 
-    for (final m in _pendingSelected) {
-      if (!_confirmedMaterials.contains(m)) _confirmedMaterials.add(m);
+    for (final id in _pendingSelected) {
+      if (!_confirmedWork.contains(id)) _confirmedWork.add(id);
     }
 
     final picked = _pendingSelected.toList();
     setState(() {
       _messages.add(
         ChatMessage(
-          text: 'I want to include: ${picked.join(', ')}',
+          text: 'I want to include: ${picked.map(_labelOf).join(', ')}',
           isUser: true,
         ),
       );
@@ -467,14 +447,14 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     _scrollToBottom();
 
     await _addBotMessage(
-      "Added ${picked.length} material(s) to your list "
-      "(${_confirmedMaterials.length} total so far). "
+      "Added ${picked.length} piece${picked.length == 1 ? '' : 's'} of work to "
+      "your list (${_confirmedWork.length} so far). "
       "Tap the list icon anytime to see or remove what you chose. "
       "Share more ideas, or Build my BOM when you're satisfied.",
     );
   }
 
-  Future<void> _openConfirmedMaterialsSheet() async {
+  Future<void> _openConfirmedWorkSheet() async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -483,7 +463,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             void removeAt(int index) {
-              setState(() => _confirmedMaterials.removeAt(index));
+              setState(() => _confirmedWork.removeAt(index));
               setModalState(() {});
             }
 
@@ -516,7 +496,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Your material list',
+                                'Your work list',
                                 style: GoogleFonts.poppins(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
@@ -525,9 +505,9 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _confirmedMaterials.isEmpty
-                                    ? 'Nothing here yet. Describe what you want, then pick from suggestions — I will not add materials for you.'
-                                    : 'These are the materials you chose. Remove anything you do not want on the estimate.',
+                                _confirmedWork.isEmpty
+                                    ? 'Nothing here yet. Describe what you want, then pick from suggestions — I will not add work for you.'
+                                    : 'This is the work you chose. Remove anything you do not want on the estimate.',
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
                                   color: _cream.withValues(alpha: 0.75),
@@ -548,7 +528,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                     ),
                   ),
                   const Divider(color: Color(0x33EDE4D4), height: 1),
-                  if (_confirmedMaterials.isEmpty)
+                  if (_confirmedWork.isEmpty)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(22, 28, 22, 32),
                       child: Text(
@@ -564,13 +544,13 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                       child: ListView.separated(
                         shrinkWrap: true,
                         padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
-                        itemCount: _confirmedMaterials.length,
+                        itemCount: _confirmedWork.length,
                         separatorBuilder: (_, _) => const Divider(
                           color: Color(0x22EDE4D4),
                           height: 1,
                         ),
                         itemBuilder: (context, index) {
-                          final name = _confirmedMaterials[index];
+                          final name = _labelOf(_confirmedWork[index]);
                           return ListTile(
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 10,
@@ -600,9 +580,9 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                     child: SizedBox(
                       width: double.infinity,
                       child: _ChoiceChipButton(
-                        label: _confirmedMaterials.isEmpty
+                        label: _confirmedWork.isEmpty
                             ? 'Close'
-                            : 'Done · ${_confirmedMaterials.length} selected',
+                            : 'Done · ${_confirmedWork.length} selected',
                         filled: true,
                         onTap: () => Navigator.pop(ctx),
                       ),
@@ -654,113 +634,25 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     _scrollToBottom();
   }
 
-  Future<void> _generateBOM() async {
-    final selected = List<String>.from(_confirmedMaterials);
-
-    // The builder leads the plan: what they picked is what they review.
-    if (selected.isNotEmpty) {
-      await _addBotMessage(
-        "Building your BOM with the ${selected.length} material"
-        "${selected.length == 1 ? '' : 's'} you selected.",
-      );
-      _openBomFromSelections(selected);
-      return;
-    }
-
-    setState(() => _isTyping = true);
-
-    try {
-      final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
-          .httpsCallable('generateAIBOM');
-      final response = await callable.call(<String, dynamic>{
-        'projectType': widget.projectName,
-        'style': _style.isEmpty ? 'As described by user' : _style,
-        'areaSqm': 0,
-        'scope': widget.types.label,
-        'budgetLevel': _budget,
-        'additionalNotes': [
-          'Renovation type: ${widget.types.label} — ${widget.types.description}.',
-          'The user picked no materials from suggestions — draft only the '
-              'essentials implied by the ideas below.',
-          'Do not invent a full sequential package beyond those essentials.',
-          if (_ideaLog.isNotEmpty) 'User ideas (in their words):',
-          ..._ideaLog.map((e) => '- $e'),
-          if (widget.projectNotes != null &&
-              widget.projectNotes!.trim().isNotEmpty)
-            'Estimate notes: ${widget.projectNotes!.trim()}',
-        ].join('\n'),
-      });
-
-      final data = response.data;
-      if (data != null && data['success'] == true) {
-        final List<dynamic> materialsRaw = data['materials'] ?? [];
-        final names = materialsRaw
-            .map((m) => (m['name'] ?? '').toString())
-            .where((n) => n.trim().isNotEmpty)
-            .toList();
-
-        setState(() => _isTyping = false);
-        if (!mounted) return;
-
-        if (names.isNotEmpty) {
-          _openBomReview(names);
-        } else {
-          _openBomFromSelections(selected);
-        }
-        return;
-      }
-
-      setState(() => _isTyping = false);
-      await _addBotMessage(
-        "Cloud AI didn't return a list — building your BOM from materials you selected.",
-      );
-      _openBomFromSelections(selected);
-    } catch (e) {
-      setState(() => _isTyping = false);
-      await _addBotMessage(
-        "AI service unavailable — building your essential BOM locally from what you selected.",
-      );
-      _openBomFromSelections(selected);
-    }
-  }
-
-  /// Builds the review BOM from exactly the materials the builder confirmed.
-  void _openBomFromSelections(List<String> selected) {
-    final names = selected.isNotEmpty ? selected : _confirmedMaterials;
-    if (names.isEmpty) {
-      setState(() {
-        _step = _stepChat;
-        _showBomChip = true;
-        _isTyping = false;
-      });
-      _addBotMessage(
-        "I couldn't draft a BOM without your picks. Add materials from suggestions first.",
-      );
-      return;
-    }
-    _openBomReview(names);
-  }
-
-  /// Opens the measuring step with exactly the materials the builder chose.
-  void _openBomReview(List<String> materialNames) {
+  /// Opens the checklist with the work the builder chose in the chat ticked,
+  /// or with the usual starting work when they chose none.
+  void _openChecklist() {
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => TemplateAreaScreen(
-          template: BomQuantityEstimator.consultationTemplate(
-            projectType: widget.projectName,
-            materialNames: materialNames,
-            scope: widget.scope,
-          ),
+        builder: (_) => SelectWorkItemsScreen(
+          catalogue: _catalogue,
           projectName: widget.projectName,
           customProjectName: widget.customProjectName,
           projectNotes: widget.projectNotes,
-          scope: widget.scope,
           coverage: widget.coverage,
-          renovationTypes: widget.types,
-          budgetPreference: _budget,
+          types: widget.types,
           hints: parseSiteHints(widget.projectNotes ?? ''),
+          recommended: _confirmedWork.isEmpty
+              ? null
+              : {for (final id in _confirmedWork) id: ''},
+          budgetPreference: _budget,
         ),
       ),
     );
@@ -808,7 +700,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        'AI Material\nConsultant',
+                        'AI Renovation\nConsultant',
                         style: GoogleFonts.poppins(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
@@ -817,9 +709,9 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                         ),
                       ),
                     ),
-                    _MaterialsListButton(
-                      count: _confirmedMaterials.length,
-                      onTap: _openConfirmedMaterialsSheet,
+                    _WorkListButton(
+                      count: _confirmedWork.length,
+                      onTap: _openConfirmedWorkSheet,
                     ),
                   ],
                 ),
@@ -835,7 +727,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Powered by AI API · iConstruct material planning only. You choose; I suggest.',
+                  'Powered by AI API · iConstruct renovation planning only. You choose; I suggest.',
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     color: const Color(0xFFE0D7C9),
@@ -976,9 +868,9 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
             SizedBox(
               width: double.infinity,
               child: _ChoiceChipButton(
-                label: _confirmedMaterials.isEmpty
+                label: _confirmedWork.isEmpty
                     ? 'Build my BOM'
-                    : 'Build my BOM (${_confirmedMaterials.length})',
+                    : 'Build my BOM (${_confirmedWork.length})',
                 filled: true,
                 onTap: _onChipReady,
               ),
@@ -1033,19 +925,19 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   }
 }
 
-class _MaterialsListButton extends StatelessWidget {
+class _WorkListButton extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
 
-  const _MaterialsListButton({required this.count, required this.onTap});
+  const _WorkListButton({required this.count, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
       label: count == 0
-          ? 'Your material list, empty'
-          : 'Your material list, $count selected',
+          ? 'Your work list, empty'
+          : 'Your work list, $count selected',
       child: Material(
         color: const Color(0xFFEDE4D4),
         shape: const CircleBorder(),

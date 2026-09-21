@@ -72,6 +72,38 @@ void main() {
     });
   });
 
+  group('the chat', () {
+    test('is shown every work item with its kind', () {
+      final payload = AiMaterialConsultantService.workItemsPayload(_bathroom);
+      expect(payload.map((w) => w['id']),
+          _bathroom.items.map((i) => i.id).toList());
+      expect(payload.first['kind'], isNotEmpty);
+    });
+
+    test('keeps suggested work from the catalogue, once each', () {
+      final ids = AiMaterialConsultantService.suggestedWorkFrom({
+        'suggestedWork': ['repaint', 'install_jacuzzi', 'repaint', 'tile_walls'],
+      }, _bathroom);
+      expect(ids, ['repaint', 'tile_walls']);
+    });
+
+    test('an empty work answer suggests nothing, even with material names',
+        () {
+      final ids = AiMaterialConsultantService.suggestedWorkFrom({
+        'suggestedWork': [],
+        'suggestions': ['Ceramic floor tiles'],
+      }, _bathroom);
+      expect(ids, isEmpty);
+    });
+
+    test('matches an older server\'s material suggestions to work', () {
+      final ids = AiMaterialConsultantService.suggestedWorkFrom({
+        'suggestions': ['Ceramic floor tiles 600x600', 'Interior latex paint'],
+      }, _bathroom);
+      expect(ids, containsAll(['retile_floor', 'repaint']));
+    });
+  });
+
   group('the recommendations screen', () {
     setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
 

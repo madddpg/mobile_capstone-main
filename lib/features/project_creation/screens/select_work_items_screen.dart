@@ -31,6 +31,9 @@ class SelectWorkItemsScreen extends StatefulWidget {
   /// the kinds' starting packages, with the AI's reason for each.
   final Map<String, String>? recommended;
 
+  /// Budget tier from the AI chat, when the work was picked there.
+  final String? budgetPreference;
+
   const SelectWorkItemsScreen({
     super.key,
     required this.catalogue,
@@ -41,6 +44,7 @@ class SelectWorkItemsScreen extends StatefulWidget {
     required this.types,
     this.hints = SiteHints.none,
     this.recommended,
+    this.budgetPreference,
   });
 
   @override
@@ -91,6 +95,7 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
           scope: types.primary,
           coverage: widget.coverage,
           renovationTypes: types,
+          budgetPreference: widget.budgetPreference,
           hints: widget.hints,
         ),
       ),
