@@ -38,6 +38,12 @@ class CostEstimationScreen extends StatefulWidget {
   /// post; it never goes into projectScope, which carries the renovation type.
   final RenovationCoverage coverage;
 
+  /// Every kind of work chosen, of which [scope] is the heaviest. Null from a
+  /// caller that predates multi-select, which then means [scope] alone.
+  final RenovationTypes? renovationTypes;
+
+  RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
+
   /// Budget preference collected during AI consultation (Low / Medium / High).
   final String? budgetPreference;
 
@@ -59,6 +65,7 @@ class CostEstimationScreen extends StatefulWidget {
     this.projectAreaSqm,
     this.scope = RenovationScope.cosmetic,
     this.coverage = RenovationCoverage.full,
+    this.renovationTypes,
     this.budgetPreference,
     this.takeoff,
     this.counts,
@@ -82,7 +89,24 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   /// is told what is deliberately not being asked for.
   final List<RenovationTemplateItem> _excludedItems = [];
 
+  /// Work of the job's kinds the builder left unticked, named as work: "Tile
+  /// the walls" tells a shop more than a missing wall-tile line does. These
+  /// cannot be put back here; the work is chosen on the checklist.
+  late final List<ExcludedWork> _workLeftOut = () {
+    final template = widget.template;
+    if (template == null || !template.isFromWorkItems) {
+      return const <ExcludedWork>[];
+    }
+    final catalogue =
+        RenovationTemplatesCatalog.workCatalogueFor(template.renovationType);
+    return [
+      for (final item in catalogue.leftOut(template.workItemIds.toSet()))
+        ExcludedWork(name: item.label, category: 'Work'),
+    ];
+  }();
+
   List<ExcludedWork> get _excludedWork => [
+        ..._workLeftOut,
         for (final item in _excludedItems)
           ExcludedWork(
             name: item.name,
@@ -193,8 +217,9 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   /// be told about these, so the builder should be able to see exactly what
   /// they are saying no to before they post.
   Widget _buildExcludedPanel() {
-    if (_excludedItems.isEmpty) return const SizedBox.shrink();
     final excluded = _excludedWork;
+    if (excluded.isEmpty) return const SizedBox.shrink();
+    final firstMaterial = _workLeftOut.length;
 
     return Padding(
       padding: const EdgeInsets.only(top: 18, bottom: 8),
@@ -241,23 +266,25 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: () => _restoreExcluded(i),
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFFEDE4D4),
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        minimumSize: const Size(0, 36),
-                      ),
-                      child: Text(
-                        'Put back',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                    if (i >= firstMaterial) ...[
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () => _restoreExcluded(i - firstMaterial),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFFEDE4D4),
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          minimumSize: const Size(0, 36),
+                        ),
+                        child: Text(
+                          'Put back',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -384,7 +411,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
         // An AI BOM holds only what the builder picked, so the package this
         // note describes was never added to it.
         if (hasRows &&
-            widget.scope.includesStructural &&
+            widget.types.includesStructural &&
             widget.template?.id != 'ai_consultation_bom') ...[
           Text(
             BomQuantityEstimator.structuralNoteFor(widget.takeoff),
@@ -690,6 +717,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
           siteDetails: _siteDetailsMap(),
           excludedWork: _excludedWork,
           coverage: widget.coverage,
+          renovationTypes: widget.types,
         ),
       ),
     );

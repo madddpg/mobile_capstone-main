@@ -7,6 +7,8 @@ library;
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 
+part 'work_items.dart';
+
 class MaterialAlternative {
   final String name;
   final String? size;
@@ -154,6 +156,15 @@ class RenovationTemplate {
   final String description;
   final List<RenovationTemplateItem> items;
 
+  /// The work items ticked to build this list, when it was built from a
+  /// [WorkCatalogue]. Empty for a template chosen by its type alone.
+  ///
+  /// A list built from work items holds exactly the work ticked, so measuring
+  /// the room sizes its lines but never adds one back.
+  final List<String> workItemIds;
+
+  bool get isFromWorkItems => workItemIds.isNotEmpty;
+
   const RenovationTemplate({
     required this.id,
     required this.renovationType,
@@ -161,6 +172,7 @@ class RenovationTemplate {
     required this.name,
     required this.description,
     required this.items,
+    this.workItemIds = const [],
   });
 
   factory RenovationTemplate.fromMap(String id, Map<String, dynamic> data) {
@@ -176,6 +188,7 @@ class RenovationTemplate {
       }
     }
 
+    final rawWork = data['workItemIds'];
     return RenovationTemplate(
       id: id,
       renovationType: (data['renovationType'] ?? '').toString(),
@@ -183,6 +196,9 @@ class RenovationTemplate {
       name: (data['name'] ?? '').toString(),
       description: (data['description'] ?? '').toString(),
       items: items,
+      workItemIds: rawWork is List
+          ? [for (final w in rawWork) if (w != null) w.toString()]
+          : const [],
     );
   }
 
@@ -192,6 +208,7 @@ class RenovationTemplate {
         'name': name,
         'description': description,
         'items': items.map((e) => e.toMap()).toList(),
+        if (workItemIds.isNotEmpty) 'workItemIds': workItemIds,
       };
 
   RenovationTemplate copyWithItems(List<RenovationTemplateItem> newItems) {
@@ -202,6 +219,7 @@ class RenovationTemplate {
       name: name,
       description: description,
       items: newItems,
+      workItemIds: workItemIds,
     );
   }
 }
@@ -267,6 +285,18 @@ class RenovationTemplatesCatalog {
     };
   }
 
+  /// The kind of work pre-selected for [renovationType]; the builder can add
+  /// others. A roof repair is structural by default because re-sheeting and
+  /// purlin work are what it usually is. Everything else starts cosmetic,
+  /// which is the most common job and the only kind every project offers.
+  static RenovationScope defaultTypeFor(String renovationType) {
+    final offered = scopesFor(renovationType);
+    final preferred = _key(renovationType).contains('roof')
+        ? RenovationScope.structural
+        : RenovationScope.cosmetic;
+    return offered.contains(preferred) ? preferred : offered.first;
+  }
+
   /// Every project can be done whole or in part. Only a project that can gain
   /// floor area can be an extension: a roof repair, a floor, a paint job and a
   /// wall finish all work on a room that is already there.
@@ -317,6 +347,67 @@ class RenovationTemplatesCatalog {
       description: _descriptionFor(key, scope),
       items: _itemsFor(key, scope),
     );
+  }
+
+  /// The template for [renovationType] covering every kind of work in [types].
+  ///
+  /// Each kind already has its own list, so a combination is those lists put
+  /// together: a cosmetic-and-functional bathroom gets the tiles and paint of
+  /// the one and the pipes of the other. A material both lists carry — the
+  /// finishes a structural job re-lays, say — appears once, where it first
+  /// appears, so it is never ordered twice. A single kind returns exactly the
+  /// template [forProject] would.
+  static RenovationTemplate forProjectTypes(
+    String renovationType,
+    RenovationTypes types,
+  ) {
+    if (!types.isMultiple) return forProject(renovationType, types.primary);
+
+    final parts = [
+      for (final scope in types.values) forProject(renovationType, scope),
+    ];
+    final seen = <String>{};
+    final items = <RenovationTemplateItem>[
+      for (final part in parts)
+        for (final item in part.items)
+          if (seen.add(item.name.trim().toLowerCase())) item,
+    ];
+    final type = parts.first.renovationType;
+    return RenovationTemplate(
+      id: '${_idPrefix(type)}_${types.names.join('_')}',
+      renovationType: type,
+      scope: types.primary,
+      name: '${types.label} ${_shortType(type)}',
+      description: parts.map((p) => p.description).join(' '),
+      items: items,
+    );
+  }
+
+  /// The work items [renovationType] is estimated from. Matched the same way
+  /// as its template, so a living room, a bedroom, a dining room and any other
+  /// room share the room catalogue.
+  static WorkCatalogue workCatalogueFor(String renovationType) {
+    final key = _key(renovationType);
+    final WorkCatalogue base;
+    if (key.contains('roof')) {
+      base = _roofWork;
+    } else if (key.contains('floor')) {
+      base = _floorWork;
+    } else if (key.contains('paint')) {
+      base = _paintingWork;
+    } else if (key.contains('wall')) {
+      base = _wallWork;
+    } else if (key.contains('bath')) {
+      base = _bathroomWork;
+    } else if (key.contains('laundry')) {
+      base = _laundryWork;
+    } else if (key.contains('kitchen')) {
+      base = _kitchenWork;
+    } else {
+      base = _roomWork;
+    }
+    final type = normalizeType(renovationType);
+    return base.forType(type.isEmpty ? 'Renovation' : type);
   }
 
   /// Every template the app offers.
@@ -586,17 +677,19 @@ class RenovationTemplatesCatalog {
     _maskingTape,
   ];
 
+  static const _paintBrush = RenovationTemplateItem(
+    name: 'Paint Brush (2")',
+    category: 'Painting Supplies',
+    unit: 'pcs',
+    defaultQuantity: 2,
+  );
+
   static const _painting = [
     _skimCoat,
     _primer,
     _paint,
     _maskingTape,
-    RenovationTemplateItem(
-      name: 'Paint Brush (2")',
-      category: 'Painting Supplies',
-      unit: 'pcs',
-      defaultQuantity: 2,
-    ),
+    _paintBrush,
   ];
 
   // ── Fixtures ─────────────────────────────────────────────────────────────
@@ -739,18 +832,20 @@ class RenovationTemplatesCatalog {
     ..._formwork,
   ];
 
+  static const _weldedMesh = RenovationTemplateItem(
+    name: 'Welded Mesh Reinforcement 6"x6" (Ga.10)',
+    category: 'Slab Reinforcement',
+    unit: 'sqm',
+    defaultQuantity: 1,
+    qtyPerSqm: 1.1,
+    notes: 'Laid mid-depth in the new slab, with a 150 mm lap',
+  );
+
   static const _floorSlabRepair = [
     _slabCement,
     _slabSand,
     _gravel,
-    RenovationTemplateItem(
-      name: 'Welded Mesh Reinforcement 6"x6" (Ga.10)',
-      category: 'Slab Reinforcement',
-      unit: 'sqm',
-      defaultQuantity: 1,
-      qtyPerSqm: 1.1,
-      notes: 'Laid mid-depth in the new slab, with a 150 mm lap',
-    ),
+    _weldedMesh,
     _floorTile,
     _skirting,
   ];
@@ -771,97 +866,121 @@ class RenovationTemplatesCatalog {
     defaultQuantity: 1,
   );
 
+  static const _roofPaint = RenovationTemplateItem(
+    name: 'Roof Paint (4 L)',
+    category: 'Roof Painting',
+    unit: 'gal',
+    defaultQuantity: 1,
+  );
+
+  static const _steelBrush = RenovationTemplateItem(
+    name: 'Steel Brush (for rust removal)',
+    category: 'Painting Supplies',
+    unit: 'pcs',
+    defaultQuantity: 2,
+  );
+
   static const _roofRepaint = [
     _metalPrimer,
-    RenovationTemplateItem(
-      name: 'Roof Paint (4 L)',
-      category: 'Roof Painting',
-      unit: 'gal',
-      defaultQuantity: 1,
-    ),
+    _roofPaint,
     _roofSealant,
-    RenovationTemplateItem(
-      name: 'Steel Brush (for rust removal)',
-      category: 'Painting Supplies',
-      unit: 'pcs',
-      defaultQuantity: 2,
-    ),
+    _steelBrush,
   ];
+
+  // Rib-type is cut to order and sold by the linear metre, so a piece count
+  // with no length is not something a shop can quote.
+  static const _ribRoofing = RenovationTemplateItem(
+    name: 'Pre-painted Rib-type Roofing Ga.26',
+    category: 'Roofing',
+    unit: 'ln.m',
+    defaultQuantity: 1,
+  );
+
+  static const _ridgeRoll = RenovationTemplateItem(
+    name: 'Ridge Roll (Pre-painted)',
+    category: 'Roofing',
+    unit: 'ln.m',
+    defaultQuantity: 1,
+  );
+
+  static const _cPurlin = RenovationTemplateItem(
+    name: 'C-Purlin 2" x 4" x 1.5 mm (6 m length)',
+    category: 'Roof Framing',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    qtyPerSqm: 0.32,
+    notes: 'Purlins at 600 mm on centre',
+  );
+
+  static const _tekscrew = RenovationTemplateItem(
+    name: 'Tekscrew with Rubber Washer',
+    category: 'Roof Installation',
+    unit: 'pcs',
+    defaultQuantity: 1,
+  );
+
+  static const _weldingRod = RenovationTemplateItem(
+    name: 'Welding Rod 1/8" (E6013)',
+    category: 'Roof Framing',
+    unit: 'kg',
+    defaultQuantity: 1,
+    qtyPerSqm: 0.05,
+  );
 
   static const _roofReplacement = [
-    // Rib-type is cut to order and sold by the linear metre, so a piece count
-    // with no length is not something a shop can quote.
-    RenovationTemplateItem(
-      name: 'Pre-painted Rib-type Roofing Ga.26',
-      category: 'Roofing',
-      unit: 'ln.m',
-      defaultQuantity: 1,
-    ),
-    RenovationTemplateItem(
-      name: 'Ridge Roll (Pre-painted)',
-      category: 'Roofing',
-      unit: 'ln.m',
-      defaultQuantity: 1,
-    ),
-    RenovationTemplateItem(
-      name: 'C-Purlin 2" x 4" x 1.5 mm (6 m length)',
-      category: 'Roof Framing',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      qtyPerSqm: 0.32,
-      notes: 'Purlins at 600 mm on centre',
-    ),
-    RenovationTemplateItem(
-      name: 'Tekscrew with Rubber Washer',
-      category: 'Roof Installation',
-      unit: 'pcs',
-      defaultQuantity: 1,
-    ),
-    RenovationTemplateItem(
-      name: 'Welding Rod 1/8" (E6013)',
-      category: 'Roof Framing',
-      unit: 'kg',
-      defaultQuantity: 1,
-      qtyPerSqm: 0.05,
-    ),
+    _ribRoofing,
+    _ridgeRoll,
+    _cPurlin,
+    _tekscrew,
+    _weldingRod,
     _roofSealant,
   ];
 
+  static const _gutter = RenovationTemplateItem(
+    name: 'Pre-painted Roof Gutter Ga.24 (3 m length)',
+    category: 'Roof Drainage',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    notes: 'Along both eaves',
+  );
+
+  static const _gutterBracket = RenovationTemplateItem(
+    name: 'Gutter Bracket',
+    category: 'Roof Drainage',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    notes: 'One every 0.60 m of gutter',
+  );
+
+  static const _downspout = RenovationTemplateItem(
+    name: 'PVC Downspout Pipe 3" (3 m length)',
+    category: 'Roof Drainage',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    notes: 'One downspout per 9 m of gutter, one storey high',
+  );
+
+  static const _downspoutElbow = RenovationTemplateItem(
+    name: 'PVC Downspout Elbow 3"',
+    category: 'Roof Drainage',
+    unit: 'pcs',
+    defaultQuantity: 1,
+    notes: 'Two per downspout',
+  );
+
+  static const _blindRivets = RenovationTemplateItem(
+    name: 'Blind Rivets 1/8" (box of 100)',
+    category: 'Roof Drainage',
+    unit: 'box',
+    defaultQuantity: 1,
+  );
+
   static const _roofDrainage = [
-    RenovationTemplateItem(
-      name: 'Pre-painted Roof Gutter Ga.24 (3 m length)',
-      category: 'Roof Drainage',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      notes: 'Along both eaves',
-    ),
-    RenovationTemplateItem(
-      name: 'Gutter Bracket',
-      category: 'Roof Drainage',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      notes: 'One every 0.60 m of gutter',
-    ),
-    RenovationTemplateItem(
-      name: 'PVC Downspout Pipe 3" (3 m length)',
-      category: 'Roof Drainage',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      notes: 'One downspout per 9 m of gutter, one storey high',
-    ),
-    RenovationTemplateItem(
-      name: 'PVC Downspout Elbow 3"',
-      category: 'Roof Drainage',
-      unit: 'pcs',
-      defaultQuantity: 1,
-      notes: 'Two per downspout',
-    ),
-    RenovationTemplateItem(
-      name: 'Blind Rivets 1/8" (box of 100)',
-      category: 'Roof Drainage',
-      unit: 'box',
-      defaultQuantity: 1,
-    ),
+    _gutter,
+    _gutterBracket,
+    _downspout,
+    _downspoutElbow,
+    _blindRivets,
     _roofSealant,
   ];
 
@@ -875,6 +994,20 @@ class RenovationTemplatesCatalog {
   );
 
   static const _bathroomPlumbing = [
+    ..._bathroomSupplyLines,
+    ..._bathroomDrainLines,
+    _solventCement,
+    _bathroomTeflon,
+  ];
+
+  static const _bathroomTeflon = RenovationTemplateItem(
+    name: 'Teflon Threadseal Tape (3/4")',
+    category: 'Plumbing Supplies',
+    unit: 'rolls',
+    defaultQuantity: 3,
+  );
+
+  static const _bathroomSupplyLines = [
     RenovationTemplateItem(
       name: 'PPR Pipe 1/2" (4 m length)',
       category: 'Water Supply Pipes',
@@ -913,6 +1046,9 @@ class RenovationTemplatesCatalog {
       unit: 'pcs',
       defaultQuantity: 2,
     ),
+  ];
+
+  static const _bathroomDrainLines = [
     RenovationTemplateItem(
       name: 'PVC Sanitary Pipe 4" (3 m length)',
       category: 'Drainage Pipes',
@@ -950,13 +1086,6 @@ class RenovationTemplatesCatalog {
       category: 'Drainage Fittings',
       unit: 'pcs',
       defaultQuantity: 1,
-    ),
-    _solventCement,
-    RenovationTemplateItem(
-      name: 'Teflon Threadseal Tape (3/4")',
-      category: 'Plumbing Supplies',
-      unit: 'rolls',
-      defaultQuantity: 3,
     ),
   ];
 

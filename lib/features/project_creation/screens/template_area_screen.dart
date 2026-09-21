@@ -34,6 +34,12 @@ class TemplateAreaScreen extends StatefulWidget {
   /// amounts of room.
   final RenovationCoverage coverage;
 
+  /// Every kind of work chosen, of which [scope] is the heaviest. Null from a
+  /// caller that predates multi-select, which then means [scope] alone.
+  final RenovationTypes? renovationTypes;
+
+  RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
+
   /// Budget tier from the AI chat, when the list came from there.
   final String? budgetPreference;
 
@@ -49,6 +55,7 @@ class TemplateAreaScreen extends StatefulWidget {
     this.projectNotes,
     this.scope = RenovationScope.cosmetic,
     this.coverage = RenovationCoverage.full,
+    this.renovationTypes,
     this.budgetPreference,
     this.hints = SiteHints.none,
   });
@@ -152,23 +159,51 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   late int _switches;
   late int _lights;
 
-  /// Functional work replaces pipes and wiring, so only the room's size
-  /// matters; doors, windows, tiles and paint are left as they are.
-  bool get _finishes => widget.scope.changesFinishes;
+  /// Whether finishes are measured: true when any chosen kind of work changes
+  /// them. Purely functional work replaces pipes and wiring, so then only the
+  /// room's size matters; doors, windows, tiles and paint are left as they are.
+  bool get _finishes => widget.types.changesFinishes;
 
-  /// Whether to ask for device counts: a functional job whose template
-  /// actually carries wiring. Asked of the template itself rather than of the
-  /// room, because a functional bathroom is plumbing only and a functional
-  /// roof is drainage only — neither has a device to count.
+  /// Whether to ask for device counts: a job with functional work in it whose
+  /// template actually carries wiring. Asked of the template itself rather than
+  /// of the room, because a functional bathroom is plumbing only and a
+  /// functional roof is drainage only — neither has a device to count.
+  ///
+  /// Asked alongside the finishes when the job is both — retiling a kitchen and
+  /// rewiring it — rather than instead of them, which is what a single choice
+  /// used to force.
   ///
   /// The steppers live in the room section, so a job with no room to measure
   /// cannot show them. Such a job keeps the template's own rates rather than
   /// taking counts the builder was never offered, which would read as zero
   /// devices and empty the wiring out of the list.
-  late final bool _needsFunctionalCounts = !_finishes &&
+  late final bool _needsFunctionalCounts = widget.types.includesFunctional &&
       _job != null &&
       widget.template.items
           .any((i) => classifyMaterial(i) == MaterialKind.electrical);
+
+  /// Whether the list carries a line of the given kind. A list built from
+  /// ticked work is only asked about the work ticked: no wall-tile height
+  /// when the walls are not being tiled, and nothing about the ceiling when
+  /// nothing is being painted. A template is asked everything, as before,
+  /// because measuring may add a finish it did not carry.
+  bool _asks(bool Function(RenovationTemplateItem) test) =>
+      !widget.template.isFromWorkItems || widget.template.items.any(test);
+
+  late final bool _asksWallTiles =
+      _asks((i) => classifyMaterial(i) == MaterialKind.wallTile);
+  late final bool _asksFloor = _asks((i) =>
+      classifyMaterial(i) == MaterialKind.floorTile || isFloorFinishGoods(i));
+  late final bool _asksPaint =
+      _asks((i) => kPaintKinds.contains(classifyMaterial(i)));
+
+  /// Doors and windows change the tiled and painted wall and the new CHB, and
+  /// doorways shorten the skirting.
+  late final bool _asksOpenings = _asksWallTiles ||
+      _asksPaint ||
+      _asks((i) =>
+          classifyMaterial(i) == MaterialKind.chbBlock ||
+          i.name.toLowerCase().contains('skirting'));
 
   /// The counts as entered, or `null` when this job wires nothing and its
   /// quantities keep the template's own rates.
@@ -206,6 +241,12 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     _wallTiles = widget.hints.wallTileHeight ??
         defaults?.wallTileHeight ??
         WallTileHeight.none;
+    // Tiling the walls was ticked, so "no wall tiles" is not an answer here.
+    if (widget.template.isFromWorkItems &&
+        _asksWallTiles &&
+        _wallTiles == WallTileHeight.none) {
+      _wallTiles = WallTileHeight.wainscot;
+    }
     _removeOldTiles =
         widget.hints.removeOldTiles ?? defaults?.removeOldTiles ?? false;
     _paintCeiling =
@@ -253,16 +294,19 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       heightM: job.hasWalls
           ? _parseMetres(_heightController.text) ?? 0
           : job.typicalHeightM,
-      doors: _finishes ? openings(_doors) : const [],
-      windows: _finishes && job.hasWalls ? openings(_windows) : const [],
-      wallTileHeight: _finishes && job.offersWallTiles
+      doors: _finishes && _asksOpenings ? openings(_doors) : const [],
+      windows: _finishes && _asksOpenings && job.hasWalls
+          ? openings(_windows)
+          : const [],
+      wallTileHeight: _finishes && job.offersWallTiles && _asksWallTiles
           ? _wallTiles
           : WallTileHeight.none,
       counterLengthM: _finishes && job == RoomJob.kitchen
           ? _parseMetres(_counterController.text) ?? 0
           : 0,
-      removeOldTiles: _finishes && job.hasFloor && _removeOldTiles,
-      paintCeiling: _finishes && job.hasWalls && _paintCeiling,
+      removeOldTiles:
+          _finishes && job.hasFloor && _asksFloor && _removeOldTiles,
+      paintCeiling: _finishes && job.hasWalls && _asksPaint && _paintCeiling,
       partial: _partialArea,
       irregular: _irregularRoom,
     );
@@ -338,6 +382,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       template: widget.template,
       areaSqm: area,
       scope: widget.scope,
+      types: widget.types,
       takeoff: takeoff,
       counts: counts,
     );
@@ -359,6 +404,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           projectAreaSqm: area,
           scope: widget.scope,
           coverage: widget.coverage,
+          renovationTypes: widget.types,
           takeoff: takeoff,
           counts: counts,
           budgetPreference: widget.budgetPreference,
@@ -542,7 +588,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           // screen instead of pushing it past the panel edge.
           Expanded(
             child: _label(
-                '${widget.scope.label} renovation · ${widget.template.items.length} materials'),
+                '${widget.types.label} renovation · ${widget.template.items.length} materials'),
           ),
           const SizedBox(width: 8),
           InkWell(
@@ -619,7 +665,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   List<Widget> _buildRoomSection(RoomJob job) {
     final details = _details!;
     final wallTileOptions = [
-      WallTileHeight.none,
+      if (!widget.template.isFromWorkItems) WallTileHeight.none,
       if (job == RoomJob.kitchen) WallTileHeight.backsplash,
       WallTileHeight.wainscot,
       WallTileHeight.full,
@@ -793,15 +839,17 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
             (value) => setState(() => _lights = value)),
       ],
       if (_finishes) ...[
-      const SizedBox(height: 18),
-      _label(job.hasWalls ? 'Doors' : 'Doorways (skirting stops at these)'),
-      const SizedBox(height: 6),
-      ..._openingRows(_doors, 'door'),
-      _addSizeButton(
-        'Add another door size',
-        () => setState(() => _doors.add(_OpeningCount.custom())),
-      ),
-      if (job.hasWalls) ...[
+      if (_asksOpenings) ...[
+        const SizedBox(height: 18),
+        _label(job.hasWalls ? 'Doors' : 'Doorways (skirting stops at these)'),
+        const SizedBox(height: 6),
+        ..._openingRows(_doors, 'door'),
+        _addSizeButton(
+          'Add another door size',
+          () => setState(() => _doors.add(_OpeningCount.custom())),
+        ),
+      ],
+      if (job.hasWalls && _asksOpenings) ...[
         const SizedBox(height: 12),
         _label('Windows'),
         const SizedBox(height: 6),
@@ -811,7 +859,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           () => setState(() => _windows.add(_OpeningCount.custom())),
         ),
       ],
-      if (job.offersWallTiles) ...[
+      if (job.offersWallTiles && _asksWallTiles) ...[
         const SizedBox(height: 12),
         _label('Wall tiles'),
         const SizedBox(height: 8),
@@ -837,14 +885,14 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         _hint('Sizes the backsplash and the countertop.'),
       ],
       const SizedBox(height: 12),
-      if (job.hasFloor)
+      if (job.hasFloor && _asksFloor)
         _switchRow(
           title: 'Remove the old floor tiles',
           subtitle: 'Adds cement and sand for a new screed',
           value: _removeOldTiles,
           onChanged: (v) => setState(() => _removeOldTiles = v),
         ),
-      if (job.hasWalls)
+      if (job.hasWalls && _asksPaint)
         _switchRow(
           title: 'Paint the ceiling',
           subtitle: 'Adds the ceiling to the paint area',

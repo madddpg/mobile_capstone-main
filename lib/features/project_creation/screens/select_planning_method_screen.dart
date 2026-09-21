@@ -20,12 +20,19 @@ class SelectPlanningMethodScreen extends StatelessWidget {
   /// amounts of room.
   final RenovationCoverage coverage;
 
+  /// Every kind of work chosen, of which [scope] is the heaviest. Null from a
+  /// caller that predates multi-select, which then means [scope] alone.
+  final RenovationTypes? renovationTypes;
+
+  RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
+
   const SelectPlanningMethodScreen({
     super.key,
     required this.projectName,
     this.customProjectName,
     this.scope = RenovationScope.cosmetic,
     this.coverage = RenovationCoverage.full,
+    this.renovationTypes,
   });
 
   void _open(BuildContext context, PlanningMethod method) {
@@ -37,6 +44,7 @@ class SelectPlanningMethodScreen extends StatelessWidget {
           customProjectName: customProjectName,
           scope: scope,
           coverage: coverage,
+          renovationTypes: types,
           method: method,
         ),
       ),
@@ -53,7 +61,7 @@ class SelectPlanningMethodScreen extends StatelessWidget {
       title: 'Choose Planning\nMethod',
       subtitle: displayName,
       instruction:
-          'Template = the standard materials for a ${scope.label.toLowerCase()} '
+          'Template = the standard materials for a ${types.label.toLowerCase()} '
           '${projectName.toLowerCase()}.\nAI Planner = materials recommended '
           'from what you describe.',
       // The two tiles share the panel height when there is room. When there

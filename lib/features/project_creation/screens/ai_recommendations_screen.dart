@@ -2,20 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:iconstruct/features/project_creation/data/ai_material_consultant_service.dart';
-import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/screens/ai_consultation_screen.dart';
-import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
+import 'package:iconstruct/features/project_creation/screens/select_work_items_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
 
-/// Materials the AI recommends from the builder's description.
+/// The AI reads the builder's description and picks the work it calls for.
 ///
-/// Every recommendation starts ticked, since the builder asked for them, and
-/// nothing reaches the estimate unless it stays ticked. Quantities come after
-/// the room is measured.
+/// The AI chooses only from the project's work items, never materials, so
+/// everything it picks has the materials and formulas the checklist path
+/// uses. Its picks open that checklist already ticked, with its reason under
+/// each; the builder still decides what stays.
 class AiRecommendationsScreen extends StatefulWidget {
   final String projectName;
   final String? customProjectName;
@@ -25,6 +25,12 @@ class AiRecommendationsScreen extends StatefulWidget {
   /// cosmetic job and a full one are the same kind of work over different
   /// amounts of room.
   final RenovationCoverage coverage;
+
+  /// Every kind of work chosen, of which [scope] is the heaviest. Null from a
+  /// caller that predates multi-select, which then means [scope] alone.
+  final RenovationTypes? renovationTypes;
+
+  RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
   final String description;
 
   /// Injected in tests; the app uses the Cloud Functions service.
@@ -36,6 +42,7 @@ class AiRecommendationsScreen extends StatefulWidget {
     this.customProjectName,
     required this.scope,
     this.coverage = RenovationCoverage.full,
+    this.renovationTypes,
     required this.description,
     this.service,
   });
@@ -49,10 +56,11 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
   late final AiMaterialConsultantService _service =
       widget.service ?? AiMaterialConsultantService();
 
+  late final WorkCatalogue _catalogue =
+      RenovationTemplatesCatalog.workCatalogueFor(widget.projectName);
+
   bool _loading = true;
   String? _error;
-  List<AiRecommendedMaterial> _materials = const [];
-  final Set<int> _selected = {};
 
   @override
   void initState() {
@@ -65,57 +73,44 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
       _loading = true;
       _error = null;
     });
-    final result = await _service.recommend(
+    final result = await _service.recommendWork(
       projectType: widget.projectName,
-      scope: widget.scope.label,
+      scope: widget.types.label,
       description: widget.description,
+      catalogue: _catalogue,
     );
     if (!mounted) return;
-    setState(() {
-      _loading = false;
-      _error = result.success ? null : result.errorMessage;
-      _materials = result.materials;
-      _selected
-        ..clear()
-        ..addAll(List.generate(result.materials.length, (i) => i));
-    });
+    if (!result.success) {
+      setState(() {
+        _loading = false;
+        _error = result.errorMessage;
+      });
+      return;
+    }
+    _openChecklist({for (final pick in result.picks) pick.id: pick.reason});
   }
 
-  /// The recommendations still ticked, in the order they were shown.
-  List<String> get _keptNames => [
-        for (var i = 0; i < _materials.length; i++)
-          if (_selected.contains(i)) _materials[i].name,
-      ];
-
-  void _continue() {
-    final names = _keptNames;
-    if (names.isEmpty) return;
-
-    Navigator.push(
+  /// The checklist, ticked with [recommended] when the AI answered, or with
+  /// the starting packages for the chosen kinds of work when it did not.
+  /// Either way the description carries over as the estimate's notes.
+  void _openChecklist([Map<String, String>? recommended]) {
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => TemplateAreaScreen(
-          template: BomQuantityEstimator.consultationTemplate(
-            projectType: widget.projectName,
-            materialNames: names,
-            scope: widget.scope,
-          ),
+        builder: (_) => SelectWorkItemsScreen(
+          catalogue: _catalogue,
           projectName: widget.projectName,
           customProjectName: widget.customProjectName,
           projectNotes: widget.description,
-          scope: widget.scope,
           coverage: widget.coverage,
+          types: widget.types,
           hints: parseSiteHints(widget.description),
+          recommended: recommended,
         ),
       ),
     );
   }
 
-  /// Carries on in the chat, keeping whatever is ticked.
-  ///
-  /// The description has already been given, so the chat is for adding to the
-  /// list — a material the AI missed, a brand the builder wants — not for
-  /// starting again.
   void _openChat() {
     Navigator.pushReplacement(
       context,
@@ -126,7 +121,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
           projectNotes: widget.description,
           scope: widget.scope,
           coverage: widget.coverage,
-          initialMaterials: _keptNames,
+          renovationTypes: widget.types,
         ),
       ),
     );
@@ -134,22 +129,13 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final count = _selected.length;
     return GlitchedFlowShell(
-      title: 'Recommended\nMaterials',
-      subtitle: '${widget.scope.label} · ${widget.projectName}',
+      title: 'Recommended\nWork',
+      subtitle: '${widget.types.label} · ${widget.projectName}',
       instruction:
-          'Recommended from your description. Untick anything you do not want. Quantities are set after you measure.',
-      trailingAction: GlitchedPillButton(
-        label: count == 0 || _loading ? 'Continue' : 'Continue ($count)',
-        width: 160,
-        onPressed: _loading || count == 0 ? null : _continue,
-      ),
-      body: _loading
-          ? _buildLoading()
-          : _error != null
-              ? _buildError(_error!)
-              : _buildList(),
+          'The AI picks the work your description calls for from this '
+          'project\'s checklist. You can change any of it next.',
+      body: _loading ? _buildLoading() : _buildError(_error ?? ''),
     );
   }
 
@@ -172,25 +158,20 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
     );
   }
 
-  /// When the AI cannot answer, the template for this project and type still
-  /// can. The description carries over as the estimate's notes, so nothing
-  /// the builder typed is lost.
-  void _useTemplate() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TemplateAreaScreen(
-          template: RenovationTemplatesCatalog.forProject(
-            widget.projectName,
-            widget.scope,
-          ),
-          projectName: widget.projectName,
-          customProjectName: widget.customProjectName,
-          projectNotes: widget.description,
-          scope: widget.scope,
-          coverage: widget.coverage,
-          hints: parseSiteHints(widget.description),
-        ),
+  Widget _outlined(String label, IconData icon, VoidCallback onPressed) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: GlitchedFlowShell.cream,
+        side: BorderSide(color: GlitchedFlowShell.cream.withAlpha(140)),
+        minimumSize: const Size.fromHeight(44),
+        shape: const StadiumBorder(),
+      ),
+      icon: Icon(icon, size: 18),
+      label: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -203,158 +184,20 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
         const SizedBox(height: 16),
         GlitchedPillButton(label: 'Try again', onPressed: _load),
         const SizedBox(height: 12),
-        // The template needs no model and no network beyond Firestore, so it
+        // The checklist needs no model and no network beyond Firestore, so it
         // is the way through when the AI is busy — not a consolation prize.
-        OutlinedButton.icon(
-          onPressed: _useTemplate,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: GlitchedFlowShell.cream,
-            side: BorderSide(color: GlitchedFlowShell.cream.withAlpha(140)),
-            minimumSize: const Size.fromHeight(44),
-            shape: const StadiumBorder(),
-          ),
-          icon: const Icon(Icons.list_alt_rounded, size: 18),
-          label: Text(
-            'Use the ${widget.scope.label.toLowerCase()} template instead',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+        _outlined(
+          'Pick the work from the checklist instead',
+          Icons.checklist_rounded,
+          _openChecklist,
         ),
         const SizedBox(height: 10),
-        _chatButton(),
-      ],
-    );
-  }
-
-  Widget _chatButton() {
-    return OutlinedButton.icon(
-      onPressed: _openChat,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: GlitchedFlowShell.cream,
-        side: BorderSide(color: GlitchedFlowShell.cream.withAlpha(140)),
-        minimumSize: const Size.fromHeight(44),
-        shape: const StadiumBorder(),
-      ),
-      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-      label: Text(
-        _keptNames.isEmpty
-            ? 'Chat with the AI instead'
-            : 'Add more materials in chat',
-        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-
-  Widget _buildList() {
-    final allSelected = _selected.length == _materials.length;
-    return ListView(
-      padding: const EdgeInsets.only(right: 4, bottom: 16),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '${_materials.length} recommended',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: GlitchedFlowShell.cream,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => setState(() {
-                if (allSelected) {
-                  _selected.clear();
-                } else {
-                  _selected.addAll(List.generate(_materials.length, (i) => i));
-                }
-              }),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF8FB2D4),
-                visualDensity: VisualDensity.compact,
-              ),
-              child: Text(
-                allSelected ? 'Untick all' : 'Tick all',
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
+        _outlined(
+          'Chat with the AI instead',
+          Icons.chat_bubble_outline_rounded,
+          _openChat,
         ),
-        const SizedBox(height: 4),
-        for (var i = 0; i < _materials.length; i++) _materialRow(i),
-        const SizedBox(height: 16),
-        _chatButton(),
       ],
-    );
-  }
-
-  Widget _materialRow(int index) {
-    final material = _materials[index];
-    final ticked = _selected.contains(index);
-    return MergeSemantics(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => setState(() {
-          ticked ? _selected.remove(index) : _selected.add(index);
-        }),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Checkbox(
-                value: ticked,
-                onChanged: (value) => setState(() {
-                  value == true
-                      ? _selected.add(index)
-                      : _selected.remove(index);
-                }),
-                activeColor: GlitchedFlowShell.cream,
-                checkColor: GlitchedFlowShell.darkBlue,
-                side: const BorderSide(color: GlitchedFlowShell.cream),
-                visualDensity: VisualDensity.compact,
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        material.name,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                      if (material.reason.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          material.reason,
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            color: const Color(0xFF8FB2D4),
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

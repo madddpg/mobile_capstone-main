@@ -21,6 +21,7 @@ class BomQuantityEstimator {
     required RenovationTemplate template,
     required double areaSqm,
     RenovationScope scope = RenovationScope.cosmetic,
+    RenovationTypes? types,
     SiteTakeoff? takeoff,
     FunctionalCounts? counts,
   }) {
@@ -28,16 +29,24 @@ class BomQuantityEstimator {
     final isConsultation = template.id.contains('consultation');
     final items = <RenovationTemplateItem>[];
 
+    // Every question below is asked of the whole combination: a cosmetic and
+    // functional job changes finishes, and a job with any structural work in it
+    // keeps structural materials.
+    final kinds = types ?? RenovationTypes.only(scope);
+
     // An AI BOM is exactly what the builder confirmed, so a measured room
-    // sizes its lines but never adds or removes any. Functional work replaces
-    // pipes and wiring, not finishes, so its lines are left as they are too.
-    final source = takeoff == null || isConsultation || !scope.changesFinishes
+    // sizes its lines but never adds or removes any. Purely functional work
+    // replaces pipes and wiring, not finishes, so its lines are left as they
+    // are too. Fitting only ever adds or drops finish lines, so the pipes and
+    // wiring of a combined job pass through it untouched.
+    final source = takeoff == null || isConsultation || !kinds.changesFinishes
         ? template.items
-        : fitToRoom(template.items, takeoff);
+        : fitToRoom(template.items, takeoff,
+            addMissing: !template.isFromWorkItems);
 
     for (final rawItem in source) {
-      // Filter structural items if Full Renovation scope
-      if (!scope.includesStructural && _isStructuralOnlyItem(rawItem)) {
+      // Structural-only materials belong only when structural work is chosen.
+      if (!kinds.includesStructural && _isStructuralOnlyItem(rawItem)) {
         continue;
       }
 
@@ -1086,10 +1095,16 @@ class BomQuantityEstimator {
   /// - hacking off old tiles adds cement and sand for a new screed.
   ///
   /// Nothing else is touched, so fixtures, cabinets and countertops stay.
+  ///
+  /// With [addMissing] false, as for a list built from ticked work items,
+  /// lines the room has no surface for are still dropped but none is added:
+  /// a builder who left the walls untiled meant it. The screed still follows
+  /// hacked-off tiles, since it is part of retiling the floor.
   static List<RenovationTemplateItem> fitToRoom(
     List<RenovationTemplateItem> items,
-    SiteTakeoff takeoff,
-  ) {
+    SiteTakeoff takeoff, {
+    bool addMissing = true,
+  }) {
     final job = takeoff.job;
     bool ofKind(RenovationTemplateItem item, MaterialKind kind) =>
         classifyMaterial(item) == kind;
@@ -1112,6 +1127,17 @@ class BomQuantityEstimator {
     ];
     int after(bool Function(RenovationTemplateItem) test) =>
         out.lastIndexWhere(test) + 1;
+
+    if (!addMissing) {
+      if (job.hasFloor &&
+          takeoff.details.removeOldTiles &&
+          out.any(isFloorFinish)) {
+        final at = after(isFloorFinish);
+        if (!out.any(_isBeddingSand)) out.insert(at, _screedSandRow);
+        if (!out.any(_isBeddingCement)) out.insert(at, _screedCementRow);
+      }
+      return out;
+    }
 
     if (job.hasFloor && !out.any(isFloorFinish)) {
       out.insert(
