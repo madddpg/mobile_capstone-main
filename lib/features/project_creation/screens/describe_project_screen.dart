@@ -8,6 +8,7 @@ import 'package:iconstruct/features/project_creation/data/renovation_scope.dart'
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/screens/ai_consultation_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/ai_recommendations_screen.dart';
+import 'package:iconstruct/features/project_creation/screens/select_work_items_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
 
@@ -102,6 +103,26 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
             coverage: widget.coverage,
             renovationTypes: widget.types,
             description: _description,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final catalogue =
+        RenovationTemplatesCatalog.workCatalogueFor(widget.projectName);
+    if (catalogue != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SelectWorkItemsScreen(
+            catalogue: catalogue,
+            projectName: widget.projectName,
+            customProjectName: widget.customProjectName,
+            projectNotes: _description.isEmpty ? null : _description,
+            coverage: widget.coverage,
+            types: widget.types,
+            hints: parseSiteHints(_description),
           ),
         ),
       );

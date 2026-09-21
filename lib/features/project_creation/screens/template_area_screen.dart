@@ -182,6 +182,24 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       widget.template.items
           .any((i) => classifyMaterial(i) == MaterialKind.electrical);
 
+  /// Whether the list carries a line of the given kind. A list built from
+  /// ticked work is only asked about the work ticked: no wall-tile height
+  /// when the walls are not being tiled, and nothing about the ceiling when
+  /// nothing is being painted. A template is asked everything, as before,
+  /// because measuring may add a finish it did not carry.
+  bool _asks(bool Function(RenovationTemplateItem) test) =>
+      !widget.template.isFromWorkItems || widget.template.items.any(test);
+
+  late final bool _asksWallTiles =
+      _asks((i) => classifyMaterial(i) == MaterialKind.wallTile);
+  late final bool _asksFloor = _asks((i) =>
+      classifyMaterial(i) == MaterialKind.floorTile || isFloorFinishGoods(i));
+  late final bool _asksPaint =
+      _asks((i) => kPaintKinds.contains(classifyMaterial(i)));
+
+  /// Doors and windows only change the tiled and painted wall.
+  bool get _asksOpenings => _asksWallTiles || _asksPaint;
+
   /// The counts as entered, or `null` when this job wires nothing and its
   /// quantities keep the template's own rates.
   FunctionalCounts? get _counts => _needsFunctionalCounts
@@ -218,6 +236,12 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     _wallTiles = widget.hints.wallTileHeight ??
         defaults?.wallTileHeight ??
         WallTileHeight.none;
+    // Tiling the walls was ticked, so "no wall tiles" is not an answer here.
+    if (widget.template.isFromWorkItems &&
+        _asksWallTiles &&
+        _wallTiles == WallTileHeight.none) {
+      _wallTiles = WallTileHeight.wainscot;
+    }
     _removeOldTiles =
         widget.hints.removeOldTiles ?? defaults?.removeOldTiles ?? false;
     _paintCeiling =
@@ -265,16 +289,19 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       heightM: job.hasWalls
           ? _parseMetres(_heightController.text) ?? 0
           : job.typicalHeightM,
-      doors: _finishes ? openings(_doors) : const [],
-      windows: _finishes && job.hasWalls ? openings(_windows) : const [],
-      wallTileHeight: _finishes && job.offersWallTiles
+      doors: _finishes && _asksOpenings ? openings(_doors) : const [],
+      windows: _finishes && _asksOpenings && job.hasWalls
+          ? openings(_windows)
+          : const [],
+      wallTileHeight: _finishes && job.offersWallTiles && _asksWallTiles
           ? _wallTiles
           : WallTileHeight.none,
       counterLengthM: _finishes && job == RoomJob.kitchen
           ? _parseMetres(_counterController.text) ?? 0
           : 0,
-      removeOldTiles: _finishes && job.hasFloor && _removeOldTiles,
-      paintCeiling: _finishes && job.hasWalls && _paintCeiling,
+      removeOldTiles:
+          _finishes && job.hasFloor && _asksFloor && _removeOldTiles,
+      paintCeiling: _finishes && job.hasWalls && _asksPaint && _paintCeiling,
       partial: _partialArea,
       irregular: _irregularRoom,
     );
@@ -633,7 +660,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   List<Widget> _buildRoomSection(RoomJob job) {
     final details = _details!;
     final wallTileOptions = [
-      WallTileHeight.none,
+      if (!widget.template.isFromWorkItems) WallTileHeight.none,
       if (job == RoomJob.kitchen) WallTileHeight.backsplash,
       WallTileHeight.wainscot,
       WallTileHeight.full,
@@ -807,15 +834,17 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
             (value) => setState(() => _lights = value)),
       ],
       if (_finishes) ...[
-      const SizedBox(height: 18),
-      _label(job.hasWalls ? 'Doors' : 'Doorways (skirting stops at these)'),
-      const SizedBox(height: 6),
-      ..._openingRows(_doors, 'door'),
-      _addSizeButton(
-        'Add another door size',
-        () => setState(() => _doors.add(_OpeningCount.custom())),
-      ),
-      if (job.hasWalls) ...[
+      if (_asksOpenings) ...[
+        const SizedBox(height: 18),
+        _label(job.hasWalls ? 'Doors' : 'Doorways (skirting stops at these)'),
+        const SizedBox(height: 6),
+        ..._openingRows(_doors, 'door'),
+        _addSizeButton(
+          'Add another door size',
+          () => setState(() => _doors.add(_OpeningCount.custom())),
+        ),
+      ],
+      if (job.hasWalls && _asksOpenings) ...[
         const SizedBox(height: 12),
         _label('Windows'),
         const SizedBox(height: 6),
@@ -825,7 +854,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           () => setState(() => _windows.add(_OpeningCount.custom())),
         ),
       ],
-      if (job.offersWallTiles) ...[
+      if (job.offersWallTiles && _asksWallTiles) ...[
         const SizedBox(height: 12),
         _label('Wall tiles'),
         const SizedBox(height: 8),
@@ -851,14 +880,14 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         _hint('Sizes the backsplash and the countertop.'),
       ],
       const SizedBox(height: 12),
-      if (job.hasFloor)
+      if (job.hasFloor && _asksFloor)
         _switchRow(
           title: 'Remove the old floor tiles',
           subtitle: 'Adds cement and sand for a new screed',
           value: _removeOldTiles,
           onChanged: (v) => setState(() => _removeOldTiles = v),
         ),
-      if (job.hasWalls)
+      if (job.hasWalls && _asksPaint)
         _switchRow(
           title: 'Paint the ceiling',
           subtitle: 'Adds the ceiling to the paint area',

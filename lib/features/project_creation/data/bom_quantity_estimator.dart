@@ -41,7 +41,8 @@ class BomQuantityEstimator {
     // wiring of a combined job pass through it untouched.
     final source = takeoff == null || isConsultation || !kinds.changesFinishes
         ? template.items
-        : fitToRoom(template.items, takeoff);
+        : fitToRoom(template.items, takeoff,
+            addMissing: !template.isFromWorkItems);
 
     for (final rawItem in source) {
       // Structural-only materials belong only when structural work is chosen.
@@ -1094,10 +1095,16 @@ class BomQuantityEstimator {
   /// - hacking off old tiles adds cement and sand for a new screed.
   ///
   /// Nothing else is touched, so fixtures, cabinets and countertops stay.
+  ///
+  /// With [addMissing] false, as for a list built from ticked work items,
+  /// lines the room has no surface for are still dropped but none is added:
+  /// a builder who left the walls untiled meant it. The screed still follows
+  /// hacked-off tiles, since it is part of retiling the floor.
   static List<RenovationTemplateItem> fitToRoom(
     List<RenovationTemplateItem> items,
-    SiteTakeoff takeoff,
-  ) {
+    SiteTakeoff takeoff, {
+    bool addMissing = true,
+  }) {
     final job = takeoff.job;
     bool ofKind(RenovationTemplateItem item, MaterialKind kind) =>
         classifyMaterial(item) == kind;
@@ -1120,6 +1127,17 @@ class BomQuantityEstimator {
     ];
     int after(bool Function(RenovationTemplateItem) test) =>
         out.lastIndexWhere(test) + 1;
+
+    if (!addMissing) {
+      if (job.hasFloor &&
+          takeoff.details.removeOldTiles &&
+          out.any(isFloorFinish)) {
+        final at = after(isFloorFinish);
+        if (!out.any(_isBeddingSand)) out.insert(at, _screedSandRow);
+        if (!out.any(_isBeddingCement)) out.insert(at, _screedCementRow);
+      }
+      return out;
+    }
 
     if (job.hasFloor && !out.any(isFloorFinish)) {
       out.insert(

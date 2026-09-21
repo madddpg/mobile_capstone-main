@@ -7,6 +7,8 @@ library;
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 
+part 'work_items.dart';
+
 class MaterialAlternative {
   final String name;
   final String? size;
@@ -154,6 +156,15 @@ class RenovationTemplate {
   final String description;
   final List<RenovationTemplateItem> items;
 
+  /// The work items ticked to build this list, when it was built from a
+  /// [WorkCatalogue]. Empty for a template chosen by its type alone.
+  ///
+  /// A list built from work items holds exactly the work ticked, so measuring
+  /// the room sizes its lines but never adds one back.
+  final List<String> workItemIds;
+
+  bool get isFromWorkItems => workItemIds.isNotEmpty;
+
   const RenovationTemplate({
     required this.id,
     required this.renovationType,
@@ -161,6 +172,7 @@ class RenovationTemplate {
     required this.name,
     required this.description,
     required this.items,
+    this.workItemIds = const [],
   });
 
   factory RenovationTemplate.fromMap(String id, Map<String, dynamic> data) {
@@ -176,6 +188,7 @@ class RenovationTemplate {
       }
     }
 
+    final rawWork = data['workItemIds'];
     return RenovationTemplate(
       id: id,
       renovationType: (data['renovationType'] ?? '').toString(),
@@ -183,6 +196,9 @@ class RenovationTemplate {
       name: (data['name'] ?? '').toString(),
       description: (data['description'] ?? '').toString(),
       items: items,
+      workItemIds: rawWork is List
+          ? [for (final w in rawWork) if (w != null) w.toString()]
+          : const [],
     );
   }
 
@@ -192,6 +208,7 @@ class RenovationTemplate {
         'name': name,
         'description': description,
         'items': items.map((e) => e.toMap()).toList(),
+        if (workItemIds.isNotEmpty) 'workItemIds': workItemIds,
       };
 
   RenovationTemplate copyWithItems(List<RenovationTemplateItem> newItems) {
@@ -202,6 +219,7 @@ class RenovationTemplate {
       name: name,
       description: description,
       items: newItems,
+      workItemIds: workItemIds,
     );
   }
 }
@@ -364,6 +382,11 @@ class RenovationTemplatesCatalog {
       items: items,
     );
   }
+
+  /// The work items [renovationType] is estimated from, or `null` for a
+  /// project still estimated from its whole template.
+  static WorkCatalogue? workCatalogueFor(String renovationType) =>
+      _key(renovationType).contains('bath') ? _bathroomWork : null;
 
   /// Every template the app offers.
   static List<RenovationTemplate> get allTemplates => [
@@ -921,6 +944,20 @@ class RenovationTemplatesCatalog {
   );
 
   static const _bathroomPlumbing = [
+    ..._bathroomSupplyLines,
+    ..._bathroomDrainLines,
+    _solventCement,
+    _bathroomTeflon,
+  ];
+
+  static const _bathroomTeflon = RenovationTemplateItem(
+    name: 'Teflon Threadseal Tape (3/4")',
+    category: 'Plumbing Supplies',
+    unit: 'rolls',
+    defaultQuantity: 3,
+  );
+
+  static const _bathroomSupplyLines = [
     RenovationTemplateItem(
       name: 'PPR Pipe 1/2" (4 m length)',
       category: 'Water Supply Pipes',
@@ -959,6 +996,9 @@ class RenovationTemplatesCatalog {
       unit: 'pcs',
       defaultQuantity: 2,
     ),
+  ];
+
+  static const _bathroomDrainLines = [
     RenovationTemplateItem(
       name: 'PVC Sanitary Pipe 4" (3 m length)',
       category: 'Drainage Pipes',
@@ -996,13 +1036,6 @@ class RenovationTemplatesCatalog {
       category: 'Drainage Fittings',
       unit: 'pcs',
       defaultQuantity: 1,
-    ),
-    _solventCement,
-    RenovationTemplateItem(
-      name: 'Teflon Threadseal Tape (3/4")',
-      category: 'Plumbing Supplies',
-      unit: 'rolls',
-      defaultQuantity: 3,
     ),
   ];
 

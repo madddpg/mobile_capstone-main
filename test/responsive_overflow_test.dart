@@ -40,6 +40,7 @@ import 'package:iconstruct/features/project_creation/screens/create_project_scre
 import 'package:iconstruct/features/project_creation/screens/select_planning_method_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/describe_project_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/select_renovation_type_screen.dart';
+import 'package:iconstruct/features/project_creation/screens/select_work_items_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
 
 const _sizes = <String, Size>{
@@ -205,6 +206,23 @@ void main() {
           template: measuredBom,
           projectAreaSqm: measuredTakeoff.floorSqm,
           takeoff: measuredTakeoff,
+        ),
+    // Structural work ticked from the start, so the disclaimer renders too.
+    'SelectWorkItemsScreen': () => SelectWorkItemsScreen(
+          catalogue: RenovationTemplatesCatalog.workCatalogueFor(
+              'Bathroom Renovation')!,
+          projectName: 'Bathroom Renovation',
+          types: RenovationTypes([
+            RenovationScope.cosmetic,
+            RenovationScope.structural,
+            RenovationScope.functional,
+          ]),
+        ),
+    'TemplateAreaScreen (work items)': () => TemplateAreaScreen(
+          template: RenovationTemplatesCatalog.workCatalogueFor(
+                  'Bathroom Renovation')!
+              .templateFor({'retile_floor', 'replace_toilet'}),
+          projectName: 'Bathroom Renovation',
         ),
     'BiddingHubScreen': () => const BiddingHubScreen(),
     'EstimateUnavailableView': () => Scaffold(
