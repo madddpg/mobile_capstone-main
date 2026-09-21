@@ -25,6 +25,12 @@ class AiRecommendationsScreen extends StatefulWidget {
   /// cosmetic job and a full one are the same kind of work over different
   /// amounts of room.
   final RenovationCoverage coverage;
+
+  /// Every kind of work chosen, of which [scope] is the heaviest. Null from a
+  /// caller that predates multi-select, which then means [scope] alone.
+  final RenovationTypes? renovationTypes;
+
+  RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
   final String description;
 
   /// Injected in tests; the app uses the Cloud Functions service.
@@ -36,6 +42,7 @@ class AiRecommendationsScreen extends StatefulWidget {
     this.customProjectName,
     required this.scope,
     this.coverage = RenovationCoverage.full,
+    this.renovationTypes,
     required this.description,
     this.service,
   });
@@ -67,7 +74,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
     });
     final result = await _service.recommend(
       projectType: widget.projectName,
-      scope: widget.scope.label,
+      scope: widget.types.label,
       description: widget.description,
     );
     if (!mounted) return;
@@ -105,6 +112,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
           projectNotes: widget.description,
           scope: widget.scope,
           coverage: widget.coverage,
+          renovationTypes: widget.types,
           hints: parseSiteHints(widget.description),
         ),
       ),
@@ -126,6 +134,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
           projectNotes: widget.description,
           scope: widget.scope,
           coverage: widget.coverage,
+          renovationTypes: widget.types,
           initialMaterials: _keptNames,
         ),
       ),
@@ -137,7 +146,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
     final count = _selected.length;
     return GlitchedFlowShell(
       title: 'Recommended\nMaterials',
-      subtitle: '${widget.scope.label} · ${widget.projectName}',
+      subtitle: '${widget.types.label} · ${widget.projectName}',
       instruction:
           'Recommended from your description. Untick anything you do not want. Quantities are set after you measure.',
       trailingAction: GlitchedPillButton(
@@ -180,15 +189,16 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => TemplateAreaScreen(
-          template: RenovationTemplatesCatalog.forProject(
+          template: RenovationTemplatesCatalog.forProjectTypes(
             widget.projectName,
-            widget.scope,
+            widget.types,
           ),
           projectName: widget.projectName,
           customProjectName: widget.customProjectName,
           projectNotes: widget.description,
           scope: widget.scope,
           coverage: widget.coverage,
+          renovationTypes: widget.types,
           hints: parseSiteHints(widget.description),
         ),
       ),
@@ -215,7 +225,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
           ),
           icon: const Icon(Icons.list_alt_rounded, size: 18),
           label: Text(
-            'Use the ${widget.scope.label.toLowerCase()} template instead',
+            'Use the ${widget.types.label.toLowerCase()} template instead',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 12,

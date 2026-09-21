@@ -17,11 +17,18 @@ class CreateProjectScreen extends StatefulWidget {
   /// amounts of room.
   final RenovationCoverage coverage;
 
+  /// Every kind of work chosen, of which [scope] is the heaviest. Null from a
+  /// caller that predates multi-select, which then means [scope] alone.
+  final RenovationTypes? renovationTypes;
+
+  RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
+
   const CreateProjectScreen({
     super.key,
     required this.renovationType,
     this.scope = RenovationScope.cosmetic,
     this.coverage = RenovationCoverage.full,
+    this.renovationTypes,
   });
 
   @override
@@ -48,6 +55,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
           customProjectName: _nameController.text.trim(),
           scope: widget.scope,
           coverage: widget.coverage,
+          renovationTypes: widget.types,
         ),
       ),
     );
@@ -57,7 +65,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
   Widget build(BuildContext context) {
     return GlitchedFlowShell(
       title: 'Name Your\nProject',
-      subtitle: '${widget.scope.label} · ${widget.renovationType}',
+      subtitle: '${widget.types.label} · ${widget.renovationType}',
       instruction:
           'Next, choose how to plan materials: the AI Planner or a template.',
       trailingAction: GlitchedPillButton(

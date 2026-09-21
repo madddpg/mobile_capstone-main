@@ -27,6 +27,12 @@ class DescribeProjectScreen extends StatefulWidget {
   /// cosmetic job and a full one are the same kind of work over different
   /// amounts of room.
   final RenovationCoverage coverage;
+
+  /// Every kind of work chosen, of which [scope] is the heaviest. Null from a
+  /// caller that predates multi-select, which then means [scope] alone.
+  final RenovationTypes? renovationTypes;
+
+  RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
   final PlanningMethod method;
 
   const DescribeProjectScreen({
@@ -35,6 +41,7 @@ class DescribeProjectScreen extends StatefulWidget {
     this.customProjectName,
     required this.scope,
     this.coverage = RenovationCoverage.full,
+    this.renovationTypes,
     required this.method,
   });
 
@@ -93,6 +100,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
             customProjectName: widget.customProjectName,
             scope: widget.scope,
             coverage: widget.coverage,
+            renovationTypes: widget.types,
             description: _description,
           ),
         ),
@@ -104,15 +112,16 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => TemplateAreaScreen(
-          template: RenovationTemplatesCatalog.forProject(
+          template: RenovationTemplatesCatalog.forProjectTypes(
             widget.projectName,
-            widget.scope,
+            widget.types,
           ),
           projectName: widget.projectName,
           customProjectName: widget.customProjectName,
           projectNotes: _description.isEmpty ? null : _description,
           scope: widget.scope,
           coverage: widget.coverage,
+          renovationTypes: widget.types,
           hints: parseSiteHints(_description),
         ),
       ),
@@ -129,6 +138,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
           customProjectName: widget.customProjectName,
           scope: widget.scope,
           coverage: widget.coverage,
+          renovationTypes: widget.types,
         ),
       ),
     );
@@ -144,7 +154,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
 
     return GlitchedFlowShell(
       title: 'Describe\nYour Project',
-      subtitle: '${widget.scope.label} · ${widget.projectName}',
+      subtitle: '${widget.types.label} · ${widget.projectName}',
       instruction: _isAi
           ? 'Tell us what you want done, in your own words. The AI recommends materials from it.'
           : 'Tell the shops what you want done. Anything you say about tiles, '

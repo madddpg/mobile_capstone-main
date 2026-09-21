@@ -34,6 +34,12 @@ class TemplateAreaScreen extends StatefulWidget {
   /// amounts of room.
   final RenovationCoverage coverage;
 
+  /// Every kind of work chosen, of which [scope] is the heaviest. Null from a
+  /// caller that predates multi-select, which then means [scope] alone.
+  final RenovationTypes? renovationTypes;
+
+  RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
+
   /// Budget tier from the AI chat, when the list came from there.
   final String? budgetPreference;
 
@@ -49,6 +55,7 @@ class TemplateAreaScreen extends StatefulWidget {
     this.projectNotes,
     this.scope = RenovationScope.cosmetic,
     this.coverage = RenovationCoverage.full,
+    this.renovationTypes,
     this.budgetPreference,
     this.hints = SiteHints.none,
   });
@@ -152,20 +159,25 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   late int _switches;
   late int _lights;
 
-  /// Functional work replaces pipes and wiring, so only the room's size
-  /// matters; doors, windows, tiles and paint are left as they are.
-  bool get _finishes => widget.scope.changesFinishes;
+  /// Whether finishes are measured: true when any chosen kind of work changes
+  /// them. Purely functional work replaces pipes and wiring, so then only the
+  /// room's size matters; doors, windows, tiles and paint are left as they are.
+  bool get _finishes => widget.types.changesFinishes;
 
-  /// Whether to ask for device counts: a functional job whose template
-  /// actually carries wiring. Asked of the template itself rather than of the
-  /// room, because a functional bathroom is plumbing only and a functional
-  /// roof is drainage only — neither has a device to count.
+  /// Whether to ask for device counts: a job with functional work in it whose
+  /// template actually carries wiring. Asked of the template itself rather than
+  /// of the room, because a functional bathroom is plumbing only and a
+  /// functional roof is drainage only — neither has a device to count.
+  ///
+  /// Asked alongside the finishes when the job is both — retiling a kitchen and
+  /// rewiring it — rather than instead of them, which is what a single choice
+  /// used to force.
   ///
   /// The steppers live in the room section, so a job with no room to measure
   /// cannot show them. Such a job keeps the template's own rates rather than
   /// taking counts the builder was never offered, which would read as zero
   /// devices and empty the wiring out of the list.
-  late final bool _needsFunctionalCounts = !_finishes &&
+  late final bool _needsFunctionalCounts = widget.types.includesFunctional &&
       _job != null &&
       widget.template.items
           .any((i) => classifyMaterial(i) == MaterialKind.electrical);
@@ -338,6 +350,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       template: widget.template,
       areaSqm: area,
       scope: widget.scope,
+      types: widget.types,
       takeoff: takeoff,
       counts: counts,
     );
@@ -359,6 +372,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           projectAreaSqm: area,
           scope: widget.scope,
           coverage: widget.coverage,
+          renovationTypes: widget.types,
           takeoff: takeoff,
           counts: counts,
           budgetPreference: widget.budgetPreference,
@@ -542,7 +556,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           // screen instead of pushing it past the panel edge.
           Expanded(
             child: _label(
-                '${widget.scope.label} renovation · ${widget.template.items.length} materials'),
+                '${widget.types.label} renovation · ${widget.template.items.length} materials'),
           ),
           const SizedBox(width: 8),
           InkWell(

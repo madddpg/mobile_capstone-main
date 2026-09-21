@@ -21,6 +21,7 @@ class BomQuantityEstimator {
     required RenovationTemplate template,
     required double areaSqm,
     RenovationScope scope = RenovationScope.cosmetic,
+    RenovationTypes? types,
     SiteTakeoff? takeoff,
     FunctionalCounts? counts,
   }) {
@@ -28,16 +29,23 @@ class BomQuantityEstimator {
     final isConsultation = template.id.contains('consultation');
     final items = <RenovationTemplateItem>[];
 
+    // Every question below is asked of the whole combination: a cosmetic and
+    // functional job changes finishes, and a job with any structural work in it
+    // keeps structural materials.
+    final kinds = types ?? RenovationTypes.only(scope);
+
     // An AI BOM is exactly what the builder confirmed, so a measured room
-    // sizes its lines but never adds or removes any. Functional work replaces
-    // pipes and wiring, not finishes, so its lines are left as they are too.
-    final source = takeoff == null || isConsultation || !scope.changesFinishes
+    // sizes its lines but never adds or removes any. Purely functional work
+    // replaces pipes and wiring, not finishes, so its lines are left as they
+    // are too. Fitting only ever adds or drops finish lines, so the pipes and
+    // wiring of a combined job pass through it untouched.
+    final source = takeoff == null || isConsultation || !kinds.changesFinishes
         ? template.items
         : fitToRoom(template.items, takeoff);
 
     for (final rawItem in source) {
-      // Filter structural items if Full Renovation scope
-      if (!scope.includesStructural && _isStructuralOnlyItem(rawItem)) {
+      // Structural-only materials belong only when structural work is chosen.
+      if (!kinds.includesStructural && _isStructuralOnlyItem(rawItem)) {
         continue;
       }
 

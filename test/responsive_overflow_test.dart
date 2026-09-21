@@ -161,6 +161,9 @@ void main() {
     'SelectRenovationTypeScreen': () => const SelectRenovationTypeScreen(
           renovationType: 'Interior Painting',
         ),
+    // Structural is ticked by default here, so the disclaimer renders.
+    'SelectRenovationTypeScreen (structural ticked)': () =>
+        const SelectRenovationTypeScreen(renovationType: 'Roof Repair'),
     'DescribeProjectScreen (AI)': () => const DescribeProjectScreen(
           projectName: 'Bathroom Renovation',
           scope: RenovationScope.functional,

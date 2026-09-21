@@ -33,6 +33,12 @@ class AIConsultationScreen extends StatefulWidget {
   /// amounts of room.
   final RenovationCoverage coverage;
 
+  /// Every kind of work chosen, of which [scope] is the heaviest. Null from a
+  /// caller that predates multi-select, which then means [scope] alone.
+  final RenovationTypes? renovationTypes;
+
+  RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
+
   /// Materials the builder already kept, when they came here from the AI's
   /// recommendations. The chat continues that list rather than starting an
   /// empty one, so describing the job once is enough.
@@ -45,6 +51,7 @@ class AIConsultationScreen extends StatefulWidget {
     this.projectNotes,
     this.scope = RenovationScope.cosmetic,
     this.coverage = RenovationCoverage.full,
+    this.renovationTypes,
     this.initialMaterials = const [],
   });
 
@@ -99,8 +106,8 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     );
     await Future.delayed(const Duration(milliseconds: 350));
     await _addBotMessage(
-      "This is a ${widget.scope.label.toLowerCase()} renovation: "
-      "${widget.scope.description.toLowerCase()}. Tell me what you want done "
+      "This is a ${widget.types.label.toLowerCase()} renovation: "
+      "${widget.types.description.toLowerCase()}. Tell me what you want done "
       "and I'll suggest materials. When you're ready, tap Build my BOM. "
       "You'll measure the room next so the quantities fit it.",
     );
@@ -221,7 +228,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       projectType: widget.projectName,
       userMessage: input,
       style: _style,
-      scope: widget.scope.label,
+      scope: widget.types.label,
       ideaLog: List<String>.from(_ideaLog),
       selectedMaterials: List<String>.from(_confirmedMaterials),
       projectNotes: widget.projectNotes,
@@ -669,10 +676,10 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
         'projectType': widget.projectName,
         'style': _style.isEmpty ? 'As described by user' : _style,
         'areaSqm': 0,
-        'scope': widget.scope.label,
+        'scope': widget.types.label,
         'budgetLevel': _budget,
         'additionalNotes': [
-          'Renovation type: ${widget.scope.label} — ${widget.scope.description}.',
+          'Renovation type: ${widget.types.label} — ${widget.types.description}.',
           'The user picked no materials from suggestions — draft only the '
               'essentials implied by the ideas below.',
           'Do not invent a full sequential package beyond those essentials.',
@@ -751,6 +758,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
           projectNotes: widget.projectNotes,
           scope: widget.scope,
           coverage: widget.coverage,
+          renovationTypes: widget.types,
           budgetPreference: _budget,
           hints: parseSiteHints(widget.projectNotes ?? ''),
         ),

@@ -56,6 +56,12 @@ class MaterialEstimatorScreen extends StatefulWidget {
   /// the shop dashboard under that meaning.
   final RenovationCoverage coverage;
 
+  /// Every kind of work chosen, of which [scope] is the heaviest. Null from a
+  /// caller that predates multi-select, which then means [scope] alone.
+  final RenovationTypes? renovationTypes;
+
+  RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
+
   const MaterialEstimatorScreen({
     super.key,
     required this.projectName,
@@ -72,6 +78,7 @@ class MaterialEstimatorScreen extends StatefulWidget {
     this.siteDetails,
     this.excludedWork = const [],
     this.coverage = RenovationCoverage.full,
+    this.renovationTypes,
   });
 
   @override
@@ -124,6 +131,10 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
   /// saved before coverage existed reads as Full, which is what it described.
   late final RenovationCoverage _coverage =
       widget.existingProject?.coverage ?? widget.coverage;
+
+  /// A reopened estimate keeps every kind of work it was saved with.
+  late final RenovationTypes _types =
+      widget.existingProject?.types ?? widget.types;
 
   bool get _alreadyPosted =>
       _postedThisSession ||
@@ -834,6 +845,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         // Its own field. projectScope means the renovation type, both here and
         // on the shop dashboard, and must keep meaning that.
         'coverage': _coverage.name,
+        'renovationTypes': _types.names,
         'materials': materialsList,
         'materialsCount': materialsList.length,
         'totalAreaSqm': _projectArea,
@@ -1057,6 +1069,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           projectType: _projectType,
           projectScope: _projectScopeLabel,
           coverage: _coverage.name,
+          renovationTypes: _types.names,
           ownerName: ownerName,
           materials: materialsList,
           totalAreaSqm: _projectArea,
@@ -1079,6 +1092,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         // Its own field. projectScope means the renovation type, both here and
         // on the shop dashboard, and must keep meaning that.
         'coverage': _coverage.name,
+        'renovationTypes': _types.names,
         'materials': materialsList,
         'materialsCount': materialsList.length,
         'totalAreaSqm': _projectArea,

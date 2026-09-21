@@ -48,13 +48,44 @@ class _SelectRenovationTypeScreenState
   /// every estimate saved before this question existed described.
   late RenovationCoverage _coverage = _offeredCoverages.first;
 
-  void _choose(RenovationScope scope) {
+  /// The kinds of work ticked. A real job is often more than one — retiling a
+  /// bathroom and replacing its pipes — so any combination the project offers
+  /// can be chosen. Starts with the project's usual kind already ticked.
+  late final Set<RenovationScope> _selected = {
+    RenovationTemplatesCatalog.defaultTypeFor(_type),
+  };
+
+  void _setCoverage(RenovationCoverage coverage) {
+    setState(() {
+      _coverage = coverage;
+      // New floor area means new walls and a new slab, so an extension is
+      // structural work whatever else it is. Ticked for the builder, who can
+      // still see it and add to it.
+      if (coverage.isNewArea &&
+          RenovationTemplatesCatalog.offers(_type, RenovationScope.structural)) {
+        _selected.add(RenovationScope.structural);
+      }
+    });
+  }
+
+  void _toggle(RenovationScope scope) {
+    setState(() {
+      if (!_selected.remove(scope)) _selected.add(scope);
+    });
+  }
+
+  void _continue() {
+    if (_selected.isEmpty) return;
+    final types = RenovationTypes(_selected);
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CreateProjectScreen(
           renovationType: widget.renovationType,
-          scope: scope,
+          // The heaviest kind, for everything that still holds one — chiefly
+          // the projectScope label the shop dashboard reads.
+          scope: types.primary,
           coverage: _coverage,
+          renovationTypes: types,
         ),
       ),
     );
@@ -66,7 +97,12 @@ class _SelectRenovationTypeScreenState
       title: 'Type of\nRenovation',
       subtitle: _type,
       instruction:
-          'How much of the space, and what kind of work? Together they decide which materials the template and the AI start from.',
+          'How much of the space, and what kind of work? Tick every kind the job includes — they decide which materials the template and the AI start from.',
+      trailingAction: GlitchedPillButton(
+        label: 'Continue',
+        width: 150,
+        onPressed: _selected.isEmpty ? null : _continue,
+      ),
       body: ListView(
         padding: const EdgeInsets.only(right: 4, bottom: 8),
         children: [
@@ -95,7 +131,7 @@ class _SelectRenovationTypeScreenState
                       : RenovationTemplatesCatalog.unavailableCoverageReason(
                           _type, coverage),
                   onTap: _offeredCoverages.contains(coverage)
-                      ? () => setState(() => _coverage = coverage)
+                      ? () => _setCoverage(coverage)
                       : null,
                 ),
             ],
@@ -111,7 +147,7 @@ class _SelectRenovationTypeScreenState
           ),
           const SizedBox(height: 22),
           Text(
-            'KIND OF WORK',
+            'KIND OF WORK · TICK ALL THAT APPLY',
             style: GoogleFonts.poppins(
               fontSize: 10.5,
               fontWeight: FontWeight.w700,
@@ -131,12 +167,39 @@ class _SelectRenovationTypeScreenState
                 scope: scope,
                 icon: _icons[scope]!,
                 accent: _accents[scope]!,
+                selected: _selected.contains(scope),
                 unavailableReason: offered
                     ? null
                     : RenovationTemplatesCatalog.unavailableReason(_type, scope),
-                onTap: offered ? () => _choose(scope) : null,
+                onTap: offered ? () => _toggle(scope) : null,
               );
             }),
+          ],
+          if (_selected.contains(RenovationScope.structural)) ...[
+            const SizedBox(height: 14),
+            // Said wherever structural work is chosen, because the app lists
+            // the materials a structural job needs and nothing more. Sizing a
+            // beam or a footing is an engineer's call, not an estimate's.
+            Text(
+              'Material estimate only. No structural design or analysis.',
+              style: GoogleFonts.poppins(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFFFBBF77),
+                height: 1.35,
+              ),
+            ),
+          ],
+          if (_selected.isEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Tick at least one kind of work to continue.',
+              style: GoogleFonts.poppins(
+                fontSize: 11.5,
+                color: const Color(0xFFE0D7C9),
+                height: 1.35,
+              ),
+            ),
           ],
         ],
       ),
@@ -207,6 +270,7 @@ class _TypeTile extends StatelessWidget {
   final RenovationScope scope;
   final IconData icon;
   final Color accent;
+  final bool selected;
   final String? unavailableReason;
   final VoidCallback? onTap;
 
@@ -214,6 +278,7 @@ class _TypeTile extends StatelessWidget {
     required this.scope,
     required this.icon,
     required this.accent,
+    required this.selected,
     required this.unavailableReason,
     required this.onTap,
   });
@@ -221,7 +286,10 @@ class _TypeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
-    return Opacity(
+    // A tile now toggles rather than navigates, so it says which way it is.
+    return Semantics(
+      checked: enabled ? selected : null,
+      child: Opacity(
       opacity: enabled ? 1 : 0.45,
       child: Material(
         color: Colors.transparent,
@@ -232,9 +300,12 @@ class _TypeTile extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(22),
+              color: selected ? accent.withValues(alpha: 0.10) : null,
               border: Border.all(
-                color: const Color(0xFF648DB6).withValues(alpha: 0.85),
-                width: 1.2,
+                color: selected
+                    ? accent
+                    : const Color(0xFF648DB6).withValues(alpha: 0.85),
+                width: selected ? 1.8 : 1.2,
               ),
             ),
             child: Row(
@@ -274,15 +345,18 @@ class _TypeTile extends StatelessWidget {
                   ),
                 ),
                 if (enabled)
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Colors.white70,
-                    size: 22,
+                  Icon(
+                    selected
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    color: selected ? accent : Colors.white54,
+                    size: 24,
                   ),
               ],
             ),
           ),
         ),
+      ),
       ),
     );
   }

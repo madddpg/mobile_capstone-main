@@ -38,6 +38,12 @@ class CostEstimationScreen extends StatefulWidget {
   /// post; it never goes into projectScope, which carries the renovation type.
   final RenovationCoverage coverage;
 
+  /// Every kind of work chosen, of which [scope] is the heaviest. Null from a
+  /// caller that predates multi-select, which then means [scope] alone.
+  final RenovationTypes? renovationTypes;
+
+  RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
+
   /// Budget preference collected during AI consultation (Low / Medium / High).
   final String? budgetPreference;
 
@@ -59,6 +65,7 @@ class CostEstimationScreen extends StatefulWidget {
     this.projectAreaSqm,
     this.scope = RenovationScope.cosmetic,
     this.coverage = RenovationCoverage.full,
+    this.renovationTypes,
     this.budgetPreference,
     this.takeoff,
     this.counts,
@@ -384,7 +391,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
         // An AI BOM holds only what the builder picked, so the package this
         // note describes was never added to it.
         if (hasRows &&
-            widget.scope.includesStructural &&
+            widget.types.includesStructural &&
             widget.template?.id != 'ai_consultation_bom') ...[
           Text(
             BomQuantityEstimator.structuralNoteFor(widget.takeoff),
@@ -690,6 +697,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
           siteDetails: _siteDetailsMap(),
           excludedWork: _excludedWork,
           coverage: widget.coverage,
+          renovationTypes: widget.types,
         ),
       ),
     );

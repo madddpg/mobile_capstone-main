@@ -34,6 +34,13 @@ class ProjectModel {
 
   RenovationScope get scope => RenovationScope.fromString(projectScope);
 
+  /// Every kind of work the estimate covers. Older estimates hold only
+  /// [projectScope], which reads as that one kind.
+  final List<String> renovationTypeNames;
+
+  RenovationTypes get types =>
+      RenovationTypes.fromStored(renovationTypeNames, projectScope);
+
   ProjectModel({
     required this.id,
     required this.projectName,
@@ -49,6 +56,7 @@ class ProjectModel {
     this.hasSiteDetails = false,
     this.excludedWork = const [],
     this.coverage = RenovationCoverage.full,
+    this.renovationTypeNames = const [],
   });
 
   factory ProjectModel.fromDocument(DocumentSnapshot doc) {
@@ -80,6 +88,9 @@ class ProjectModel {
       hasSiteDetails: data['siteDetails'] is Map,
       excludedWork: ExcludedWork.listFrom(data['excludedWork']),
       coverage: RenovationCoverage.fromString(asStringOrNull(data['coverage'])),
+      renovationTypeNames: [
+        for (final name in asList(data['renovationTypes'])) '$name',
+      ],
     );
   }
 }

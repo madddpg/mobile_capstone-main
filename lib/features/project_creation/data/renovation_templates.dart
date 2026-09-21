@@ -267,6 +267,18 @@ class RenovationTemplatesCatalog {
     };
   }
 
+  /// The kind of work pre-selected for [renovationType]; the builder can add
+  /// others. A roof repair is structural by default because re-sheeting and
+  /// purlin work are what it usually is. Everything else starts cosmetic,
+  /// which is the most common job and the only kind every project offers.
+  static RenovationScope defaultTypeFor(String renovationType) {
+    final offered = scopesFor(renovationType);
+    final preferred = _key(renovationType).contains('roof')
+        ? RenovationScope.structural
+        : RenovationScope.cosmetic;
+    return offered.contains(preferred) ? preferred : offered.first;
+  }
+
   /// Every project can be done whole or in part. Only a project that can gain
   /// floor area can be an extension: a roof repair, a floor, a paint job and a
   /// wall finish all work on a room that is already there.
@@ -316,6 +328,40 @@ class RenovationTemplatesCatalog {
       name: '${scope.label} ${_shortType(type)}',
       description: _descriptionFor(key, scope),
       items: _itemsFor(key, scope),
+    );
+  }
+
+  /// The template for [renovationType] covering every kind of work in [types].
+  ///
+  /// Each kind already has its own list, so a combination is those lists put
+  /// together: a cosmetic-and-functional bathroom gets the tiles and paint of
+  /// the one and the pipes of the other. A material both lists carry — the
+  /// finishes a structural job re-lays, say — appears once, where it first
+  /// appears, so it is never ordered twice. A single kind returns exactly the
+  /// template [forProject] would.
+  static RenovationTemplate forProjectTypes(
+    String renovationType,
+    RenovationTypes types,
+  ) {
+    if (!types.isMultiple) return forProject(renovationType, types.primary);
+
+    final parts = [
+      for (final scope in types.values) forProject(renovationType, scope),
+    ];
+    final seen = <String>{};
+    final items = <RenovationTemplateItem>[
+      for (final part in parts)
+        for (final item in part.items)
+          if (seen.add(item.name.trim().toLowerCase())) item,
+    ];
+    final type = parts.first.renovationType;
+    return RenovationTemplate(
+      id: '${_idPrefix(type)}_${types.names.join('_')}',
+      renovationType: type,
+      scope: types.primary,
+      name: '${types.label} ${_shortType(type)}',
+      description: parts.map((p) => p.description).join(' '),
+      items: items,
     );
   }
 

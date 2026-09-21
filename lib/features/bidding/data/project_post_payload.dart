@@ -48,6 +48,7 @@ Map<String, dynamic> projectPostFields({
   String remarks = '',
   List<Map<String, dynamic>> excludedWork = const [],
   String coverage = '',
+  List<String> renovationTypes = const [],
 }) {
   return {
     'postId': postId,
@@ -63,6 +64,10 @@ Map<String, dynamic> projectPostFields({
     // Renovation" and "Extension" here as types, so how much of the space the
     // job covers is a separate field and never written into this one.
     'projectScope': projectScope,
+    // Every kind of work chosen. projectScope stays a single label — the
+    // heaviest of them — because the dashboard reads it as one; this carries
+    // the full selection next to it rather than changing what it holds.
+    if (renovationTypes.isNotEmpty) 'renovationTypes': renovationTypes,
     if (coverage.trim().isNotEmpty) 'coverage': coverage.trim(),
     'ownerName': ownerName.trim(),
     'materials': materials,
