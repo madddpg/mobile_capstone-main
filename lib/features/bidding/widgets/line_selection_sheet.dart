@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
-import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
+import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
 import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
 
 /// Result of asking the builder which quoted lines to take.
@@ -40,7 +40,8 @@ Future<LineSelectionResult?> showLineSelectionSheet(
   required String quotationId,
   required String shopName,
 }) async {
-  List<Map<String, dynamic>> items;
+  var items = <Map<String, dynamic>>[];
+  var quotedTotal = 0.0;
   try {
     final snap = await FirebaseFirestore.instance
         .collection('projectPosts')
@@ -48,43 +49,13 @@ Future<LineSelectionResult?> showLineSelectionSheet(
         .collection('quotations')
         .doc(quotationId)
         .get();
-    items = quotationItems(snap.data() ?? <String, dynamic>{});
+    final data = snap.data() ?? <String, dynamic>{};
+    items = quotationItems(data);
+    quotedTotal = bidAsDouble(
+      data['estimatedTotal'] ?? data['totalAmount'] ?? data['amount'],
+    );
   } catch (_) {
     items = const [];
-  }
-
-  if (!context.mounted) return null;
-
-  // A shop that sent only a lump sum has nothing to tick. Fall back to a plain
-  // confirmation rather than showing an empty list of choices.
-  if (items.isEmpty) {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select this shop?'),
-        content: Text(
-          '$shopName did not send itemised lines, so this accepts their whole '
-          'offer. It opens live chat with them. No payment happens in the app.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Select and chat'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return null;
-    return const LineSelectionResult(
-      acceptedIndexes: null,
-      acceptedTotal: 0,
-      acceptedCount: 0,
-      totalCount: 0,
-    );
   }
 
   if (!context.mounted) return null;
@@ -93,35 +64,83 @@ Future<LineSelectionResult?> showLineSelectionSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (context) => _LineSelectionSheet(
+    builder: (context) => SelectShopSheet(
       items: items,
       shopName: shopName,
+      quotedTotal: quotedTotal,
     ),
   );
 }
 
-class _LineSelectionSheet extends StatefulWidget {
-  final List<Map<String, dynamic>> items;
-  final String shopName;
+const _sheetBg = Color(0xFFF6F3EE);
+const _border = Color(0xFFE4DED3);
+const _subBorder = Color(0xFFF3C969);
+const _subTint = Color(0xFFFFFBF0);
+const _subText = Color(0xFFB45309);
 
-  const _LineSelectionSheet({required this.items, required this.shopName});
-
-  @override
-  State<_LineSelectionSheet> createState() => _LineSelectionSheetState();
+String _money(double v) {
+  final whole = v.round().toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < whole.length; i++) {
+    if (i > 0 && (whole.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(whole[i]);
+  }
+  return '₱$buffer';
 }
 
-class _LineSelectionSheetState extends State<_LineSelectionSheet> {
-  late final Set<int> _kept;
+String _number(Object? raw) {
+  final v = bidAsDouble(raw);
+  if (v <= 0) return '';
+  return v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+}
+
+/// "20 bags × ₱343", as the shop dashboard writes it.
+String _quantityLine(Map<String, dynamic> item) {
+  final qty = _number(item['quantity'] ?? item['qty']);
+  final unit = '${item['unit'] ?? ''}'.trim();
+  final size = '${item['size'] ?? ''}'.trim();
+  final price = bidAsDouble(item['unitPrice'] ?? item['price']);
+  final parts = <String>[
+    if (qty.isNotEmpty) '$qty $unit'.trim(),
+    if (size.isNotEmpty) size,
+  ];
+  final amount = parts.join(' · ');
+  if (price <= 0) return amount;
+  return amount.isEmpty ? _money(price) : '$amount × ${_money(price)}';
+}
+
+/// The select-shop modal's contents. Public so it can be laid out in tests
+/// without Firestore; the app opens it through [showLineSelectionSheet].
+class SelectShopSheet extends StatefulWidget {
+  final List<Map<String, dynamic>> items;
+  final String shopName;
+  final double quotedTotal;
+
+  const SelectShopSheet({
+    super.key,
+    required this.items,
+    required this.shopName,
+    required this.quotedTotal,
+  });
 
   @override
-  void initState() {
-    super.initState();
-    // Everything starts ticked. The builder is dropping lines, not building a
-    // list from nothing, so the common case is a couple of taps.
-    _kept = {for (var i = 0; i < widget.items.length; i++) i};
-  }
+  State<SelectShopSheet> createState() => _SelectShopSheetState();
+}
+
+class _SelectShopSheetState extends State<SelectShopSheet> {
+  // Everything starts ticked. The builder is dropping lines, not building a
+  // list from nothing, so the common case is a couple of taps.
+  late final Set<int> _kept = {
+    for (var i = 0; i < widget.items.length; i++) i,
+  };
+
+  late final int _substitutes =
+      widget.items.where(isSubstitutedLine).length;
+
+  bool get _lumpSum => widget.items.isEmpty;
 
   double get _total {
+    if (_lumpSum) return widget.quotedTotal;
     var sum = 0.0;
     for (final i in _kept) {
       sum += lineTotalOf(widget.items[i]);
@@ -129,256 +148,464 @@ class _LineSelectionSheetState extends State<_LineSelectionSheet> {
     return sum;
   }
 
-  static String _money(double v) {
-    final whole = v.round().toString();
-    final buffer = StringBuffer();
-    for (var i = 0; i < whole.length; i++) {
-      if (i > 0 && (whole.length - i) % 3 == 0) buffer.write(',');
-      buffer.write(whole[i]);
-    }
-    return '₱$buffer';
-  }
+  void _toggle(int i) => setState(() {
+        if (!_kept.remove(i)) _kept.add(i);
+      });
 
-  static String _name(Map<String, dynamic> item) {
-    final n = (item['name'] ?? item['material'] ?? item['item'] ?? '')
-        .toString()
-        .trim();
-    return n.isEmpty ? 'Unnamed item' : n;
-  }
-
-  static String _detail(Map<String, dynamic> item) {
-    final parts = <String>[];
-    final qty = (item['quantity'] ?? item['qty'] ?? '').toString().trim();
-    final unit = (item['unit'] ?? '').toString().trim();
-    final size = (item['size'] ?? '').toString().trim();
-    if (qty.isNotEmpty && qty != '0') parts.add('$qty $unit'.trim());
-    if (size.isNotEmpty) parts.add(size);
-    return parts.join(' • ');
+  void _accept() {
+    Navigator.pop(
+      context,
+      _lumpSum
+          ? const LineSelectionResult(
+              acceptedIndexes: null,
+              acceptedTotal: 0,
+              acceptedCount: 0,
+              totalCount: 0,
+            )
+          : LineSelectionResult(
+              acceptedIndexes: Set<int>.from(_kept),
+              acceptedTotal: _total,
+              acceptedCount: _kept.length,
+              totalCount: widget.items.length,
+            ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final all = widget.items.length;
-    final kept = _kept.length;
-    final partial = kept < all;
-
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85,
+        maxHeight: MediaQuery.sizeOf(context).height * 0.9,
       ),
       decoration: const BoxDecoration(
-        color: IConstructPanel.navy,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        color: _sheetBg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 44,
-            height: 4,
-            margin: const EdgeInsets.only(top: 10, bottom: 12),
-            decoration: BoxDecoration(
-              color: AppColors.cream.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(2),
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+          _header(),
+          if (_lumpSum)
+            _lumpSumBody()
+          else
+            Flexible(child: _lineList()),
+          _footer(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _header() {
+    final count = widget.items.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 8, 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Choose what to take from ${widget.shopName}',
+                  'Select ${widget.shopName}',
                   style: GoogleFonts.poppins(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: AppColors.textDark,
                     height: 1.25,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Untick anything you would rather buy elsewhere. '
-                  'You can canvass the unticked lines as a new estimate after.',
+                  _lumpSum
+                      ? 'One price for the whole order'
+                      : [
+                          '$count line${count == 1 ? '' : 's'} quoted',
+                          if (_substitutes > 0)
+                            '$_substitutes substitute'
+                                '${_substitutes == 1 ? '' : 's'}',
+                        ].join(' · '),
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: IConstructPanel.creamSoft,
-                    height: 1.4,
+                    fontSize: 12.5,
+                    color: AppColors.textMuted,
                   ),
                 ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-            child: Row(
-              children: [
-                TextButton(
-                  onPressed: () => setState(() {
-                    _kept
-                      ..clear()
-                      ..addAll({for (var i = 0; i < all; i++) i});
-                  }),
-                  child: Text(
-                    'Select all',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: AppColors.cream,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => setState(_kept.clear),
-                  child: Text(
-                    'Clear all',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: AppColors.cream,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          IconButton(
+            tooltip: 'Close',
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close_rounded, color: AppColors.textMuted),
           ),
-          Flexible(
-            child: ListView.builder(
-              shrinkWrap: true,
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              itemCount: all,
-              itemBuilder: (context, i) {
-                final item = widget.items[i];
-                final on = _kept.contains(i);
-                final detail = _detail(item);
-                final total = lineTotalOf(item);
+        ],
+      ),
+    );
+  }
 
-                return CheckboxListTile(
-                  value: on,
-                  onChanged: (v) => setState(() {
-                    if (v == true) {
-                      _kept.add(i);
-                    } else {
-                      _kept.remove(i);
-                    }
-                  }),
-                  dense: true,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  activeColor: AppColors.cream,
-                  checkColor: IConstructPanel.navy,
-                  title: Text(
-                    _name(item),
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: on ? Colors.white : Colors.white54,
-                    ),
-                  ),
-                  subtitle: detail.isEmpty
-                      ? null
-                      : Text(
-                          detail,
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            color: on
-                                ? IConstructPanel.creamSoft
-                                : IConstructPanel.creamSoft.withValues(alpha: 0.45),
-                          ),
-                        ),
-                  secondary: total <= 0
-                      ? null
-                      : Text(
-                          _money(total),
-                          style: GoogleFonts.poppins(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: on ? AppColors.cream : Colors.white38,
-                          ),
-                        ),
-                );
-              },
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              12,
-              20,
-              12 + MediaQuery.of(context).padding.bottom,
-            ),
-            decoration: BoxDecoration(
-              color: IConstructPanel.darkBlue,
-              border: Border(
-                top: BorderSide(
-                  color: AppColors.cream.withValues(alpha: 0.25),
+  Widget _lumpSumBody() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      child: Text(
+        '${widget.shopName} sent one price without itemised lines, so '
+        'selecting them accepts the whole offer.',
+        style: GoogleFonts.poppins(
+          fontSize: 13,
+          color: AppColors.textDark,
+          height: 1.45,
+        ),
+      ),
+    );
+  }
+
+  Widget _lineList() {
+    final all = widget.items.length;
+    return ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      children: [
+        if (_substitutes > 0) ...[
+          _substituteNotice(),
+          const SizedBox(height: 12),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'ITEMS QUOTED',
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  color: AppColors.textMuted,
                 ),
               ),
             ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        partial
-                            ? '$kept of $all lines'
-                            : 'All $all lines',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12.5,
-                          color: IConstructPanel.creamSoft,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      _money(_total),
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
+            TextButton(
+              onPressed: () => setState(() {
+                if (_kept.length == all) {
+                  _kept.clear();
+                } else {
+                  _kept.addAll({for (var i = 0; i < all; i++) i});
+                }
+              }),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.navySoft,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: Text(
+                _kept.length == all ? 'Untick all' : 'Tick all',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: kept == 0
-                        ? null
-                        : () => Navigator.pop(
-                              context,
-                              LineSelectionResult(
-                                acceptedIndexes: Set<int>.from(_kept),
-                                acceptedTotal: _total,
-                                acceptedCount: kept,
-                                totalCount: all,
-                              ),
-                            ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.cream,
-                      foregroundColor: IConstructPanel.navy,
-                      disabledBackgroundColor:
-                          AppColors.cream.withValues(alpha: 0.35),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                    ),
-                    child: Text(
-                      kept == 0
-                          ? 'Tick at least one line'
-                          : partial
-                              ? 'Accept $kept lines and chat'
-                              : 'Accept all and chat',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        for (var i = 0; i < all; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _LineCard(
+              item: widget.items[i],
+              kept: _kept.contains(i),
+              onTap: () => _toggle(i),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _substituteNotice() {
+    final one = _substitutes == 1;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _subTint,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _subBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.swap_horiz_rounded, size: 18, color: _subText),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '${widget.shopName} did not have ${one ? 'one' : '$_substitutes'} '
+              'of your materials and offered '
+              '${one ? 'a substitute' : 'substitutes'}. Check '
+              '${one ? 'it' : 'them'} below, and untick any you do not want.',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: const Color(0xFF78350F),
+                height: 1.4,
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _footer(BuildContext context) {
+    final all = widget.items.length;
+    final kept = _kept.length;
+    final canAccept = _lumpSum || kept > 0;
+    final label = _lumpSum
+        ? 'Accept offer and chat'
+        : kept == 0
+            ? 'Tick at least one line'
+            : kept == all
+                ? 'Accept all and chat'
+                : 'Accept $kept line${kept == 1 ? '' : 's'} and chat';
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        14,
+        20,
+        14 + MediaQuery.paddingOf(context).bottom,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: _border)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _lumpSum
+                      ? 'Quoted total'
+                      : kept == all
+                          ? 'All $all lines'
+                          : '$kept of $all lines',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ),
+              Text(
+                _total > 0 ? _money(_total) : '—',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: canAccept ? _accept : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.navy,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: AppColors.navy.withValues(alpha: 0.3),
+              disabledForegroundColor: Colors.white70,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
+            ),
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Opens live chat with the shop. No payment happens in the app.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              color: AppColors.textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One quoted line, laid out like the shop dashboard's "Items quoted" list.
+class _LineCard extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final bool kept;
+  final VoidCallback onTap;
+
+  const _LineCard({
+    required this.item,
+    required this.kept,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = quotedItemName(item);
+    final substitute = isSubstitutedLine(item);
+    final requested = requestedItemName(item);
+    final note = quotedLineNote(item);
+    final quantity = _quantityLine(item);
+    final total = lineTotalOf(item);
+    final fade = kept ? 1.0 : 0.45;
+
+    return Semantics(
+      checked: kept,
+      child: Material(
+        color: substitute ? _subTint : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: substitute ? _subBorder : _border,
+                width: substitute ? 1.4 : 1,
+              ),
+            ),
+            child: Opacity(
+              opacity: fade,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Icon(
+                      kept
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 22,
+                      color: kept ? AppColors.navy : AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              name.isEmpty ? 'Unnamed item' : name,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textDark,
+                                decoration: kept
+                                    ? null
+                                    : TextDecoration.lineThrough,
+                              ),
+                            ),
+                            if (substitute) const _SubstituteBadge(),
+                          ],
+                        ),
+                        if (substitute && requested.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'instead of $requested',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: _subText,
+                              ),
+                            ),
+                          ),
+                        if (quantity.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              quantity,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ),
+                        if (note.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              '“$note”',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11.5,
+                                fontStyle: FontStyle.italic,
+                                color: AppColors.textMuted,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    total > 0 ? _money(total) : 'No price',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: total > 0
+                          ? AppColors.textDark
+                          : AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SubstituteBadge extends StatelessWidget {
+  const _SubstituteBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: _subBorder),
+      ),
+      child: Text(
+        'SUBSTITUTE',
+        style: GoogleFonts.poppins(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+          color: _subText,
+        ),
       ),
     );
   }

@@ -209,7 +209,14 @@ class ChatService {
     await batch.commit();
   }
 
-  /// Fallback if Cloud Function has not created the thread yet.
+  /// Makes sure the thread with [shopId] exists, creating it if nobody has.
+  ///
+  /// The shop dashboard's `onQuotationAccepted` Cloud Function creates the
+  /// same thread when a quotation is accepted, so the two race. When the
+  /// function wins, a write from here is an edit to someone else's thread,
+  /// which the rules refuse — and the builder was shown an error instead of
+  /// the chat. The create now happens only inside a transaction that first
+  /// sees the thread missing, and a thread that appeared anyway is used as is.
   Future<String> ensureConversationAfterAccept({
     required String projectId,
     required String shopId,
@@ -226,24 +233,33 @@ class ChatService {
     final ref = _db.collection('conversations').doc(id);
     if (await _conversationExists(ref) == true) return id;
 
-    // merge:true so a conversation the web Cloud Function created in the race
-    // window between the existence check and this write is not clobbered.
-    await ref.set({
-      'projectId': projectId,
-      'quotationId': quotationId,
-      'shopId': shopId,
-      'shopName': shopName,
-      'builderId': uid,
-      'userId': uid,
-      'builderName': builderName,
-      'projectTitle': projectTitle,
-      'status': 'open',
-      'lastMessage': 'Quote accepted — you can now message each other.',
-      'lastMessageAt': FieldValue.serverTimestamp(),
-      'lastSenderId': '',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    try {
+      await _db.runTransaction<void>((txn) async {
+        if ((await txn.get(ref)).exists) return;
+        txn.set(ref, {
+          'projectId': projectId,
+          'quotationId': quotationId,
+          'shopId': shopId,
+          'shopName': shopName,
+          'builderId': uid,
+          'userId': uid,
+          'builderName': builderName,
+          'projectTitle': projectTitle,
+          'status': 'open',
+          'lastMessage': 'Quote accepted — you can now message each other.',
+          'lastMessageAt': FieldValue.serverTimestamp(),
+          'lastSenderId': '',
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
+    } on FirebaseException catch (error) {
+      // Created by the function between the read and the commit.
+      if (error.code != 'permission-denied' ||
+          await _conversationExists(ref) != true) {
+        rethrow;
+      }
+    }
 
     return id;
   }

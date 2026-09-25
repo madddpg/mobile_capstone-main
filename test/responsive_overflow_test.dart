@@ -28,6 +28,7 @@ import 'package:iconstruct/features/auth/presentation/screens/terms_conditions_s
 import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
 import 'package:iconstruct/features/bidding/screens/bidding_hub_screen.dart';
 import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.dart';
+import 'package:iconstruct/features/bidding/widgets/line_selection_sheet.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/display_screen.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/landing_screen.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/main_display.dart';
@@ -244,6 +245,36 @@ void main() {
             RenovationScope.cosmetic,
             RenovationScope.functional,
           ]),
+        ),
+    // Long names on both the shop and a substitute, with a note, so the
+    // badge and the price have to share one line on a small phone.
+    'SelectShopSheet (substitute)': () => const Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: SelectShopSheet(
+              shopName: 'Santo Niño Construction Supply and Hardware',
+              quotedTotal: 0,
+              items: [
+                {
+                  'productName': 'Interior Latex Paint (4 L)',
+                  'qty': 4,
+                  'unit': 'gal',
+                  'price': 10,
+                  'subtotal': 40,
+                },
+                {
+                  'productName': 'Mega Bond Premium Tile Adhesive Extra',
+                  'requestedName': 'Tile Adhesive (25 kg)',
+                  'status': 'substituted',
+                  'lineNote': 'Out of stock this week; same coverage.',
+                  'qty': 20,
+                  'unit': 'bags',
+                  'price': 343,
+                  'subtotal': 6860,
+                },
+              ],
+            ),
+          ),
         ),
     'BiddingHubScreen': () => const BiddingHubScreen(),
     'EstimateUnavailableView': () => Scaffold(

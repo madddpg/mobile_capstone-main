@@ -131,17 +131,51 @@ List<Map<String, dynamic>> quotationItems(Map<String, dynamic> data) {
 
 /// The name on a quoted or estimated line, from whichever field holds it.
 /// Empty when the line has none.
+///
+/// The shop dashboard is a separate app and its lines have arrived under every
+/// one of these spellings. Every screen that shows a quoted line reads the name
+/// through here, so a shape one screen understands is never a blank on another.
 String quotedItemName(Map<String, dynamic> item) {
   return (item['name'] ??
           item['material'] ??
           item['materialName'] ??
           item['productName'] ??
           item['itemName'] ??
+          item['product'] ??
           item['item'] ??
+          item['description'] ??
           '')
       .toString()
       .trim();
 }
+
+/// Whether the shop quoted its own product in place of the one asked for.
+///
+/// The shop dashboard marks such a line `status: "substituted"` and keeps the
+/// builder's material in `requestedName`, with the shop's product as the name.
+/// A line that names a different requested material is read the same way even
+/// without the status, so a dashboard that forgets the flag still reads right.
+bool isSubstitutedLine(Map<String, dynamic> item) {
+  final status = '${item['status'] ?? ''}'.trim().toLowerCase();
+  if (status == 'substituted' || status == 'substitute') return true;
+  final requested = '${item['requestedName'] ?? ''}'.trim().toLowerCase();
+  return requested.isNotEmpty &&
+      requested != quotedItemName(item).toLowerCase();
+}
+
+/// The builder's material a quoted line answers: the requested one for a
+/// substitute, otherwise the line's own name.
+String requestedItemName(Map<String, dynamic> item) {
+  if (isSubstitutedLine(item)) {
+    final requested = '${item['requestedName'] ?? ''}'.trim();
+    if (requested.isNotEmpty) return requested;
+  }
+  return quotedItemName(item);
+}
+
+/// The shop's note on one line, such as why it was substituted.
+String quotedLineNote(Map<String, dynamic> item) =>
+    '${item['lineNote'] ?? item['note'] ?? ''}'.trim();
 
 /// What a builder took and left on a quotation, read back from the document.
 class AcceptanceSummary {

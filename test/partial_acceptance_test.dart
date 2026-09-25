@@ -119,4 +119,41 @@ void main() {
       expect(quotationItems({'estimatedTotal': 5000}), isEmpty);
     });
   });
+
+  // Every screen showing a quoted line reads its name through quotedItemName.
+  // A line the bids screen could name used to read as "Unnamed item" on the
+  // select-shop checklist, which had its own shorter list of fields.
+  group('the name on a quoted line', () {
+    test('is read from every field a shop has sent it under', () {
+      const fields = [
+        'name',
+        'material',
+        'materialName',
+        'productName',
+        'itemName',
+        'product',
+        'item',
+        'description',
+      ];
+      for (final field in fields) {
+        expect(quotedItemName({field: 'Portland Cement 40kg'}),
+            'Portland Cement 40kg',
+            reason: 'did not read $field');
+      }
+    });
+
+    test('prefers the plainest field when a line carries several', () {
+      expect(
+        quotedItemName({
+          'name': 'Portland Cement 40kg',
+          'description': 'Grey bag, delivered',
+        }),
+        'Portland Cement 40kg',
+      );
+    });
+
+    test('is empty when the line truly has none', () {
+      expect(quotedItemName({'unitPrice': 250, 'quantity': 4}), isEmpty);
+    });
+  });
 }

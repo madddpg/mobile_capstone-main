@@ -18,6 +18,7 @@ import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
 import 'package:iconstruct/features/bidding/data/quotation_accept_service.dart';
 import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
 import 'package:iconstruct/features/bidding/data/quotation_status.dart';
+import 'package:iconstruct/features/bidding/data/remainder_canvass.dart';
 import 'package:iconstruct/features/bidding/data/supplier_cancellation.dart';
 import 'package:iconstruct/features/bidding/widgets/cancel_selection_sheet.dart';
 import 'package:iconstruct/features/bidding/widgets/accepted_lines_panel.dart';
@@ -57,6 +58,21 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
   String get postId => widget.postId;
   String get projectName => widget.projectName;
 
+  // Opened once. A stream made inside build is replaced on every rebuild,
+  // which drops the screen to its loading spinner and tears down the shop
+  // cards — and with them the context an accept in progress needs to close
+  // its spinner and open the chat.
+  late final Stream<DocumentSnapshot> _postStream = FirebaseFirestore.instance
+      .collection('projectPosts')
+      .doc(postId)
+      .snapshots();
+  late final Stream<QuerySnapshot> _quotationsStream = FirebaseFirestore
+      .instance
+      .collection('projectPosts')
+      .doc(postId)
+      .collection('quotations')
+      .snapshots();
+
   /// Reads any storefront not read yet.
   ///
   /// Called while building the list: the quotation stream rebuilds on every
@@ -84,10 +100,7 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
       contentPadding: EdgeInsets.zero,
       header: OffsetPanelHeaders.backOnly(context),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('projectPosts')
-            .doc(postId)
-            .snapshots(),
+        stream: _postStream,
         builder: (context, projectSnapshot) {
           if (projectSnapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -170,11 +183,7 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
               ),
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('projectPosts')
-                      .doc(postId)
-                      .collection('quotations')
-                      .snapshots(),
+                  stream: _quotationsStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
@@ -255,10 +264,10 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                             isSelected: selectedQuotationId == shop.quote.id,
                             hasAcceptedOffer: selectedQuotationId != null,
                             postId: postId,
-                            remainderPostId:
-                                (projectData['remainderPostId'] ?? '')
-                                    .toString()
-                                    .trim(),
+                            remainderPostId: remainderPostIdFor(
+                              projectData,
+                              shop.quote.id,
+                            ),
                             onAccept: () => _confirmAccept(context, shop),
                             onMessage: () => _openShopChat(
                               context,
@@ -549,7 +558,7 @@ class _ShopOffer {
     this.profile,
   });
 
-  bool get isOpenOffer => status == 'pending' || status == 'submitted';
+  bool get isOpenOffer => isOpenOfferStatus(status);
 }
 
 /// What a builder can do from the details sheet.
@@ -1360,6 +1369,18 @@ class _SheetLineRow extends StatelessWidget {
                       fontSize: 11,
                     ),
                   ),
+                if (line?.isSubstitute == true)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      'Substitute: ${line!.name}',
+                      style: GoogleFonts.poppins(
+                        color: const Color(0xFFFBBF77),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1482,6 +1503,15 @@ class _ComparePriceRow extends StatelessWidget {
               ),
             ),
           ),
+          if (line?.isSubstitute == true) ...[
+            const _Pill(
+              label: 'Substitute',
+              bg: Color(0xFFFEF3C7),
+              fg: Color(0xFF92400E),
+              dense: true,
+            ),
+            const SizedBox(width: 6),
+          ],
           if (hasPrice && isLowest) ...[
             const _Pill(
               label: 'Lowest',

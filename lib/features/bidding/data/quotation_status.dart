@@ -34,6 +34,17 @@ String displayQuotationStatus({
   return claimsAcceptance ? 'submitted' : status;
 }
 
+/// Whether a quotation is still an offer the builder has not decided on.
+///
+/// The shop dashboard files new offers as `pending`; the app and a
+/// cancellation that reopens an estimate use `submitted`. Anything else is
+/// already a decision — accepted, turned down, cancelled, withdrawn — and
+/// choosing another shop must not rewrite it.
+bool isOpenOfferStatus(String? rawStatus) {
+  final status = (rawStatus ?? '').trim().toLowerCase();
+  return status.isEmpty || status == 'pending' || status == 'submitted';
+}
+
 /// Whether the quotation still has to be marked accepted to match the estimate.
 ///
 /// Chat, and everything else the rules gate on acceptance, reads the
