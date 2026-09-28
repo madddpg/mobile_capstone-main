@@ -974,12 +974,14 @@ class _BidSummaryCard extends StatelessWidget {
                 size: 20,
               ),
               const SizedBox(width: 8),
-              Text(
-                quoteCount <= 1 ? 'Quote snapshot' : 'Automatic bid summary',
-                style: GoogleFonts.poppins(
-                  color: const Color(0xFFEDE4D4),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
+              Flexible(
+                child: Text(
+                  quoteCount <= 1 ? 'Quote snapshot' : 'Automatic bid summary',
+                  style: GoogleFonts.poppins(
+                    color: const Color(0xFFEDE4D4),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
                 ),
               ),
             ],

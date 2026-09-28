@@ -13,7 +13,8 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _emailController = TextEditingController();
-  final EmailService _emailService = EmailService();
+  // Created on first use, so the screen can be built without Firebase.
+  late final EmailService _emailService = EmailService();
 
   bool _loading = false;
   String? _emailError;

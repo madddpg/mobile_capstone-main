@@ -18,7 +18,8 @@ class ForgotPasswordOtpScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordOtpScreenState extends State<ForgotPasswordOtpScreen> {
-  final EmailService _emailService = EmailService();
+  // Created on first use, so the screen can be built without Firebase.
+  late final EmailService _emailService = EmailService();
   late final List<TextEditingController> _otpControllers;
   late final List<FocusNode> _otpFocusNodes;
 

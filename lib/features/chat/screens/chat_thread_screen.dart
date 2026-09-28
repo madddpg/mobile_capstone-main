@@ -41,7 +41,11 @@ class ChatThreadScreen extends StatefulWidget {
 
 class _ChatThreadScreenState extends State<ChatThreadScreen> {
   final _chat = ChatService();
-  final _attachments = ChatAttachmentService();
+  // Created on first use: its constructor reaches for Firebase Storage.
+  late final _attachments = ChatAttachmentService();
+
+  /// Below this panel height the header drops to one line.
+  static const double _compactBelow = 360;
   bool _uploading = false;
   final _controller = TextEditingController();
   final _scroll = ScrollController();
@@ -259,24 +263,32 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
           final title = (data?['projectTitle'] ?? '').toString();
           final closed = (data?['status'] ?? 'open').toString() == 'closed';
 
+          // With the keyboard up on a small phone the panel is short, and a
+          // two-line shop name and the project title left no room for the
+          // messages. The header drops to one line until there is space.
+          return LayoutBuilder(
+            builder: (context, constraints) {
+          final compact = constraints.maxHeight < _compactBelow;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 20),
+              SizedBox(height: compact ? 10 : 20),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
                   shopName,
                   textAlign: TextAlign.center,
+                  maxLines: compact ? 1 : null,
+                  overflow: compact ? TextOverflow.ellipsis : null,
                   style: GoogleFonts.poppins(
                     color: AppColors.cream,
-                    fontSize: 20,
+                    fontSize: compact ? 17 : 20,
                     fontWeight: FontWeight.w800,
                     height: 1.15,
                   ),
                 ),
               ),
-              if (title.isNotEmpty)
+              if (title.isNotEmpty && !compact)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
                   child: Text(
@@ -288,7 +300,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                     ),
                   ),
                 ),
-              const SizedBox(height: 12),
+              SizedBox(height: compact ? 8 : 12),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Container(
@@ -460,6 +472,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                       ),
               ),
             ],
+          );
+            },
           );
         },
       ),

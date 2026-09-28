@@ -39,53 +39,89 @@ class GlitchedFlowShell extends StatelessWidget {
       header: showBackOnCard
           ? OffsetPanelHeaders.backAndAvatar(context)
           : OffsetPanelHeaders.avatarAndMenu(context),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              height: 1.15,
-            ),
-          ),
-          if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
+      body: _ScrollWhenShort(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              subtitle!,
+              title,
               style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: cream.withValues(alpha: 0.85),
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                height: 1.15,
               ),
             ),
-          ],
-          const SizedBox(height: 10),
-          const Divider(color: cream, thickness: 1),
-          const SizedBox(height: 10),
-          Text(
-            instruction,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: IConstructPanel.creamSoft,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(color: cream, thickness: 1),
-          const SizedBox(height: 12),
-          Expanded(child: body),
-          if (trailingAction != null) ...[
+            if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                subtitle!,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: cream.withValues(alpha: 0.85),
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: trailingAction!,
+            const Divider(color: cream, thickness: 1),
+            const SizedBox(height: 10),
+            Text(
+              instruction,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: IConstructPanel.creamSoft,
+                height: 1.4,
+              ),
             ),
+            const SizedBox(height: 12),
+            const Divider(color: cream, thickness: 1),
+            const SizedBox(height: 12),
+            Expanded(child: body),
+            if (trailingAction != null) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: trailingAction!,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
+    );
+  }
+}
+
+/// Lays [child] out at a usable minimum height, scrolling, when the panel is
+/// shorter than that.
+///
+/// With the keyboard up on a small phone the panel keeps under 150 points,
+/// less than the title and instructions alone. Squeezed, the column
+/// overflowed; laid out at its minimum inside a scroll view, it keeps its
+/// shape and the focused field is scrolled into view.
+///
+/// The scroll view is there at every height, with nothing to scroll when the
+/// panel is tall enough. Adding it only once the keyboard opened would
+/// rebuild the text field that opened it, dropping its focus and closing the
+/// keyboard again.
+class _ScrollWhenShort extends StatelessWidget {
+  const _ScrollWhenShort({required this.child});
+
+  final Widget child;
+
+  static const double minHeight = 360;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints.maxHeight < minHeight
+            ? minHeight
+            : constraints.maxHeight;
+        return SingleChildScrollView(
+          child: SizedBox(height: height, child: child),
+        );
+      },
     );
   }
 }

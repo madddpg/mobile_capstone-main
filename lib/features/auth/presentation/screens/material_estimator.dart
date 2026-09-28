@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -442,41 +443,45 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
       ('3', 'Save or request quotes'),
     ];
 
+    // Each step takes an equal share of the row. Three labels at a fixed 72
+    // points came to more than a 320-point phone has room for.
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (var i = 0; i < steps.length; i++) ...[
           if (i > 0)
             Expanded(
               child: Container(
                 height: 1.5,
-                margin: const EdgeInsets.symmetric(horizontal: 6),
+                // Level with the middle of the 28-point step circles.
+                margin: const EdgeInsets.fromLTRB(2, 13, 2, 0),
                 color: const Color(0xFFEDE4D4).withValues(alpha: 0.35),
               ),
             ),
-          Column(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEDE4D4).withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFEDE4D4)),
-                ),
-                child: Text(
-                  steps[i].$1,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFEDE4D4),
+          Expanded(
+            flex: 3,
+            child: Column(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE4D4).withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFEDE4D4)),
+                  ),
+                  child: Text(
+                    steps[i].$1,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFEDE4D4),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
-                width: 72,
-                child: Text(
+                const SizedBox(height: 6),
+                Text(
                   steps[i].$2,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
@@ -485,8 +490,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
                     height: 1.2,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ],
@@ -701,41 +706,39 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
     return Column(
       children: [
-        SizedBox(
-          height:
-              480, // Adjust height to fit up to 4 items per page comfortably
-          child: PageView.builder(
-            controller: _materialsPageController,
-            onPageChanged: (index) {
-              setState(() {
-                _currentMaterialPage = index;
-              });
-            },
-            itemCount: pageCount,
-            itemBuilder: (context, pageIndex) {
-              final startIndex = pageIndex * itemsPerPage;
-              final endIndex = (startIndex + itemsPerPage < allMaterials.length)
-                  ? startIndex + itemsPerPage
-                  : allMaterials.length;
-              final items = allMaterials.sublist(startIndex, endIndex);
+        _FitHeightPageView(
+          controller: _materialsPageController,
+          onPageChanged: (index) {
+            setState(() {
+              _currentMaterialPage = index;
+            });
+          },
+          itemCount: pageCount,
+          itemBuilder: (context, pageIndex) {
+            final startIndex = pageIndex * itemsPerPage;
+            final endIndex = (startIndex + itemsPerPage < allMaterials.length)
+                ? startIndex + itemsPerPage
+                : allMaterials.length;
+            final items = allMaterials.sublist(startIndex, endIndex);
 
-              return Column(
-                children: items
-                    .map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
-                        child: item,
-                      ),
-                    )
-                    .toList(),
-              );
-            },
-          ),
+            return Column(
+              children: items
+                  .map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: item,
+                    ),
+                  )
+                  .toList(),
+            );
+          },
         ),
         if (pageCount > 1) ...[
           const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          // Wraps, so a long estimate's dots stay on a small phone.
+          Wrap(
+            alignment: WrapAlignment.center,
+            runSpacing: 6,
             children: List.generate(
               pageCount,
               (index) => Container(
@@ -1602,5 +1605,110 @@ class SelectedMaterialCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// A horizontal pager as tall as the page on screen.
+///
+/// The materials used to page inside a box fixed at 480 points. Four cards
+/// with long names, on a narrow phone or at a larger font setting, needed
+/// more, and the last of them were cut off. Each page now lays out at its own
+/// height and the pager follows the one on screen.
+class _FitHeightPageView extends StatefulWidget {
+  const _FitHeightPageView({
+    required this.controller,
+    required this.itemCount,
+    required this.itemBuilder,
+    required this.onPageChanged,
+  });
+
+  final PageController controller;
+  final int itemCount;
+  final IndexedWidgetBuilder itemBuilder;
+  final ValueChanged<int> onPageChanged;
+
+  @override
+  State<_FitHeightPageView> createState() => _FitHeightPageViewState();
+}
+
+class _FitHeightPageViewState extends State<_FitHeightPageView> {
+  final Map<int, double> _heights = {};
+  int _page = 0;
+
+  double get _height {
+    final page = _page.clamp(0, widget.itemCount - 1);
+    return _heights[page] ??
+        _heights.values.fold<double>(0, (a, b) => a > b ? a : b);
+  }
+
+  void _measured(int page, double height) {
+    if (_heights[page] == height) return;
+    // Reported during layout, so applied after it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _heights[page] = height);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: _height),
+      // The first measurement is applied at once, so the list does not grow
+      // in from nothing when the screen opens.
+      duration: _heights.length <= 1
+          ? Duration.zero
+          : const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      builder: (context, height, child) =>
+          SizedBox(height: height, child: child),
+      child: PageView.builder(
+        controller: widget.controller,
+        itemCount: widget.itemCount,
+        onPageChanged: (index) {
+          setState(() => _page = index);
+          widget.onPageChanged(index);
+        },
+        itemBuilder: (context, index) => OverflowBox(
+          minHeight: 0,
+          maxHeight: double.infinity,
+          alignment: Alignment.topCenter,
+          child: _HeightReporter(
+            onHeight: (height) => _measured(index, height),
+            child: widget.itemBuilder(context, index),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Reports its child's laid-out height.
+class _HeightReporter extends SingleChildRenderObjectWidget {
+  const _HeightReporter({required this.onHeight, required super.child});
+
+  final ValueChanged<double> onHeight;
+
+  @override
+  _RenderHeightReporter createRenderObject(BuildContext context) =>
+      _RenderHeightReporter(onHeight);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderHeightReporter renderObject,
+  ) {
+    renderObject.onHeight = onHeight;
+  }
+}
+
+class _RenderHeightReporter extends RenderProxyBox {
+  _RenderHeightReporter(this.onHeight);
+
+  ValueChanged<double> onHeight;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    onHeight(size.height);
   }
 }

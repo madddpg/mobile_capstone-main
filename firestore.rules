@@ -58,38 +58,16 @@ service cloud.firestore {
 
     // ── Shops (web dashboard + builder ranking of approved shops) ───────────
     match /shops/{shopId} {
-      // Approved shops are readable by any signed-in user, not by the public.
-      // Both screens that read this collection sit behind sign-in, so adding the
-      // check costs the app nothing and stops the shop directory, addresses and
-      // storefront details being scrapable by anyone with the project id.
       allow read: if isOwner(shopId) || isAdmin()
                   || (signedIn() && resource.data.status == "approved");
 
-      // The rating summary. Only the Cloud Function writes it, from the
-      // builders' own rating documents. A shop owner could otherwise give
-      // their shop any score and climb the Top Shops list. The alternative
-      // spellings are listed too, so no reader can be fed a score under a
-      // name it might fall back to.
-      function ratingFields() {
-        return [
-          "rating",
-          "ratingCount",
-          "ratingUpdatedAt",
-          "averageRating",
-          "ratingAverage",
-          "ratingsCount",
-          "reviewCount",
-        ];
-      }
-
       allow create: if isOwner(shopId)
         && request.resource.data.subscriptionPlan == "basic"
-        && request.resource.data.status == "pending"
-        && !request.resource.data.keys().hasAny(ratingFields());
+        && request.resource.data.status == "pending";
 
-      // Owners may edit profile fields only — not plan, approval, billing, or
-      // rating. Cloud Functions (Admin SDK) bypass rules for PayMongo
-      // activation and the rating summary.
+      // Owners may edit profile fields only — not plan, approval, billing,
+      // identity/email, KYC documents, or an oversized fcmTokens array.
+      // Cloud Functions (Admin SDK) bypass rules for PayMongo activation.
       allow update: if isAdmin() || (
         isOwner(shopId)
         && !request.resource.data.diff(resource.data).affectedKeys()
@@ -98,9 +76,14 @@ service cloud.firestore {
               "subscriptionStatus",
               "subscriptionExpiry",
               "status",
+              "email",
+              "uid",
+              "createdAt",
+              "documents",
+              "documentURL",
+              "documentName",
             ])
-        && !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(ratingFields())
+        && request.resource.data.get("fcmTokens", []).size() <= 30
       ) || (
         isOwner(shopId)
         && request.resource.data.diff(resource.data).affectedKeys()
@@ -110,7 +93,9 @@ service cloud.firestore {
 
       allow delete: if isAdmin();
 
-      // Builder ratings, one document per builder, keyed by their uid.
+      // [App] Builder ratings, one document per builder, keyed by their uid.
+      // Written by the builder app; the rating summary on the shop itself is
+      // computed by the onShopRatingWritten Cloud Function.
       //
       // A rating is only allowed from someone who actually did business with
       // the shop: the document names the posted estimate it came from, and the
@@ -140,8 +125,7 @@ service cloud.firestore {
           && request.resource.data.postId is string
           && ratedOwnCompletedProject();
 
-        // A builder may withdraw their own rating. The Cloud Function
-        // recomputes the average afterwards.
+        // A builder may withdraw their own rating.
         allow delete: if isAdmin() || (signedIn() && builderId == request.auth.uid);
       }
 
@@ -174,12 +158,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // ── Subscription payments ───────────────────────────────────────────────
+    // ── Subscription payments (manual GCash flow → admin review) ────────────
+    // A shop may only create a *pending* request for a known paid plan; it may
+    // not pre-set the status or forge the plan. Only admins confirm/reject.
     match /subscriptionPayments/{paymentId} {
       allow read: if isAdmin()
                   || (signedIn() && resource.data.shopId == request.auth.uid);
       allow create: if signedIn()
-        && request.resource.data.shopId == request.auth.uid;
+        && request.resource.data.shopId == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.planName is string
+        && request.resource.data.planName.lower() in ["pro", "business"]
+        && request.resource.data.get("screenshotBase64", "").size() < 950000
+        && request.resource.data.get("referenceNumber", "").size() <= 120;
       allow update, delete: if isAdmin();
     }
 
@@ -208,14 +199,6 @@ service cloud.firestore {
       allow delete: if signedIn()
         && resource.data.shopId == request.auth.uid
         && shopIsApproved(request.auth.uid);
-    }
-
-    // AI usage counters. Written only by Cloud Functions through the Admin
-    // SDK, which bypasses rules entirely. Clients get no access at all: a
-    // client that could read its own counter learns the limit, and one that
-    // could write it has no limit.
-    match /ai_usage/{userId} {
-      allow read, write: if false;
     }
 
     // Template references used by the Flutter planner
@@ -255,12 +238,7 @@ service cloud.firestore {
         || isPostOwner(resource.data)
         || isApprovedShop();
 
-      // Shops quote estimates; they do not raise them. Without this an
-      // approved shop could post an estimate, name itself the selected
-      // supplier, and then leave itself a five-star rating, because the rating
-      // rule trusts exactly those two facts.
       allow create: if signedIn()
-        && !isApprovedShop()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.projectName is string
         && request.resource.data.projectName.size() > 0
@@ -279,46 +257,9 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(["quotationCount", "updatedAt"]))
         || (isPostOwner(resource.data)
-            && request.resource.data.userId == resource.data.userId
-            // The create rule keeps prices off a posted estimate; the update
-            // rule has to keep them off too, or they can simply be added the
-            // moment after it is created.
-            && !request.resource.data.diff(resource.data).affectedKeys()
-                 .hasAny(['price', 'unitPrice', 'catalogPrice',
-                          'estimatedTotal', 'listPrice'])
-            // Once a shop has quoted, the material list is what they quoted
-            // against. Letting it change afterwards leaves quotations
-            // describing a list that no longer exists, with neither side able
-            // to tell.
-            && (resource.data.get('quotationCount', 0) == 0
-                || request.resource.data.materials == resource.data.materials)
-            // A shop can only become the selected supplier if it actually
-            // quoted. Quotation documents are keyed by shop id, so this is one
-            // cheap existence check rather than a scan.
-            && (!request.resource.data.diff(resource.data).affectedKeys()
-                  .hasAny(['selectedShopId'])
-                || (exists(/databases/$(database)/documents/projectPosts/$(postId)/quotations/$(request.resource.data.selectedQuotationId))
-                    && get(/databases/$(database)/documents/projectPosts/$(postId)/quotations/$(request.resource.data.selectedQuotationId)).data.shopId
-                       == request.resource.data.selectedShopId)));
+            && request.resource.data.userId == resource.data.userId);
 
       allow delete: if isAdmin() || isPostOwner(resource.data);
-
-      // What the estimate went through, appended by Cloud Functions only.
-      //
-      // A cancelled selection is recorded here rather than by rewriting the
-      // fields it changed, so both sides can still see that it happened and
-      // why. Nothing client-side may write to it: a record either party can
-      // edit afterwards settles no argument.
-      match /events/{eventId} {
-        allow read: if isAdmin()
-          // An event carries no userId of its own, so ownership is read from
-          // the estimate it belongs to.
-          || (signedIn()
-              && get(/databases/$(database)/documents/projectPosts/$(postId)).data.userId
-                   == request.auth.uid)
-          || isApprovedShop();
-        allow write: if false;
-      }
 
       match /quotations/{quotationId} {
         allow get, list: if isAdmin()
@@ -328,78 +269,37 @@ service cloud.firestore {
             || request.auth.uid == quotationId
           ));
 
-        // A quotation starts life as an open offer from the shop that sent
-        // it, on an estimate that exists and has not chosen a supplier. It
-        // cannot arrive already decided, carry an accepted total, sit under
-        // another id, or use another shop's name. Any one of those would put a
-        // decision on the builder's screen that the builder never made.
+        // Matches the real payload written by insertQuotation(): shopId,
+        // projectId, amount, status:"pending", items[]. The old version of
+        // this rule required estimatedTotal/postId/status:"submitted" and an
+        // auto-generated doc id equal to the shop's uid — fields the app has
+        // never written, so every quote submission was silently rejected.
         allow create: if signedIn()
-          && request.auth.uid == quotationId
           && request.resource.data.shopId == request.auth.uid
           && shopIsApproved(request.auth.uid)
-          && request.resource.data.postId == postId
-          && exists(/databases/$(database)/documents/projectPosts/$(postId))
-          && postDoc(postId).get('selectedQuotationId', null) == null
-          && !(postDoc(postId).get('status', 'open') in
-               ['offer_accepted', 'awarded', 'closed', 'cancelled', 'withdrawn'])
-          && request.resource.data.status == 'submitted'
-          && request.resource.data.estimatedTotal is number
-          && request.resource.data.estimatedTotal >= 0
-          && !request.resource.data.keys().hasAny(['acceptedTotal', 'acceptedAt'])
-          && (!('shopName' in request.resource.data)
-              || request.resource.data.shopName
-                   == get(/databases/$(database)/documents/shops/$(request.auth.uid)).data.get('shopName', null));
+          && request.resource.data.projectId == postId
+          && request.resource.data.amount is number
+          && request.resource.data.amount >= 0
+          && request.resource.data.status == 'pending';
 
+        // Only the builder who posted the project decides a quote — full
+        // accept, reject, or partial accept (per-line items[].accepted +
+        // acceptedTotal, written by the builder app). Shops never update
+        // their own quote once submitted; no web feature does this, and
+        // allowing it would let a shop self-approve its own bid.
         allow update: if isAdmin()
-          // A shop may revise its own offer while it is still open. Once the
-          // builder has decided, the quotation stops being an offer and starts
-          // being the record of what was agreed, so the shop can no longer
-          // touch it. Without this a shop could raise the price after
-          // acceptance, or turn back on the lines the builder unticked, and
-          // the document would simply claim that was the deal.
-          || (signedIn()
-              && resource.data.shopId == request.auth.uid
-              && shopIsApproved(request.auth.uid)
-              && request.resource.data.shopId == resource.data.shopId
-              && request.resource.data.postId == resource.data.postId
-              && !(resource.data.get('status', 'submitted') in
-                   ['accepted', 'partially_accepted', 'rejected', 'cancelled'])
-              // Any decision, accepting or rejecting, is the builder's act. A
-              // shop's revision stays an open offer.
-              && request.resource.data.get('status', 'submitted') == 'submitted'
-              && request.resource.data.estimatedTotal is number
-              && request.resource.data.estimatedTotal >= 0
-              && !request.resource.data.diff(resource.data).affectedKeys()
-                   .hasAny(['acceptedTotal', 'acceptedAt'])
-              && (!request.resource.data.diff(resource.data).affectedKeys()
-                     .hasAny(['shopName'])
-                  || request.resource.data.shopName
-                       == get(/databases/$(database)/documents/shops/$(request.auth.uid)).data.get('shopName', null)))
-          // The builder may accept a quotation whole or line by line. Partial
-          // acceptance rewrites the items array with an `accepted` flag on each
-          // entry and records what the kept lines come to, so those two fields
-          // join the allowed set. The builder still cannot touch price fields,
-          // shopId or postId.
           || (ownsPostedEstimate(postId)
               && request.resource.data.diff(resource.data).affectedKeys()
                    .hasOnly(['status', 'acceptedAt', 'items', 'acceptedTotal'])
-              && request.resource.data.status
-                   in ['accepted', 'partially_accepted', 'rejected']
+              && request.resource.data.status in ['accepted', 'rejected', 'partially_accepted']
               && request.resource.data.shopId == resource.data.shopId
-              && request.resource.data.postId == resource.data.postId
-              && request.resource.data.estimatedTotal == resource.data.estimatedTotal
-              && (!('items' in request.resource.data.diff(resource.data).affectedKeys())
-                  || (request.resource.data.items is list
-                      && request.resource.data.items.size() == resource.data.items.size()))
-              && (!('acceptedTotal' in request.resource.data.diff(resource.data).affectedKeys())
-                  || (request.resource.data.acceptedTotal is number
-                      && request.resource.data.acceptedTotal >= 0
-                      && request.resource.data.acceptedTotal <= resource.data.estimatedTotal)));
+              && request.resource.data.projectId == resource.data.projectId);
 
         allow delete: if isAdmin()
           || (signedIn()
               && resource.data.shopId == request.auth.uid
-              && shopIsApproved(request.auth.uid));
+              && shopIsApproved(request.auth.uid)
+              && resource.data.status == 'pending');
       }
 
       match /acceptance/{acceptanceId} {
@@ -415,13 +315,6 @@ service cloud.firestore {
 
     // Collection-group queries used by the web shop dashboard.
     // Builders only see quotes on their own posts; shops only see their own.
-    //
-    // Read only. A query never writes, and the create this block used to hold
-    // matched every quotation path in the database. Rules allow a write when
-    // any matching rule does, so it let an approved shop skip every check in
-    // the per-post rule: a quotation already marked accepted, any number of
-    // quotations per estimate, quotations on estimates that do not exist, and
-    // "quotations" collections anywhere at all.
     match /{path=**}/quotations/{quotationId} {
       allow read: if isAdmin()
         || (signedIn() && resource.data.shopId == request.auth.uid)
@@ -429,6 +322,11 @@ service cloud.firestore {
              resource.data.userId == request.auth.uid
              || resource.data.builderId == request.auth.uid
            ));
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll(["shopId"])
+        && request.resource.data.shopId == request.auth.uid
+        && shopIsApproved(request.auth.uid);
     }
 
     // Builder ↔ shop chat. Unlocks after a quotation is accepted.
@@ -447,10 +345,7 @@ service cloud.firestore {
         return request.resource.data.projectId is string
           && request.resource.data.quotationId is string
           && exists(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId))
-          // A builder who kept only some lines is still buying from this shop
-          // and needs to talk to them about delivery and the dropped lines.
-          && get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.status
-               in ['accepted', 'partially_accepted']
+          && get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.status in ['accepted', 'partially_accepted']
           && (
                get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.shopId == request.resource.data.shopId
                || request.resource.data.quotationId == request.resource.data.shopId
@@ -474,11 +369,15 @@ service cloud.firestore {
         && request.resource.data.status == 'open'
         && acceptedQuoteForConv();
 
+      // Participants may update the thread summary and their own read marker.
+      // shopLastReadAt / builderLastReadAt back the Sent / Seen indicators.
+      // [App] readAt.<uid> backs the builder app's unread badges.
       allow update: if isAdmin()
         || (isConvParticipant(resource.data)
             && request.resource.data.shopId == resource.data.shopId
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'updatedAt', 'status', 'readAt']));
+                 .hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'updatedAt', 'status',
+                           'shopLastReadAt', 'builderLastReadAt', 'readAt']));
 
       allow delete: if isAdmin();
 
@@ -486,29 +385,71 @@ service cloud.firestore {
         allow read: if isAdmin()
           || isConvParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data);
 
+        // A message carries text, an imageUrl, or both. Text (when present) is
+        // a string <= 4000 chars; imageUrl (when present) is an https URL
+        // <= 2000 chars. At least one of the two must be a non-empty string.
         allow create: if signedIn()
           && isConvParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data)
           && request.resource.data.senderId == request.auth.uid
-          && request.resource.data.text is string
-          && request.resource.data.text.size() <= 4000
           && request.resource.data.senderRole in ['builder', 'shop']
-          // A message must carry words, an attachment, or both. Requiring text
-          // outright would reject a photo sent with no caption.
-          && (request.resource.data.text.size() > 0
-              || request.resource.data.keys().hasAny(['attachment']))
-          && (!request.resource.data.keys().hasAny(['attachment'])
-              || (request.resource.data.attachment.url is string
-                  && request.resource.data.attachment.url.size() > 0
-                  && request.resource.data.attachment.url.size() <= 2000
-                  && request.resource.data.attachment.name is string
-                  && request.resource.data.attachment.name.size() <= 200
-                  && request.resource.data.attachment.kind in ['image', 'file']
-                  && request.resource.data.attachment.sizeBytes is int
-                  && request.resource.data.attachment.sizeBytes >= 0
-                  && request.resource.data.attachment.sizeBytes <= 10485760));
+          && (
+               !('text' in request.resource.data)
+               || (request.resource.data.text is string
+                   && request.resource.data.text.size() <= 4000)
+             )
+          && (
+               !('imageUrl' in request.resource.data)
+               || (request.resource.data.imageUrl is string
+                   && request.resource.data.imageUrl.size() <= 2000
+                   && request.resource.data.imageUrl.matches('https://.*'))
+             )
+          // [App] A photo or document sent from the builder app, uploaded to
+          // chat_attachments/ in Storage. Capped at the app's 10 MB limit.
+          && (
+               !('attachment' in request.resource.data)
+               || (request.resource.data.attachment.url is string
+                   && request.resource.data.attachment.url.size() > 0
+                   && request.resource.data.attachment.url.size() <= 2000
+                   && request.resource.data.attachment.name is string
+                   && request.resource.data.attachment.name.size() <= 200
+                   && request.resource.data.attachment.kind in ['image', 'file']
+                   && request.resource.data.attachment.sizeBytes is int
+                   && request.resource.data.attachment.sizeBytes >= 0
+                   && request.resource.data.attachment.sizeBytes <= 10485760)
+             )
+          && (
+               request.resource.data.get('text', '').size() > 0
+               || request.resource.data.get('imageUrl', '').size() > 0
+               || 'attachment' in request.resource.data
+             );
 
         allow update, delete: if false;
       }
+    }
+
+    // ── Contact Us messages (web-only: public submit → admin inbox) ────────
+    // Not used by the Flutter app. Anyone may create a well-formed message;
+    // only admins can read / triage / delete.
+    match /contactMessages/{messageId} {
+      allow create: if request.resource.data.keys().hasOnly([
+          "name", "email", "subject", "message", "status", "createdAt"
+        ])
+        && request.resource.data.status == "new"
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 3
+        && request.resource.data.email.size() <= 200
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() > 0
+        && request.resource.data.subject.size() <= 200
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 10
+        && request.resource.data.message.size() <= 5000
+        && request.resource.data.createdAt == request.time;
+      allow read: if isAdmin();
+      allow update, delete: if isAdmin();
     }
 
     // In-app notifications — written by Cloud Functions (Admin SDK) only.

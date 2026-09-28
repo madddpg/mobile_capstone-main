@@ -35,7 +35,8 @@ class OtpDialog extends StatefulWidget {
 }
 
 class _OtpDialogState extends State<OtpDialog> {
-  final EmailService _emailService = EmailService();
+  // Created on first use, so the dialog can be built without Firebase.
+  late final EmailService _emailService = EmailService();
   late final List<TextEditingController> _otpControllers;
   late final List<FocusNode> _otpFocusNodes;
 

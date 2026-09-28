@@ -16,8 +16,13 @@ import 'package:iconstruct/features/auth/presentation/widgets/shop_rating_stars.
 /// feature rather than a limitation of it.
 ///
 /// Returns true when a rating was saved, so the caller can refresh.
-Future<bool> showRateShopSheet(BuildContext context, RankedShop shop) async {
-  final service = ShopRatingService();
+Future<bool> showRateShopSheet(
+  BuildContext context,
+  RankedShop shop, {
+  // Injected in tests; the app reads and writes Firestore.
+  ShopRatingService? ratingService,
+}) async {
+  final service = ratingService ?? ShopRatingService();
 
   final projects = await service.ratableProjects(shop.uid);
   if (!context.mounted) return false;
