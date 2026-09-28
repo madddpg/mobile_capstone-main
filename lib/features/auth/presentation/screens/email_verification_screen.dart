@@ -24,7 +24,8 @@ class EmailVerificationScreen extends StatefulWidget {
 }
 
 class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
-  final EmailService _emailService = EmailService();
+  // Created on first use, so the screen can be built without Firebase.
+  late final EmailService _emailService = EmailService();
   late final List<TextEditingController> _otpControllers;
   late final List<FocusNode> _otpFocusNodes;
 
@@ -270,34 +271,50 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                     ),
                     child: Column(
                       children: [
+                        // Each box takes an equal share of the card, so six of
+                        // them fit on a 320-point phone as well as a large one.
+                        // A minimum height, not a fixed one, keeps an enlarged
+                        // digit from being cropped.
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: List.generate(6, (index) {
-                            return SizedBox(
-                              width: 42,
-                              height: 56,
-                              child: TextFormField(
-                                controller: _otpControllers[index],
-                                focusNode: _otpFocusNodes[index],
-                                keyboardType: TextInputType.number,
-                                textAlign: TextAlign.center,
-                                maxLength: 1,
-                                style: GoogleFonts.inter(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF24384C),
+                            return Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 3,
                                 ),
-                                decoration: InputDecoration(
-                                  counterText: '',
-                                  filled: true,
-                                  fillColor: const Color(0xFFF5F7FA),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide.none,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: 56,
+                                  ),
+                                  child: TextFormField(
+                                    controller: _otpControllers[index],
+                                    focusNode: _otpFocusNodes[index],
+                                    keyboardType: TextInputType.number,
+                                    textAlign: TextAlign.center,
+                                    maxLength: 1,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF24384C),
+                                    ),
+                                    decoration: InputDecoration(
+                                      counterText: '',
+                                      filled: true,
+                                      fillColor: const Color(0xFFF5F7FA),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                    ),
+                                    onChanged: (value) =>
+                                        _onOtpChanged(index, value),
                                   ),
                                 ),
-                                onChanged: (value) =>
-                                    _onOtpChanged(index, value),
                               ),
                             );
                           }),
@@ -362,8 +379,11 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        // Wraps onto two lines on a narrow phone rather than
+                        // running off the card.
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text(
                               "Didn't receive the code? ",

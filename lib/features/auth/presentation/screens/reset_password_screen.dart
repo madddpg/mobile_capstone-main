@@ -22,7 +22,8 @@ class ResetPasswordScreen extends StatefulWidget {
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
-  final EmailService _emailService = EmailService();
+  // Created on first use, so the screen can be built without Firebase.
+  late final EmailService _emailService = EmailService();
 
   bool _obscurePassword = true;
   bool _obscureConfirm = true;

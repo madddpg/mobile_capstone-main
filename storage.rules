@@ -1,80 +1,70 @@
 rules_version = '2';
-
-// Cloud Storage rules.
-//
-// The bucket previously had no rules file in this repo at all, so whatever the
-// console happened to hold was the only thing standing in front of it. Chat
-// attachments made that worth fixing: builders send site photos and receipts,
-// and those should not be world-readable.
-//
-// A limit worth knowing: Storage rules cannot read Firestore, so they cannot
-// check that the caller is actually a participant in the conversation whose id
-// appears in the path. Membership is enforced on the Firestore side, where the
-// message carrying the attachment URL can only be written and read by the two
-// participants. These rules do what Storage alone can: require a signed-in
-// caller, cap the size, and pin the content types.
 service firebase.storage {
   match /b/{bucket}/o {
 
-    function signedIn() {
-      return request.auth != null;
+    // Shop registration documents (RegisterForm → authController)
+    // Download URLs with tokens still work for admin review links in Firestore.
+    match /shop-documents/{userId}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 8 * 1024 * 1024;
     }
 
-    // Matches the app's ChatAttachmentService.maxBytes.
-    function withinSizeLimit() {
-      return request.resource.size <= 10 * 1024 * 1024;
+    // Product images (written by web shops only). Cap size + require an image type.
+    match /products/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    function isAllowedType() {
-      return request.resource.contentType.matches('image/.*')
-        || request.resource.contentType in [
-             'application/pdf',
-             'text/plain',
-             'text/csv',
-             'application/msword',
-             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-             'application/vnd.ms-excel',
-             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-           ];
+    // Existing profile images folder — write only under own uid prefix
+    match /user_profile_images/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Chat attachments, one folder per conversation.
+    // Chat photo attachments (builder ↔ shop). Both apps upload here; any
+    // signed-in user may read (URLs are unguessable, scoped per conversation).
+    match /chat_images/{conversationId}/{fileName} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+
+    // [App] Chat attachments sent from the builder app: site photos,
+    // receipts, quotation PDFs. Matches the app's ChatAttachmentService
+    // (10 MB, images and common documents). Files cannot be changed or
+    // deleted once sent, so the thread stays a record both sides can trust.
     match /chat_attachments/{conversationId}/{fileName} {
-      allow read: if signedIn();
-
-      allow create: if signedIn()
-        && withinSizeLimit()
-        && isAllowedType();
-
-      // Attachments are immutable once sent. A thread that could be edited
-      // after the fact is not a record either party can rely on.
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                   && request.resource.size <= 10 * 1024 * 1024
+                   && (request.resource.contentType.matches('image/.*')
+                       || request.resource.contentType in [
+                            'application/pdf',
+                            'text/plain',
+                            'text/csv',
+                            'application/msword',
+                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            'application/vnd.ms-excel',
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                          ]);
       allow update, delete: if false;
     }
 
-    // Profile photos. The app writes them under user_profile_images; the
-    // users/ prefix is kept for records written before that.
-    //
-    // Delete is split out because request.resource is null on a delete, and a
-    // size check against it denies every delete rather than allowing the
-    // owner to remove their own photo.
-    match /user_profile_images/{userId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow create, update: if signedIn()
-        && request.auth.uid == userId
-        && withinSizeLimit()
-        && isAllowedType();
-      allow delete: if signedIn() && request.auth.uid == userId;
+    // Legacy flat paths: authenticated write only to own filename prefix (best-effort)
+    match /user_profile_images/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && fileName.matches(request.auth.uid + '.*');
     }
 
-    match /users/{userId}/{allPaths=**} {
-      allow read: if signedIn();
-      allow create, update: if signedIn()
-        && request.auth.uid == userId
-        && withinSizeLimit();
-      allow delete: if signedIn() && request.auth.uid == userId;
-    }
-
-    // Nothing else in the bucket is reachable from the apps.
     match /{allPaths=**} {
       allow read, write: if false;
     }

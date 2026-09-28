@@ -677,44 +677,82 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     super.dispose();
   }
 
+  /// Below this panel height the header shrinks to one line, so the messages
+  /// keep room while the keyboard is up.
+  static const double _compactBelow = 420;
+
+  /// Below this the panel scrolls as a whole instead of squeezing: the input
+  /// bar can grow with suggestion buttons, and on a small phone with the
+  /// keyboard up that alone can fill the panel. The scroll view is there at
+  /// every height, so opening the keyboard does not rebuild the input box and
+  /// drop its focus.
+  static const double _minPanelHeight = 300;
+
   @override
   Widget build(BuildContext context) {
-    final pad = IConstructPanel.contentPaddingOf(context);
-
     return OffsetPanelShell(
       extent: OffsetPanelExtent.fillBottom,
       panelColor: IConstructPanel.navy,
       borderRadius: IConstructPanel.offsetTallRadiusOf(context),
       contentPadding: EdgeInsets.zero,
       header: _buildTopBar(),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(pad.left, pad.top, pad.right, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'AI Renovation\nConsultant',
-                        style: GoogleFonts.poppins(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          height: 1.15,
-                        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final height = constraints.maxHeight;
+          // Starts at the bottom, where the input box is.
+          return SingleChildScrollView(
+            reverse: true,
+            child: SizedBox(
+              height: height < _minPanelHeight ? _minPanelHeight : height,
+              child: _buildPanel(compact: height < _compactBelow),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPanel({required bool compact}) {
+    final pad = IConstructPanel.contentPaddingOf(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            pad.left,
+            compact ? 12 : pad.top,
+            pad.right,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: compact
+                    ? CrossAxisAlignment.center
+                    : CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      compact ? 'AI Consultant' : 'AI Renovation\nConsultant',
+                      maxLines: compact ? 1 : null,
+                      overflow: compact ? TextOverflow.ellipsis : null,
+                      style: GoogleFonts.poppins(
+                        fontSize: compact ? 18 : 22,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        height: 1.15,
                       ),
                     ),
-                    _WorkListButton(
-                      count: _confirmedWork.length,
-                      onTap: _openConfirmedWorkSheet,
-                    ),
-                  ],
-                ),
+                  ),
+                  _WorkListButton(
+                    count: _confirmedWork.length,
+                    onTap: _openConfirmedWorkSheet,
+                  ),
+                ],
+              ),
+              if (!compact) ...[
                 const SizedBox(height: 6),
                 Text(
                   widget.customProjectName?.isNotEmpty == true
@@ -734,27 +772,27 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                     height: 1.35,
                   ),
                 ),
-                const SizedBox(height: 12),
-                const Divider(color: _cream, thickness: 1),
               ],
-            ),
+              SizedBox(height: compact ? 4 : 12),
+              const Divider(color: _cream, thickness: 1),
+            ],
           ),
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: EdgeInsets.fromLTRB(pad.left, 12, pad.right, 12),
-              itemCount: _messages.length + (_isTyping ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == _messages.length) {
-                  return _buildTypingIndicator();
-                }
-                return _buildMessageBubble(_messages[index]);
-              },
-            ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: EdgeInsets.fromLTRB(pad.left, 12, pad.right, 12),
+            itemCount: _messages.length + (_isTyping ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index == _messages.length) {
+                return _buildTypingIndicator();
+              }
+              return _buildMessageBubble(_messages[index]);
+            },
           ),
-          _buildMessageInput(),
-        ],
-      ),
+        ),
+        _buildMessageInput(),
+      ],
     );
   }
 

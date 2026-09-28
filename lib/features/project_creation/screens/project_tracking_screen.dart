@@ -304,39 +304,58 @@ class _TrackingCard extends StatelessWidget {
               const SizedBox(height: 16),
               _LifecycleTimeline(currentIndex: stage),
               const SizedBox(height: 12),
+              // The counts wrap under each other on a narrow phone, so
+              // "Tap to open" keeps its place on the right.
               Row(
                 children: [
-                  Icon(
-                    Icons.inventory_2_outlined,
-                    size: 14,
-                    color: _darkBlue.withValues(alpha: 0.5),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${project.materialCount} materials',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: _darkBlue.withValues(alpha: 0.6),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.inventory_2_outlined,
+                              size: 14,
+                              color: _darkBlue.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${project.materialCount} materials',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: _darkBlue.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (bidCount > 0)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.local_offer_outlined,
+                                size: 14,
+                                color: const Color(0xFF059669)
+                                    .withValues(alpha: 0.9),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '$bidCount quotation${bidCount == 1 ? '' : 's'}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF047857),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
                     ),
                   ),
-                  if (bidCount > 0) ...[
-                    const SizedBox(width: 12),
-                    Icon(
-                      Icons.local_offer_outlined,
-                      size: 14,
-                      color: const Color(0xFF059669).withValues(alpha: 0.9),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$bidCount quotation${bidCount == 1 ? '' : 's'}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF047857),
-                      ),
-                    ),
-                  ],
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Text(
                     'Tap to open',
                     style: GoogleFonts.poppins(

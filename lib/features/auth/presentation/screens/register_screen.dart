@@ -21,7 +21,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final EmailService _emailService = EmailService();
+  // Created on first use, so the screen can be built without Firebase.
+  late final EmailService _emailService = EmailService();
 
   bool _loading = false;
   bool _obscurePassword = true;
