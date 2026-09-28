@@ -16,13 +16,14 @@ enum RenovationCoverage {
     'Full',
     'The whole space, wall to wall',
   ),
+  half(
+    'Half',
+    'Half of the space. Measure the whole room and every surface is sized at '
+        'half',
+  ),
   partial(
     'Partial',
     'One part of the space: a shower area, one wall, a section of floor',
-  ),
-  extension(
-    'Extension',
-    'New floor area added to the existing space',
   );
 
   final String label;
@@ -34,11 +35,16 @@ enum RenovationCoverage {
   /// Only a partial job has a portion to describe.
   bool get hasPortion => this == RenovationCoverage.partial;
 
-  /// Whether the measurements describe new floor area rather than existing.
-  bool get isNewArea => this == RenovationCoverage.extension;
+  /// Whether the whole room is measured and every surface sized at half of
+  /// it. A partial job is the opposite: the part itself is measured.
+  bool get isHalf => this == RenovationCoverage.half;
 
   /// Reads a saved value. An estimate saved before coverage existed covered
   /// the whole space, because that was the only thing the app could describe.
+  ///
+  /// "Extension" was an option until it was replaced by Half. An extension
+  /// was measured whole and sized from everything measured, which is what
+  /// Full does, so an estimate saved as one reads as Full.
   static RenovationCoverage fromString(String? value) {
     final lower = (value ?? '').toLowerCase().trim();
     if (lower.isEmpty) return RenovationCoverage.full;
@@ -50,9 +56,7 @@ enum RenovationCoverage {
     if (lower.contains('partial') || lower.contains('portion')) {
       return RenovationCoverage.partial;
     }
-    if (lower.contains('extension') || lower.contains('addition')) {
-      return RenovationCoverage.extension;
-    }
+    if (lower.contains('half')) return RenovationCoverage.half;
     return RenovationCoverage.full;
   }
 }

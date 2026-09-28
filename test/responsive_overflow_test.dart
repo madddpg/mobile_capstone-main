@@ -31,6 +31,9 @@ import 'package:iconstruct/features/auth/presentation/widgets/shop_storefront_sh
 import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
 import 'package:iconstruct/features/bidding/widgets/accepted_lines_panel.dart';
 import 'package:iconstruct/features/bidding/widgets/cancel_selection_sheet.dart';
+import 'package:iconstruct/features/bidding/widgets/counter_offers_panel.dart';
+import 'package:iconstruct/features/chat/data/chat_attachment_service.dart';
+import 'package:iconstruct/features/chat/widgets/attachment_confirm_sheet.dart';
 import 'package:iconstruct/features/chat/widgets/message_list.dart';
 import 'package:iconstruct/features/project_creation/data/bom_export.dart';
 import 'package:iconstruct/features/project_creation/widgets/bom_share_sheet.dart';
@@ -211,6 +214,16 @@ class _OpensOnStartState extends State<_OpensOnStart> {
   Widget build(BuildContext context) =>
       const Scaffold(body: SizedBox.expand());
 }
+
+/// The smallest valid PNG, standing in for a picked photo.
+final _onePixelPng = Uint8List.fromList(const [
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+  0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+  0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+]);
 
 /// A builder who bought from the shop on two estimates and has not rated it.
 class _FakeRatingService implements ShopRatingService {
@@ -521,6 +534,32 @@ void main() {
             ratingService: _FakeRatingService(),
           ),
         ),
+    'AttachmentConfirmSheet (photo)': () => _OpensOnStart(
+          (context) => showAttachmentConfirmSheet(
+            context,
+            attachment: PickedAttachment(
+              bytes: _onePixelPng,
+              name: 'scaled_IMG_20260928_101512.jpg',
+              kind: AttachmentKind.image,
+              sizeBytes: _onePixelPng.length,
+            ),
+            shopName: 'Santo Niño Construction Supply and Hardware',
+            caption: 'This is the wall behind the sink, the tiles here are '
+                'the ones that need replacing.',
+          ),
+        ),
+    'AttachmentConfirmSheet (document)': () => _OpensOnStart(
+          (context) => showAttachmentConfirmSheet(
+            context,
+            attachment: PickedAttachment(
+              bytes: Uint8List(0),
+              name: 'Dela-Cruz-bathroom-floor-plan-final-revision.pdf',
+              kind: AttachmentKind.file,
+              sizeBytes: 2411520,
+            ),
+            shopName: 'Santo Niño Construction Supply and Hardware',
+          ),
+        ),
     'BomShareSheet': () => _OpensOnStart(
           (context) => showBomShareSheet(
             context,
@@ -605,6 +644,64 @@ void main() {
             ),
           ),
         ),
+    // One offer waiting, one taken and one turned down in the last round.
+    'CounterOffersPanel': () => const Scaffold(
+          body: SingleChildScrollView(
+            padding: EdgeInsets.all(20),
+            child: CounterOffersPanel(
+              postId: 'post-1',
+              quotationId: 'q-1',
+              shopName: 'Santo Niño Construction Supply and Hardware',
+              quotationData: {
+                'status': 'partially_accepted',
+                'items': [
+                  {
+                    'productName': 'Ceramic Wall Tiles, Matte (30 x 60 cm)',
+                    'qty': 184,
+                    'unit': 'pcs',
+                    'price': 48,
+                    'subtotal': 8832,
+                    'accepted': false,
+                    'declineReason': 'overpriced',
+                    'negotiation': {
+                      'shopOfferedPrice': 42.5,
+                      'status': 'pending',
+                      'round': 1,
+                    },
+                  },
+                  {
+                    'productName': 'Portland Cement (40 kg)',
+                    'qty': 12,
+                    'unit': 'bags',
+                    'price': 245,
+                    'subtotal': 2940,
+                    'accepted': true,
+                    'declineReason': 'overpriced',
+                    'negotiation': {
+                      'shopOfferedPrice': 245,
+                      'status': 'accepted',
+                      'round': 1,
+                    },
+                  },
+                  {
+                    'productName': 'Mega Bond Premium Tile Adhesive Extra',
+                    'qty': 20,
+                    'unit': 'bags',
+                    'price': 343,
+                    'subtotal': 6860,
+                    'accepted': false,
+                    'declineReason': 'overpriced',
+                    'negotiation': {
+                      'shopOfferedPrice': 330,
+                      'status': 'declined',
+                      'round': 2,
+                    },
+                  },
+                ],
+              },
+            ),
+          ),
+        ),
     // A thread with long messages, a file, and a system note.
     'MessengerMessageList': () => Scaffold(
           body: MessengerMessageList(
@@ -682,6 +779,8 @@ void main() {
     'ChatThreadScreen',
     'MaterialEstimatorScreen',
     'CancelSelectionSheet',
+    'AttachmentConfirmSheet (photo)',
+    'AttachmentConfirmSheet (document)',
     'RateShopSheet',
     'OtpDialog',
   };

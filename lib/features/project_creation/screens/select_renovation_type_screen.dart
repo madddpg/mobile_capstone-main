@@ -41,12 +41,9 @@ class _SelectRenovationTypeScreenState
   late final String _type =
       RenovationTemplatesCatalog.normalizeType(widget.renovationType);
 
-  late final List<RenovationCoverage> _offeredCoverages =
-      RenovationTemplatesCatalog.coveragesFor(_type);
-
   /// Whole space unless the builder says otherwise — the common case, and what
   /// every estimate saved before this question existed described.
-  late RenovationCoverage _coverage = _offeredCoverages.first;
+  RenovationCoverage _coverage = RenovationCoverage.full;
 
   /// The kinds of work ticked. A real job is often more than one — retiling a
   /// bathroom and replacing its pipes — so any combination the project offers
@@ -54,19 +51,6 @@ class _SelectRenovationTypeScreenState
   late final Set<RenovationScope> _selected = {
     RenovationTemplatesCatalog.defaultTypeFor(_type),
   };
-
-  void _setCoverage(RenovationCoverage coverage) {
-    setState(() {
-      _coverage = coverage;
-      // New floor area means new walls and a new slab, so an extension is
-      // structural work whatever else it is. Ticked for the builder, who can
-      // still see it and add to it.
-      if (coverage.isNewArea &&
-          RenovationTemplatesCatalog.offers(_type, RenovationScope.structural)) {
-        _selected.add(RenovationScope.structural);
-      }
-    });
-  }
 
   void _toggle(RenovationScope scope) {
     setState(() {
@@ -120,19 +104,12 @@ class _SelectRenovationTypeScreenState
             spacing: 8,
             runSpacing: 8,
             children: [
+              // Every project can be done whole, by half or in part.
               for (final coverage in RenovationCoverage.values)
                 _CoverageChip(
                   coverage: coverage,
                   selected: _coverage == coverage,
-                  // An option this project cannot be is hidden by being
-                  // unpickable and saying why, rather than silently missing.
-                  unavailableReason: _offeredCoverages.contains(coverage)
-                      ? null
-                      : RenovationTemplatesCatalog.unavailableCoverageReason(
-                          _type, coverage),
-                  onTap: _offeredCoverages.contains(coverage)
-                      ? () => _setCoverage(coverage)
-                      : null,
+                  onTap: () => setState(() => _coverage = coverage),
                 ),
             ],
           ),
@@ -207,56 +184,44 @@ class _SelectRenovationTypeScreenState
   }
 }
 
-/// One coverage option. Unpickable options stay on screen with the reason,
-/// so the builder learns what the project can be rather than what is missing.
+/// One coverage option.
 class _CoverageChip extends StatelessWidget {
   final RenovationCoverage coverage;
   final bool selected;
-  final String? unavailableReason;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   const _CoverageChip({
     required this.coverage,
     required this.selected,
-    required this.unavailableReason,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final enabled = onTap != null;
-    return Tooltip(
-      message: unavailableReason ?? '',
-      triggerMode:
-          enabled ? TooltipTriggerMode.manual : TooltipTriggerMode.tap,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.45,
-        child: Material(
-          color: selected
-              ? GlitchedFlowShell.cream
-              : Colors.transparent,
+    return Semantics(
+      inMutuallyExclusiveGroup: true,
+      selected: selected,
+      child: Material(
+        color: selected ? GlitchedFlowShell.cream : Colors.transparent,
+        borderRadius: BorderRadius.circular(30),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(30),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(30),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: const Color(0xFF648DB6).withValues(alpha: 0.85),
-                  width: 1.2,
-                ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: const Color(0xFF648DB6).withValues(alpha: 0.85),
+                width: 1.2,
               ),
-              child: Text(
-                coverage.label,
-                style: GoogleFonts.poppins(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: selected
-                      ? GlitchedFlowShell.darkBlue
-                      : Colors.white,
-                ),
+            ),
+            child: Text(
+              coverage.label,
+              style: GoogleFonts.poppins(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: selected ? GlitchedFlowShell.darkBlue : Colors.white,
               ),
             ),
           ),

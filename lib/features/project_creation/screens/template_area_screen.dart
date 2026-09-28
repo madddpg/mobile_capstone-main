@@ -309,6 +309,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       paintCeiling: _finishes && job.hasWalls && _asksPaint && _paintCeiling,
       partial: _partialArea,
       irregular: _irregularRoom,
+      half: widget.coverage.isHalf,
     );
   }
 
@@ -333,7 +334,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   }
 
   /// Whether this job is asked which part of the space it covers. Only a
-  /// partial one has a part; a full job and an extension are measured whole.
+  /// partial one has a part; a full job and a half job are measured whole.
   bool get _asksPortion => widget.coverage.hasPortion;
 
   /// The whole space, when the builder narrowed the job to a part of it.
@@ -363,7 +364,8 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       if (!_formKey.currentState!.validate()) return;
       final area = double.tryParse(_areaController.text.trim());
       if (area == null || !area.isFinite || area <= 0) return;
-      _openEstimate(area, null);
+      // A job measured by area alone is halved the same way a room is.
+      _openEstimate(widget.coverage.isHalf ? area / 2 : area, null);
       return;
     }
 
@@ -659,6 +661,11 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           return null;
         },
       ),
+      if (widget.coverage.isHalf) ...[
+        const SizedBox(height: 8),
+        _hint('Half: enter the whole area. The materials are sized for half '
+            'of it.'),
+      ],
     ];
   }
 
@@ -722,6 +729,11 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           ],
         ],
         const SizedBox(height: 18),
+      ],
+      if (widget.coverage.isHalf) ...[
+        _hint('Half: measure the whole room. Every surface below is sized at '
+            'half of it.'),
+        const SizedBox(height: 10),
       ],
       _label(job.hasWalls
           ? (_isPortion && _asksPortion

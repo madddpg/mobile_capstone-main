@@ -163,7 +163,7 @@ void main() {
 
       expect(find.text('1 of 2 lines'), findsOneWidget);
       expect(find.text('₱40'), findsWidgets);
-      expect(find.text('Accept 1 line and chat'), findsOneWidget);
+      expect(find.text('Accept 1 line'), findsOneWidget);
     });
 
     testWidgets('a lump-sum offer is accepted whole', (tester) async {
@@ -171,7 +171,68 @@ void main() {
 
       expect(find.text('One price for the whole order'), findsOneWidget);
       expect(find.text('₱12,500'), findsOneWidget);
-      expect(find.text('Accept offer and chat'), findsOneWidget);
+      expect(find.text('Accept offer'), findsOneWidget);
+    });
+
+    testWidgets('an unticked line asks why, and only then', (tester) async {
+      await pump(tester, [_paint(), _laway()]);
+      expect(find.text('Why not take it?'), findsNothing);
+
+      await tester.tap(find.text('laway'));
+      // The question scrolls itself into view.
+      await tester.pumpAndSettle();
+      expect(find.text('Why not take it?'), findsOneWidget);
+      expect(find.text('Not needed'), findsOneWidget);
+      expect(find.text('Overpriced'), findsOneWidget);
+
+      await tester.tap(find.text('Overpriced'));
+      await tester.pump();
+      expect(find.text('The shop can offer you a lower price for it.'),
+          findsOneWidget);
+      // Choosing a reason does not tick the line back.
+      expect(find.text('1 of 2 lines'), findsOneWidget);
+
+      await tester.tap(find.text('laway'));
+      await tester.pumpAndSettle();
+      expect(find.text('Why not take it?'), findsNothing);
+    });
+
+    testWidgets('the reason goes back with the lines kept', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      LineSelectionResult? result;
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              result = await showModalBottomSheet<LineSelectionResult>(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => SelectShopSheet(
+                  items: [_paint(), _laway()],
+                  shopName: 'Chito Hardware',
+                  quotedTotal: 0,
+                ),
+              );
+            },
+            child: const Text('open'),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('laway'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Overpriced'));
+      await tester.pump();
+      await tester.tap(find.text('Accept 1 line'));
+      await tester.pumpAndSettle();
+
+      expect(result!.acceptedIndexes, {0});
+      expect(result!.declineReasons, {1: DeclineReason.overpriced});
     });
   });
 }

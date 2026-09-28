@@ -54,8 +54,8 @@ List<HomeGuideStep> homeGuideSteps({String? firstName}) {
       target: HomeGuideTarget.startEstimate,
       title: 'Start an estimate',
       body:
-          'Name your project, then pick your scope: Full Renovation or '
-          'Extension. Quantities scale from your floor area using Philippine '
+          'Name your project, then pick your scope: Full, Half or Partial. '
+          'Quantities scale from your floor area using Philippine '
           'construction standards. Tap any material to see what it looks like '
           'and exactly what to ask for at the counter.',
       nextLabel: 'Next',
@@ -98,8 +98,9 @@ List<HomeGuideStep> chatGuideSteps() {
       target: HomeGuideTarget.shopChat,
       title: 'This is shop chat',
       body:
-          'You and the hardware shop can message here once you have chosen '
-          'their quotation. Sort out materials, quantities and pickup — '
+          'You and the hardware shop can message here once they confirm the '
+          'order you took from their quotation. Sort out materials, '
+          'quantities and pickup — '
           'nothing is paid inside the app.',
       nextLabel: 'Next',
     ),

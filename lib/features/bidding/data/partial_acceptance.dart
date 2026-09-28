@@ -65,14 +65,48 @@ double lineTotalOf(Map<String, dynamic> item) {
   return unitPrice;
 }
 
+/// Why the builder did not take a line. Written as `declineReason` on the
+/// line, and only on lines the builder left.
+enum DeclineReason {
+  notNeeded('not_needed', 'Not needed'),
+
+  /// Tells the shop the line is open to a lower counter-price.
+  overpriced('overpriced', 'Overpriced');
+
+  /// The value stored on the line.
+  final String value;
+  final String label;
+
+  const DeclineReason(this.value, this.label);
+
+  static DeclineReason? fromValue(Object? raw) {
+    final value = '${raw ?? ''}'.trim().toLowerCase();
+    for (final reason in DeclineReason.values) {
+      if (reason.value == value) return reason;
+    }
+    return null;
+  }
+}
+
+/// The reason stored on a line, if the builder gave one.
+DeclineReason? declineReasonOf(Map<String, dynamic> item) =>
+    DeclineReason.fromValue(item['declineReason']);
+
 /// Resolves a builder's ticked lines into the document update.
 ///
 /// [acceptedIndexes] holds the positions the builder left ticked. Passing null
 /// means every line was kept, which is the plain full acceptance the app had
 /// before per-line choice existed.
+///
+/// [declineReasons], keyed by position, says why a line was left. When given,
+/// each left line carries its reason and no other line carries one, so a
+/// reason from an earlier acceptance of the same quotation cannot linger.
+/// When null, whatever reasons the lines already have are kept, which is what
+/// answering a counter-offer needs.
 AcceptanceOutcome resolveAcceptance({
   required List<Map<String, dynamic>> items,
   Set<int>? acceptedIndexes,
+  Map<int, DeclineReason>? declineReasons,
 }) {
   final keptAll = acceptedIndexes == null;
   final out = <Map<String, dynamic>>[];
@@ -83,7 +117,16 @@ AcceptanceOutcome resolveAcceptance({
     final accepted = keptAll || acceptedIndexes.contains(i);
     // Copy rather than mutate: the caller's list came from a snapshot and is
     // reused to render the screen behind the confirmation sheet.
-    out.add({...items[i], 'accepted': accepted});
+    final line = {...items[i], 'accepted': accepted};
+    if (declineReasons != null) {
+      final reason = accepted ? null : declineReasons[i];
+      if (reason == null) {
+        line.remove('declineReason');
+      } else {
+        line['declineReason'] = reason.value;
+      }
+    }
+    out.add(line);
     if (accepted) {
       kept++;
       total += lineTotalOf(items[i]);

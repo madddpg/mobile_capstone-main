@@ -80,6 +80,7 @@ class AcceptedLinesPanel extends StatelessWidget {
             label: 'Not taken',
             lines: summary.dropped,
             color: AppColors.textMuted,
+            showReasons: true,
           ),
           const SizedBox(height: 12),
           ConstrainedBox(
@@ -124,22 +125,32 @@ class _LineGroup extends StatelessWidget {
   final List<Map<String, dynamic>> lines;
   final Color color;
 
+  /// Whether to say why each line was left, where the builder said.
+  final bool showReasons;
+
   const _LineGroup({
     required this.label,
     required this.lines,
     required this.color,
+    this.showReasons = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    String reasonOf(Map<String, dynamic> line) {
+      final reason = showReasons ? declineReasonOf(line) : null;
+      return reason == null ? '' : ' (${reason.label.toLowerCase()})';
+    }
+
     final names = [
       for (final line in lines)
         if (quotedItemName(line).isEmpty)
-          'Unnamed item'
+          'Unnamed item${reasonOf(line)}'
         else if (isSubstitutedLine(line))
           '${quotedItemName(line)} (instead of ${requestedItemName(line)})'
+              '${reasonOf(line)}'
         else
-          quotedItemName(line),
+          '${quotedItemName(line)}${reasonOf(line)}',
     ];
 
     return Column(

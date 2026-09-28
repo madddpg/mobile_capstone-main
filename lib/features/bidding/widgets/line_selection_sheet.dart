@@ -15,15 +15,18 @@ class LineSelectionResult {
   final int acceptedCount;
   final int totalCount;
 
+  /// Why each left line was left, by position, where the builder said.
+  final Map<int, DeclineReason> declineReasons;
+
   const LineSelectionResult({
     required this.acceptedIndexes,
     required this.acceptedTotal,
     required this.acceptedCount,
     required this.totalCount,
+    this.declineReasons = const {},
   });
 
-  bool get isPartial =>
-      acceptedIndexes != null && acceptedCount < totalCount;
+  bool get isPartial => acceptedIndexes != null && acceptedCount < totalCount;
 }
 
 /// Lets the builder choose which lines of a shop's quotation to accept.
@@ -130,12 +133,13 @@ class SelectShopSheet extends StatefulWidget {
 class _SelectShopSheetState extends State<SelectShopSheet> {
   // Everything starts ticked. The builder is dropping lines, not building a
   // list from nothing, so the common case is a couple of taps.
-  late final Set<int> _kept = {
-    for (var i = 0; i < widget.items.length; i++) i,
-  };
+  late final Set<int> _kept = {for (var i = 0; i < widget.items.length; i++) i};
 
-  late final int _substitutes =
-      widget.items.where(isSubstitutedLine).length;
+  /// Why each unticked line was left. Optional: a line with no reason is
+  /// simply not taken, and cannot be offered at a lower price later.
+  final Map<int, DeclineReason> _reasons = {};
+
+  late final int _substitutes = widget.items.where(isSubstitutedLine).length;
 
   bool get _lumpSum => widget.items.isEmpty;
 
@@ -149,8 +153,20 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
   }
 
   void _toggle(int i) => setState(() {
-        if (!_kept.remove(i)) _kept.add(i);
-      });
+    if (!_kept.remove(i)) {
+      _kept.add(i);
+      _reasons.remove(i);
+    }
+  });
+
+  /// Choosing the reason already chosen clears it.
+  void _setReason(int i, DeclineReason reason) => setState(() {
+    if (_reasons[i] == reason) {
+      _reasons.remove(i);
+    } else {
+      _reasons[i] = reason;
+    }
+  });
 
   void _accept() {
     Navigator.pop(
@@ -167,6 +183,10 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
               acceptedTotal: _total,
               acceptedCount: _kept.length,
               totalCount: widget.items.length,
+              declineReasons: {
+                for (final entry in _reasons.entries)
+                  if (!_kept.contains(entry.key)) entry.key: entry.value,
+              },
             ),
     );
   }
@@ -197,10 +217,7 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
             ),
           ),
           _header(),
-          if (_lumpSum)
-            _lumpSumBody()
-          else
-            Flexible(child: _lineList()),
+          if (_lumpSum) _lumpSumBody() else Flexible(child: _lineList()),
           _footer(context),
         ],
       ),
@@ -299,6 +316,7 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
                   _kept.clear();
                 } else {
                   _kept.addAll({for (var i = 0; i < all; i++) i});
+                  _reasons.clear();
                 }
               }),
               style: TextButton.styleFrom(
@@ -323,6 +341,8 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
               item: widget.items[i],
               kept: _kept.contains(i),
               onTap: () => _toggle(i),
+              reason: _reasons[i],
+              onReason: (reason) => _setReason(i, reason),
             ),
           ),
       ],
@@ -366,12 +386,12 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
     final kept = _kept.length;
     final canAccept = _lumpSum || kept > 0;
     final label = _lumpSum
-        ? 'Accept offer and chat'
+        ? 'Accept offer'
         : kept == 0
-            ? 'Tick at least one line'
-            : kept == all
-                ? 'Accept all and chat'
-                : 'Accept $kept line${kept == 1 ? '' : 's'} and chat';
+        ? 'Tick at least one line'
+        : kept == all
+        ? 'Accept all'
+        : 'Accept $kept line${kept == 1 ? '' : 's'}';
 
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -394,8 +414,8 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
                   _lumpSum
                       ? 'Quoted total'
                       : kept == all
-                          ? 'All $all lines'
-                          : '$kept of $all lines',
+                      ? 'All $all lines'
+                      : '$kept of $all lines',
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     color: AppColors.textMuted,
@@ -436,7 +456,8 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Opens live chat with the shop. No payment happens in the app.',
+            'The shop confirms the order next, and chat opens once they do. '
+            'No payment happens in the app.',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 11,
@@ -455,10 +476,16 @@ class _LineCard extends StatelessWidget {
   final bool kept;
   final VoidCallback onTap;
 
+  /// Why the line was left, once the builder says. Only asked when unticked.
+  final DeclineReason? reason;
+  final ValueChanged<DeclineReason> onReason;
+
   const _LineCard({
     required this.item,
     required this.kept,
     required this.onTap,
+    required this.reason,
+    required this.onReason,
   });
 
   @override
@@ -488,95 +515,223 @@ class _LineCard extends StatelessWidget {
                 width: substitute ? 1.4 : 1,
               ),
             ),
-            child: Opacity(
-              opacity: fade,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 1),
-                    child: Icon(
-                      kept
-                          ? Icons.check_circle_rounded
-                          : Icons.radio_button_unchecked_rounded,
-                      size: 22,
-                      color: kept ? AppColors.navy : AppColors.textMuted,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Opacity(
+                  opacity: fade,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Icon(
+                          kept
+                              ? Icons.check_circle_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          size: 22,
+                          color: kept ? AppColors.navy : AppColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              name.isEmpty ? 'Unnamed item' : name,
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textDark,
-                                decoration: kept
-                                    ? null
-                                    : TextDecoration.lineThrough,
-                              ),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  name.isEmpty ? 'Unnamed item' : name,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textDark,
+                                    decoration: kept
+                                        ? null
+                                        : TextDecoration.lineThrough,
+                                  ),
+                                ),
+                                if (substitute) const _SubstituteBadge(),
+                              ],
                             ),
-                            if (substitute) const _SubstituteBadge(),
+                            if (substitute && requested.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  'instead of $requested',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: _subText,
+                                  ),
+                                ),
+                              ),
+                            if (quantity.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  quantity,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              ),
+                            if (note.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  '“$note”',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11.5,
+                                    fontStyle: FontStyle.italic,
+                                    color: AppColors.textMuted,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
-                        if (substitute && requested.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              'instead of $requested',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                color: _subText,
-                              ),
-                            ),
-                          ),
-                        if (quantity.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              quantity,
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                color: AppColors.textMuted,
-                              ),
-                            ),
-                          ),
-                        if (note.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              '“$note”',
-                              style: GoogleFonts.poppins(
-                                fontSize: 11.5,
-                                fontStyle: FontStyle.italic,
-                                color: AppColors.textMuted,
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        total > 0 ? _money(total) : 'No price',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: total > 0
+                              ? AppColors.textDark
+                              : AppColors.textMuted,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Text(
-                    total > 0 ? _money(total) : 'No price',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: total > 0
-                          ? AppColors.textDark
-                          : AppColors.textMuted,
-                    ),
-                  ),
-                ],
+                ),
+                // Outside the fade: the question is for the line just unticked,
+                // and has to read as live.
+                if (!kept) _ReasonPicker(reason: reason, onReason: onReason),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Why an unticked line was left. Optional, and asked in place rather than in
+/// a dialog, so dropping several lines stays a few taps.
+class _ReasonPicker extends StatefulWidget {
+  final DeclineReason? reason;
+  final ValueChanged<DeclineReason> onReason;
+
+  const _ReasonPicker({required this.reason, required this.onReason});
+
+  @override
+  State<_ReasonPicker> createState() => _ReasonPickerState();
+}
+
+class _ReasonPickerState extends State<_ReasonPicker> {
+  @override
+  void initState() {
+    super.initState();
+    // Unticking a line near the bottom of the list would otherwise put the
+    // question below the fold, where the builder never sees it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 200),
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = widget.reason;
+    final onReason = widget.onReason;
+    return Padding(
+      padding: const EdgeInsets.only(left: 32, top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Why not take it?',
+            style: GoogleFonts.poppins(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final option in DeclineReason.values)
+                _ReasonChip(
+                  label: option.label,
+                  selected: reason == option,
+                  onTap: () => onReason(option),
+                ),
+            ],
+          ),
+          if (reason == DeclineReason.overpriced) ...[
+            const SizedBox(height: 6),
+            Text(
+              'The shop can offer you a lower price for it.',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: AppColors.textMuted,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReasonChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ReasonChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      inMutuallyExclusiveGroup: true,
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected ? AppColors.navy : Colors.white,
+        shape: StadiumBorder(
+          side: BorderSide(color: selected ? AppColors.navy : _border),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const StadiumBorder(),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 34),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : AppColors.textDark,
+                ),
               ),
             ),
           ),

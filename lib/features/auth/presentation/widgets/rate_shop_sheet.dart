@@ -32,8 +32,8 @@ Future<bool> showRateShopSheet(
       context,
       SnackBar(
         content: Text(
-          'You can rate ${shop.shopName} once you have chosen them as a '
-          'supplier on one of your estimates.',
+          'You can rate ${shop.shopName} once they have confirmed an order '
+          'on one of your estimates.',
         ),
       ),
     );
