@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
+import 'package:iconstruct/features/bidding/data/quotation_status.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
 
@@ -39,10 +40,10 @@ String quotationShopId(Map<String, dynamic> data, String documentId) {
 
 /// Marks a quotation accepted and opens the chat thread.
 ///
-/// A Cloud Function used to create the conversation on acceptance. It was
-/// deleted, so the client now always creates it through
-/// [ChatService.waitOrEnsureConversation], which was written as the fallback
-/// for that function and is now the only path.
+/// The shop dashboard's own `onQuotationAccepted` Cloud Function (deployed
+/// from the dashboard's project, not this one) also creates the thread on
+/// acceptance. [ChatService.ensureConversationAfterAccept] creates it only if
+/// the function has not, so whichever runs first wins and the other uses it.
 class QuotationAcceptService {
   QuotationAcceptService({
     FirebaseFirestore? firestore,
@@ -78,13 +79,14 @@ class QuotationAcceptService {
     // queries inside runTransaction). Cap the reject fan-out so the transaction
     // stays well under the 500-write limit; anything beyond is reconciled
     // server-side.
+    //
+    // Only open offers are turned down. A shop whose selection was cancelled
+    // stays "cancelled": rewriting it as "rejected" told that shop it had lost
+    // a bid, not that the builder had backed out of an agreed order.
     final siblings = await projectRef.collection('quotations').get();
     final toReject = siblings.docs
         .where((d) => d.id != quotationId)
-        .where((d) {
-          final st = (d.data()['status'] ?? '').toString().toLowerCase();
-          return st != 'accepted' && st != 'rejected';
-        })
+        .where((d) => isOpenOfferStatus(d.data()['status']?.toString()))
         .take(400)
         .toList();
 

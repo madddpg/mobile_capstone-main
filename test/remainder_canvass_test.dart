@@ -126,4 +126,112 @@ void main() {
       expect(remainderProjectName('x' * 250).length, 200);
     });
   });
+
+  // The leftover lines go out as an estimate in their own right, so shops must
+  // receive them exactly as they receive any estimate.
+  group('remainderPostData', () {
+    // A parent estimate as the app posts it, with a shop already selected.
+    final parent = <String, dynamic>{
+      'projectName': 'Bathroom',
+      'projectType': 'Floor Renovation',
+      'projectScope': 'Structural',
+      'renovationTypes': ['cosmetic', 'structural'],
+      'coverage': 'partial',
+      'ownerName': 'Cups Cuddles',
+      'totalAreaSqm': 4.05,
+      'budget': 'medium',
+      'siteDetails': {'job': 'floorOnly', 'lengthM': 1.5, 'widthM': 2.7},
+      'selectedQuotationId': 'q-b',
+      'excludedWork': [
+        {'name': 'Repaint'},
+      ],
+    };
+
+    Map<String, dynamic> post() => remainderPostData(
+          parent: parent,
+          parentPostId: 'post-1',
+          newPostId: 'post-2',
+          userId: 'builder-1',
+          savedProjectId: 'saved-2',
+          materials: const [
+            {'name': 'Floor Tiles', 'quantity': 12, 'unit': 'pcs'},
+          ],
+        );
+
+    test('names the builder, as every estimate does', () {
+      // Built by hand before, it left the name off and shops saw an estimate
+      // from nobody.
+      expect(post()['ownerName'], 'Cups Cuddles');
+    });
+
+    test('keeps the renovation types, coverage and measured room', () {
+      final data = post();
+      expect(data['renovationTypes'], ['cosmetic', 'structural']);
+      expect(data['coverage'], 'partial');
+      expect(data['siteDetails'], parent['siteDetails']);
+      expect(data['projectScope'], 'Structural');
+    });
+
+    test('opens like a first posting, linked to the estimate it came from', () {
+      final data = post();
+      expect(data['status'], 'open');
+      expect(data['quotationCount'], 0);
+      expect(data['userId'], 'builder-1');
+      expect(data['builderId'], 'builder-1');
+      expect(data['projectId'], 'saved-2');
+      expect(data['parentPostId'], 'post-1');
+      expect(data['materialsCount'], 1);
+      expect(data['projectName'], 'Bathroom (remaining lines)');
+    });
+
+    test('carries nothing of the first estimate\'s selection or prices', () {
+      final data = post();
+      for (final key in [
+        'selectedQuotationId',
+        'excludedWork',
+        'price',
+        'unitPrice',
+        'estimatedTotal',
+      ]) {
+        expect(data.containsKey(key), isFalse, reason: key);
+      }
+    });
+
+    test('falls back to the builder\'s email when the parent has no name', () {
+      final data = remainderPostData(
+        parent: {...parent}..remove('ownerName'),
+        parentPostId: 'post-1',
+        newPostId: 'post-2',
+        userId: 'builder-1',
+        savedProjectId: 'saved-2',
+        materials: const [
+          {'name': 'Floor Tiles'},
+        ],
+        fallbackOwnerEmail: 'cups@example.com',
+      );
+      expect(data['ownerName'], 'cups');
+    });
+  });
+
+  group('remainderPostIdFor', () {
+    test('finds the leftover estimate for the quotation it came from', () {
+      final post = {'remainderPostId': 'post-2', 'remainderQuotationId': 'q-a'};
+      expect(remainderPostIdFor(post, 'q-a'), 'post-2');
+    });
+
+    test('lets a later selection post its own leftovers', () {
+      // Shop A's leftovers were canvassed, then A was cancelled and part of
+      // shop B's offer taken. B's lines are different lines.
+      final post = {'remainderPostId': 'post-2', 'remainderQuotationId': 'q-a'};
+      expect(remainderPostIdFor(post, 'q-b'), isEmpty);
+    });
+
+    test('reads a link saved before it named its quotation', () {
+      expect(remainderPostIdFor({'remainderPostId': 'post-2'}, 'q-a'), 'post-2');
+    });
+
+    test('is empty when nothing was canvassed', () {
+      expect(remainderPostIdFor({}, 'q-a'), isEmpty);
+    });
+  });
 }

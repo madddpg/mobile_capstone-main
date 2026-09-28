@@ -175,4 +175,28 @@ void main() {
       );
     });
   });
+
+  // Selecting a shop turns down the other open offers. It used to turn down
+  // anything not already accepted or rejected, so re-selecting after a
+  // cancellation rewrote the cancelled shop's quotation as "rejected".
+  group('isOpenOfferStatus', () {
+    test('an undecided offer is open, as the dashboard or the app files it', () {
+      expect(isOpenOfferStatus('pending'), isTrue);
+      expect(isOpenOfferStatus('submitted'), isTrue);
+      expect(isOpenOfferStatus(' Submitted '), isTrue);
+      expect(isOpenOfferStatus(null), isTrue);
+    });
+
+    test('a decided quotation is left alone', () {
+      for (final status in [
+        'accepted',
+        'partially_accepted',
+        'rejected',
+        'cancelled',
+        'withdrawn',
+      ]) {
+        expect(isOpenOfferStatus(status), isFalse, reason: status);
+      }
+    });
+  });
 }

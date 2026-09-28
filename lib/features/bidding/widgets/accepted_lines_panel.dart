@@ -134,7 +134,12 @@ class _LineGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final names = [
       for (final line in lines)
-        quotedItemName(line).isEmpty ? 'Unnamed item' : quotedItemName(line),
+        if (quotedItemName(line).isEmpty)
+          'Unnamed item'
+        else if (isSubstitutedLine(line))
+          '${quotedItemName(line)} (instead of ${requestedItemName(line)})'
+        else
+          quotedItemName(line),
     ];
 
     return Column(

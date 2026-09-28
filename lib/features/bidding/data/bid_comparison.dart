@@ -4,6 +4,8 @@
 /// submitted for the builder's posted estimate.
 library;
 
+import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
+
 double bidAsDouble(dynamic value) {
   if (value == null) return 0;
   if (value is num) return value.toDouble();
@@ -62,16 +64,7 @@ List<QuotedLine> _linesFromRaw(dynamic raw) {
     }
     if (item is! Map) continue;
     final map = Map<String, dynamic>.from(item);
-    final name = (map['name'] ??
-            map['productName'] ??
-            map['materialName'] ??
-            map['itemName'] ??
-            map['material'] ??
-            map['product'] ??
-            map['item'] ??
-            '')
-        .toString()
-        .trim();
+    final name = quotedItemName(map);
     if (name.isEmpty) continue;
     final quantity = bidAsDouble(map['quantity'] ?? map['qty']);
     final unitPrice = bidAsDouble(
@@ -95,6 +88,8 @@ List<QuotedLine> _linesFromRaw(dynamic raw) {
         size: (map['size'] ?? '').toString(),
         unitPrice: unitPrice,
         subtotal: subtotal,
+        requestedName: isSubstitutedLine(map) ? requestedItemName(map) : '',
+        note: quotedLineNote(map),
       ),
     );
   }
@@ -104,15 +99,18 @@ List<QuotedLine> _linesFromRaw(dynamic raw) {
 List<QuotedLine> _mergeQuotedLines(List<QuotedLine> incoming) {
   final byName = <String, QuotedLine>{};
   for (final line in incoming) {
-    final key = _stemMaterialName(line.name);
+    final key = _stemMaterialName(line.matchName);
     if (key.isEmpty) continue;
     final existing = byName[key];
     if (existing == null) {
       byName[key] = line;
       continue;
     }
+    final named = existing.hasPrice ? existing : line;
     byName[key] = QuotedLine(
-      name: existing.hasPrice ? existing.name : line.name,
+      name: named.name,
+      requestedName: named.requestedName,
+      note: existing.note.isNotEmpty ? existing.note : line.note,
       quantity: existing.quantity > 0 ? existing.quantity : line.quantity,
       unit: existing.unit.trim().isNotEmpty ? existing.unit : line.unit,
       size: existing.size.trim().isNotEmpty ? existing.size : line.size,
@@ -151,7 +149,15 @@ List<QuotedLine> parseQuotedLines(Map<String, dynamic> data) {
 
 /// One priced (or unpriced) material line from a shop quotation or BOM.
 class QuotedLine {
+  /// What the line is: the shop's own product, for a substitute.
   final String name;
+
+  /// The builder's material this line stands in for. Empty unless the shop
+  /// substituted its own product for the one asked for.
+  final String requestedName;
+
+  /// The shop's note on the line, such as why it substituted.
+  final String note;
   final double quantity;
   final String unit;
   final String size;
@@ -160,6 +166,8 @@ class QuotedLine {
 
   const QuotedLine({
     required this.name,
+    this.requestedName = '',
+    this.note = '',
     this.quantity = 0,
     this.unit = '',
     this.size = '',
@@ -168,6 +176,12 @@ class QuotedLine {
   });
 
   bool get hasPrice => unitPrice > 0 || subtotal > 0;
+
+  bool get isSubstitute => requestedName.trim().isNotEmpty;
+
+  /// The name the line is matched to the estimate by. A substitute answers
+  /// the material that was asked for, so it is matched by that.
+  String get matchName => isSubstitute ? requestedName : name;
 
   double get lineTotal {
     if (subtotal > 0) return subtotal;
@@ -195,13 +209,13 @@ QuotedLine? findQuotedLine(List<QuotedLine> lines, String materialName) {
   final targetStem = _stemMaterialName(materialName);
   if (target.isEmpty) return null;
   for (final line in lines) {
-    if (normalizeMaterialName(line.name) == target) return line;
+    if (normalizeMaterialName(line.matchName) == target) return line;
   }
   for (final line in lines) {
-    if (_stemMaterialName(line.name) == targetStem) return line;
+    if (_stemMaterialName(line.matchName) == targetStem) return line;
   }
   for (final line in lines) {
-    final name = normalizeMaterialName(line.name);
+    final name = normalizeMaterialName(line.matchName);
     if (name.contains(target) || target.contains(name)) return line;
   }
   return null;
@@ -252,7 +266,7 @@ List<QuotedLine> extraQuotedLines(List<QuotedLine> bom, BidQuote quote) {
   if (bom.isEmpty) return const [];
   return [
     for (final line in quote.lines)
-      if (findQuotedLine(bom, line.name) == null) line,
+      if (findQuotedLine(bom, line.matchName) == null) line,
   ];
 }
 
@@ -265,10 +279,12 @@ List<QuotedLine> materialsToCompare(
   final rows = <QuotedLine>[];
   for (final quote in quotes) {
     for (final line in quote.lines) {
-      if (findQuotedLine(rows, line.name) != null) continue;
+      // Rows are the materials asked for, so a substitute adds the material
+      // it replaces, not the shop's product.
+      if (findQuotedLine(rows, line.matchName) != null) continue;
       rows.add(
         QuotedLine(
-          name: line.name,
+          name: line.matchName,
           quantity: line.quantity,
           unit: line.unit,
           size: line.size,

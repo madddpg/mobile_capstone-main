@@ -321,6 +321,34 @@ async function run() {
     await assertFails(openChatAfter("rejected"));
   });
 
+  // The shop dashboard's onQuotationAccepted function creates the same thread
+  // on acceptance, with builderId only. When it gets there first, the app must
+  // be able to read that thread and use it: writing it again is refused as an
+  // edit, which is how re-selecting a shop after a cancellation left the
+  // builder with an error instead of the chat.
+  await test("a builder can read and write in a thread the dashboard created", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.doc(`projectPosts/${POST}/quotations/${SHOP}`).update({ status: "accepted" });
+      await db.doc(`conversations/${POST}_${SHOP}`).set({
+        projectId: POST,
+        quotationId: SHOP,
+        shopId: SHOP,
+        builderId: BUILDER,
+        status: "open",
+      });
+    });
+    const thread = asBuilder().doc(`conversations/${POST}_${SHOP}`);
+    await assertSucceeds(thread.get());
+    await assertSucceeds(
+      thread.collection("messages").add({
+        senderId: BUILDER,
+        senderRole: "builder",
+        text: "Hi, when can you deliver?",
+      })
+    );
+  });
+
   console.log("\nquotations — a shop cannot fake one");
 
   const SHOP_2 = "shop-2-uid";
