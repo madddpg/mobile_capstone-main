@@ -234,4 +234,85 @@ void main() {
       expect(remainderPostIdFor({}, 'q-a'), isEmpty);
     });
   });
+
+  // What goes out again after choosing a shop: the lines the builder left,
+  // and the lines the shop cannot supply, whether it marked them unavailable,
+  // sent them without a price, or did not list them at all.
+  group('what is still needed', () {
+    final estimate = [
+      {'name': 'Portland Cement', 'quantity': 18, 'unit': 'bags', 'category': 'Masonry'},
+      {'name': 'Floor Tiles', 'quantity': 61, 'unit': 'pcs', 'category': 'Floor Surface'},
+      {'name': 'Roof Paint', 'quantity': 2, 'unit': 'gal', 'category': 'Paint'},
+      {'name': 'Tile Grout (2 kg)', 'quantity': 6, 'unit': 'packs', 'category': 'Tile Setting'},
+    ];
+
+    // Took the cement. Left the tiles. Roof paint marked unavailable. Grout
+    // not listed at all.
+    Map<String, dynamic> quotation() => {
+          'status': 'partially_accepted',
+          'items': [
+            {'name': 'Portland Cement', 'quantity': 18, 'unitPrice': 260, 'accepted': true},
+            {'name': 'Floor Tiles', 'quantity': 61, 'subtotal': 4500, 'accepted': false},
+            {'name': 'Roof Paint', 'quantity': 2, 'status': 'unavailable', 'accepted': false},
+          ],
+        };
+
+    test('includes lines left, lines marked unavailable, and lines not listed', () {
+      final needed = linesStillNeeded(quotation: quotation(), estimateMaterials: estimate);
+      expect(needed.map(quotedItemName), ['Floor Tiles', 'Roof Paint', 'Tile Grout (2 kg)']);
+    });
+
+    test('never includes a line that was taken', () {
+      final needed = linesStillNeeded(quotation: quotation(), estimateMaterials: estimate);
+      expect(needed.map(quotedItemName), isNot(contains('Portland Cement')));
+    });
+
+    test('posts each in the builder\'s own quantity and unit', () {
+      final materials = remainderMaterials(
+        dropped: linesStillNeeded(quotation: quotation(), estimateMaterials: estimate),
+        estimateMaterials: estimate,
+      );
+      expect(materials, [estimate[1], estimate[2], estimate[3]]);
+    });
+
+    test('still has something when every offered line was taken', () {
+      // Nothing was left by choice, but the shop could not supply two
+      // materials, and the builder needs those from somewhere else.
+      final full = {
+        'status': 'accepted',
+        'items': [
+          {'name': 'Portland Cement', 'quantity': 18, 'unitPrice': 260},
+          {'name': 'Floor Tiles', 'quantity': 61, 'subtotal': 4500},
+          {'name': 'Roof Paint', 'quantity': 2},
+        ],
+      };
+      final needed = linesStillNeeded(quotation: full, estimateMaterials: estimate);
+      expect(needed.map(quotedItemName), ['Roof Paint', 'Tile Grout (2 kg)']);
+    });
+
+    test('is empty when the shop supplied everything and all was taken', () {
+      final all = {
+        'status': 'accepted',
+        'items': [for (final m in estimate) {...m, 'unitPrice': 100}],
+      };
+      expect(linesStillNeeded(quotation: all, estimateMaterials: estimate), isEmpty);
+    });
+
+    test('a substitute counts as listing what it replaces', () {
+      final substituted = {
+        'status': 'accepted',
+        'items': [
+          for (final m in estimate.take(3)) {...m, 'unitPrice': 100},
+          {
+            'productName': 'Mapei grout',
+            'requestedName': 'Tile Grout (2 kg)',
+            'status': 'substituted',
+            'qty': 6,
+            'price': 90,
+          },
+        ],
+      };
+      expect(unlistedMaterials(quotation: substituted, estimateMaterials: estimate), isEmpty);
+    });
+  });
 }

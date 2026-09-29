@@ -1,21 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'package:iconstruct/features/bidding/data/item_negotiation.dart';
 import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
 import 'package:iconstruct/features/bidding/data/quotation_status.dart';
-import 'package:iconstruct/features/chat/data/chat_service.dart';
+import 'package:iconstruct/features/bidding/data/shop_confirmation.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
 
 /// Firestore field names that may hold the builder's Auth uid on a post.
 ///
 /// Security rules treat **`userId`** as the canonical owner id. Older or
 /// web-side docs may use the aliases instead.
-const postedEstimateOwnerKeys = [
-  'userId',
-  'builderId',
-  'ownerId',
-  'postedBy',
-];
+const postedEstimateOwnerKeys = ['userId', 'builderId', 'ownerId', 'postedBy'];
 
 /// First non-empty owner id on a `projectPosts` document (`userId` first).
 String? postedEstimateOwnerId(Map<String, dynamic> data) {
@@ -27,9 +23,7 @@ String? postedEstimateOwnerId(Map<String, dynamic> data) {
 }
 
 bool isPostedEstimateOwner(Map<String, dynamic> data, String uid) {
-  return postedEstimateOwnerKeys.any(
-    (key) => data[key]?.toString() == uid,
-  );
+  return postedEstimateOwnerKeys.any((key) => data[key]?.toString() == uid);
 }
 
 String quotationShopId(Map<String, dynamic> data, String documentId) {
@@ -38,36 +32,31 @@ String quotationShopId(Map<String, dynamic> data, String documentId) {
   return documentId.trim();
 }
 
-/// Marks a quotation accepted and opens the chat thread.
+/// Marks a quotation accepted, and answers the shop's counter-offers on it.
 ///
-/// The shop dashboard's own `onQuotationAccepted` Cloud Function (deployed
-/// from the dashboard's project, not this one) also creates the thread on
-/// acceptance. [ChatService.ensureConversationAfterAccept] creates it only if
-/// the function has not, so whichever runs first wins and the other uses it.
+/// Accepting no longer opens the chat. The shop confirms the order from the
+/// dashboard first, and chat waits for that (see `shop_confirmation.dart`).
 class QuotationAcceptService {
-  QuotationAcceptService({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-    ChatService? chat,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance,
-        _chat = chat ?? ChatService();
+  QuotationAcceptService({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _db = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
-  final ChatService _chat;
 
   /// Accepts a shop's quotation, whole or in part.
   ///
   /// [acceptedIndexes] names the line positions the builder kept. Passing null
   /// accepts everything, which is the behaviour from before per-line choice
-  /// existed, so existing callers are unaffected.
+  /// existed, so existing callers are unaffected. [declineReasons] says why
+  /// each left line was left, where the builder said.
   Future<String> acceptQuotation({
     required String postId,
     required String quotationId,
     required String shopId,
     required String shopName,
     Set<int>? acceptedIndexes,
+    Map<int, DeclineReason> declineReasons = const {},
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Not signed in');
@@ -104,8 +93,9 @@ class QuotationAcceptService {
         );
       }
 
-      final existing =
-          (projectData['selectedQuotationId'] ?? '').toString().trim();
+      final existing = (projectData['selectedQuotationId'] ?? '')
+          .toString()
+          .trim();
       if (existing.isNotEmpty && existing != quotationId) {
         throw Exception('You already accepted an offer for this estimate.');
       }
@@ -114,14 +104,15 @@ class QuotationAcceptService {
       if (!quotationSnap.exists) {
         throw Exception('That quotation is no longer available.');
       }
-      final resolvedShopId =
-          quotationShopId(quotationSnap.data() ?? <String, dynamic>{}, shopId);
+      final resolvedShopId = quotationShopId(
+        quotationSnap.data() ?? <String, dynamic>{},
+        shopId,
+      );
       if (resolvedShopId.isEmpty) {
         throw Exception('This quotation is missing a shop id.');
       }
 
-      final savedProjectId =
-          (projectData['projectId'] ?? '').toString().trim();
+      final savedProjectId = (projectData['projectId'] ?? '').toString().trim();
       DocumentReference<Map<String, dynamic>>? savedProjectRef;
       var savedProjectExists = false;
       if (savedProjectId.isNotEmpty) {
@@ -140,6 +131,7 @@ class QuotationAcceptService {
       final outcome = resolveAcceptance(
         items: lines,
         acceptedIndexes: lines.isEmpty ? null : acceptedIndexes,
+        declineReasons: declineReasons,
       );
 
       // ---- then all writes ----
@@ -180,31 +172,55 @@ class QuotationAcceptService {
     });
   }
 
-  Future<String> acceptAndOpenChat({
+  /// Takes or turns down the shop's counter-offer on the line at [itemIndex].
+  ///
+  /// Taking it puts the line into the order at the offered price and
+  /// recalculates the accepted total. The line is found by position, and the
+  /// write is refused unless that line still has an offer waiting, so a stale
+  /// screen cannot answer an offer twice or answer one that was replaced.
+  Future<void> respondToCounterOffer({
     required String postId,
     required String quotationId,
-    required String shopId,
-    required String shopName,
-    Set<int>? acceptedIndexes,
-    required String projectTitle,
-    String builderName = 'Builder',
+    required int itemIndex,
+    required bool accept,
   }) async {
-    final resolvedShopId = await acceptQuotation(
-      postId: postId,
-      quotationId: quotationId,
-      shopId: shopId,
-      shopName: shopName,
-      acceptedIndexes: acceptedIndexes,
-    );
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Not signed in');
 
-    return _chat.waitOrEnsureConversation(
-      projectId: postId,
-      shopId: resolvedShopId,
-      quotationId: quotationId,
-      projectTitle: projectTitle,
-      shopName: shopName,
-      builderName: builderName,
-    );
+    final projectRef = _db.collection('projectPosts').doc(postId);
+    final quotationRef = projectRef.collection('quotations').doc(quotationId);
+
+    await _db.runTransaction<void>((txn) async {
+      final projectSnap = await txn.get(projectRef);
+      if (!isPostedEstimateOwner(projectSnap.data() ?? {}, user.uid)) {
+        throw Exception('This estimate is not linked to your account.');
+      }
+
+      final quotationSnap = await txn.get(quotationRef);
+      final data = quotationSnap.data() ?? <String, dynamic>{};
+      if (shopConfirmationOf(data) == ShopConfirmation.declined) {
+        throw Exception('The shop backed out of this order.');
+      }
+
+      final lines = quotationItems(data);
+      if (itemIndex < 0 || itemIndex >= lines.length) {
+        throw Exception('That line is no longer on the quotation.');
+      }
+      if (!(ItemNegotiation.fromItem(lines[itemIndex])?.isPending ?? false)) {
+        throw Exception('That offer has already been answered.');
+      }
+
+      final outcome = answerCounterOffer(
+        items: lines,
+        index: itemIndex,
+        accept: accept,
+      );
+      txn.update(quotationRef, {
+        'status': outcome.status,
+        'items': outcome.items,
+        'acceptedTotal': outcome.acceptedTotal,
+      });
+    });
   }
 
   /// Finishes an acceptance that only half landed.
@@ -232,8 +248,9 @@ class QuotationAcceptService {
 
     final projectData = projectSnap.data() ?? <String, dynamic>{};
     if (!isPostedEstimateOwner(projectData, user.uid)) return false;
-    final selected =
-        (projectData['selectedQuotationId'] ?? '').toString().trim();
+    final selected = (projectData['selectedQuotationId'] ?? '')
+        .toString()
+        .trim();
     if (selected.isEmpty || selected != quotationId) return false;
 
     final quotationRef = projectRef.collection('quotations').doc(quotationId);

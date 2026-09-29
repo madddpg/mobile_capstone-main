@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -9,8 +11,10 @@ import 'package:iconstruct/core/theme/app_theme.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/features/bidding/data/shop_confirmation.dart';
 import 'package:iconstruct/features/chat/data/chat_attachment_service.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
+import 'package:iconstruct/features/chat/widgets/attachment_confirm_sheet.dart';
 import 'package:iconstruct/features/chat/widgets/message_list.dart';
 import 'package:iconstruct/features/onboarding/data/home_guide_steps.dart';
 import 'package:iconstruct/features/onboarding/presentation/widgets/home_guide_overlay.dart';
@@ -60,15 +64,100 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   String? _markedReadUpTo;
   final List<HomeGuideStep> _guideSteps = chatGuideSteps();
 
+  /// The shop's answer to being selected. Chat opens once the shop confirms
+  /// the order; until then the thread says what it is waiting for. Unknown
+  /// reads as confirmed, as a quotation from before shops confirmed does.
+  ShopConfirmation _confirmation = ShopConfirmation.confirmed;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _confirmationSub;
+
+  /// Whether the thread has been prepared and marked read.
+  bool _entered = false;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _prepareThread();
-      // Opening the thread is what clears its badge.
-      await _chat.markConversationRead(widget.conversationId);
-      if (mounted) await _maybeStartGuide();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _open());
+  }
+
+  Future<void> _open() async {
+    final postId = widget.postId?.trim() ?? '';
+    final quotationId = widget.quotationId?.trim() ?? '';
+    if (postId.isNotEmpty && quotationId.isNotEmpty) {
+      // Known up front, and the thread may be created below, so the answer is
+      // settled first: no thread is opened for an order the shop has not
+      // confirmed.
+      await _watchConfirmation(postId, quotationId);
+    } else {
+      // From the inbox or a notification the thread already exists. Its
+      // quotation is found from the thread and watched without holding the
+      // screen up.
+      unawaited(_watchConfirmationFromThread());
+    }
+    if (!mounted) return;
+    if (_confirmation == ShopConfirmation.confirmed) {
+      await _enterThread();
+    } else {
+      setState(() => _preparing = false);
+    }
+  }
+
+  Future<void> _enterThread() async {
+    _entered = true;
+    await _prepareThread();
+    // Opening the thread is what clears its badge.
+    await _chat.markConversationRead(widget.conversationId);
+    if (mounted) await _maybeStartGuide();
+  }
+
+  /// Follows the quotation's confirmation. Completes on the first answer, or
+  /// on an error, which leaves the thread open rather than locking it.
+  Future<void> _watchConfirmation(String postId, String quotationId) {
+    final first = Completer<void>();
+    void done() {
+      if (!first.isCompleted) first.complete();
+    }
+
+    try {
+      _confirmationSub = FirebaseFirestore.instance
+          .collection('projectPosts')
+          .doc(postId)
+          .collection('quotations')
+          .doc(quotationId)
+          .snapshots()
+          .listen(
+        (snap) {
+          _setConfirmation(shopConfirmationOf(snap.data() ?? const {}));
+          done();
+        },
+        onError: (Object _) => done(),
+      );
+    } catch (_) {
+      done();
+    }
+    return first.future;
+  }
+
+  Future<void> _watchConfirmationFromThread() async {
+    try {
+      final snap = await _chat.watchConversation(widget.conversationId).first;
+      final data = snap.data() ?? const <String, dynamic>{};
+      final postId = '${data['projectId'] ?? ''}'.trim();
+      final quotationId = '${data['quotationId'] ?? ''}'.trim();
+      if (!mounted || postId.isEmpty || quotationId.isEmpty) return;
+      await _watchConfirmation(postId, quotationId);
+    } catch (_) {
+      // A thread that cannot be matched to its quotation stays open.
+    }
+  }
+
+  void _setConfirmation(ShopConfirmation next) {
+    if (!mounted || next == _confirmation) return;
+    setState(() => _confirmation = next);
+    // Confirmed while the builder was looking at the waiting message.
+    if (next == ShopConfirmation.confirmed && !_entered) {
+      setState(() => _preparing = true);
+      _enterThread();
+    }
   }
 
   Future<void> _prepareThread() async {
@@ -129,14 +218,16 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
 
   @override
   void dispose() {
+    _confirmationSub?.cancel();
     _controller.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
-  /// Offers the three ways to attach something, then uploads and sends it.
+  /// Offers the three ways to attach something, asks the builder to confirm
+  /// it, then uploads and sends it.
   ///
-  /// Whatever is already typed rides along as the caption, so a builder can
+  /// Whatever is already typed becomes the starting caption, so a builder can
   /// write "this is the wall" and then pick the photo.
   Future<void> _attach() async {
     if (_sending || _uploading) return;
@@ -175,15 +266,26 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       final picked = choice == 'file'
           ? await _attachments.pickFile()
           : await _attachments.pickImage(fromCamera: choice == 'camera');
-      if (picked == null) return;
+      if (picked == null || !mounted) return;
 
+      // Nothing is uploaded until the builder has seen what they picked.
+      setState(() => _uploading = false);
+      final caption = await showAttachmentConfirmSheet(
+        context,
+        attachment: picked,
+        shopName: widget.shopName ?? '',
+        caption: _controller.text,
+      );
+      if (caption == null || !mounted) return;
+
+      setState(() => _uploading = true);
       final uploaded = await _attachments.upload(
         conversationId: widget.conversationId,
         picked: picked,
       );
       await _chat.sendMessage(
         conversationId: widget.conversationId,
-        text: _controller.text,
+        text: caption,
         attachment: uploaded.toMap(),
       );
       _controller.clear();
@@ -309,7 +411,17 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                 ),
               ),
               Expanded(
-                child: _preparing
+                child: _confirmation != ShopConfirmation.confirmed
+                    ? _LockedThread(
+                        text: _confirmation == ShopConfirmation.declined
+                            ? '$shopName backed out of this order, so this '
+                                'chat is closed.'
+                            : 'Waiting for $shopName to confirm your order. '
+                                'You can message them once they do.',
+                        declined:
+                            _confirmation == ShopConfirmation.declined,
+                      )
+                    : _preparing
                     ? const Center(
                         child: CircularProgressIndicator(color: AppColors.cream),
                       )
@@ -397,7 +509,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                           color: AppColors.cream.withValues(alpha: 0.7),
                         ),
                       )
-                    : _preparing || _prepareError != null
+                    : _preparing ||
+                            _prepareError != null ||
+                            _confirmation != ShopConfirmation.confirmed
                     ? const SizedBox.shrink()
                     : Row(
                         children: [
@@ -489,6 +603,43 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// In place of the messages while the shop has not confirmed the order, or
+/// after it backed out.
+class _LockedThread extends StatelessWidget {
+  final String text;
+  final bool declined;
+
+  const _LockedThread({required this.text, required this.declined});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              declined ? Icons.block_rounded : Icons.hourglass_top_rounded,
+              color: AppColors.cream.withValues(alpha: 0.8),
+              size: 32,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                color: AppColors.cream.withValues(alpha: 0.85),
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

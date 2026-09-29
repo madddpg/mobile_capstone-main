@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
@@ -370,38 +371,7 @@ class MessengerMessageList extends StatelessWidget {
     if (isImage) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(11),
-        child: CachedNetworkImage(
-          imageUrl: url,
-          width: maxWidth - 26,
-          fit: BoxFit.cover,
-          // Decode near the size actually shown. Without this the full image
-          // is decoded into memory even though it is drawn small.
-          memCacheWidth: 900,
-          placeholder: (context, _) => Container(
-            width: maxWidth - 26,
-            height: 150,
-            color: Colors.black.withValues(alpha: 0.18),
-            alignment: Alignment.center,
-            child: const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-          errorWidget: (context, _, _) => Container(
-            width: maxWidth - 26,
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            color: Colors.black.withValues(alpha: 0.18),
-            alignment: Alignment.center,
-            child: Text(
-              'Photo unavailable',
-              style: GoogleFonts.poppins(
-                fontSize: 11.5,
-                color: mine ? Colors.white70 : AppColors.textDark,
-              ),
-            ),
-          ),
-        ),
+        child: _photo(url, mine, maxWidth - 26),
       );
     }
 
@@ -447,6 +417,66 @@ class MessengerMessageList extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// The photo in a bubble.
+  ///
+  /// On a phone the bytes are fetched and kept on disk. In a browser they
+  /// cannot be fetched at all unless the Storage bucket sends CORS headers,
+  /// which a Firebase bucket does not by default, so every photo in the web app
+  /// showed as unavailable. There the image falls back to an <img> element,
+  /// which needs no CORS. The browser's own cache stands in for the disk cache,
+  /// and attachments are uploaded as immutable, so it keeps them.
+  Widget _photo(String url, bool mine, double width) {
+    final placeholder = Container(
+      width: width,
+      height: 150,
+      color: Colors.black.withValues(alpha: 0.18),
+      alignment: Alignment.center,
+      child: const SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+    );
+    final unavailable = Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      color: Colors.black.withValues(alpha: 0.18),
+      alignment: Alignment.center,
+      child: Text(
+        'Photo unavailable',
+        style: GoogleFonts.poppins(
+          fontSize: 11.5,
+          color: mine ? Colors.white70 : AppColors.textDark,
+        ),
+      ),
+    );
+
+    if (kIsWeb) {
+      return Image.network(
+        url,
+        width: width,
+        fit: BoxFit.cover,
+        webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : placeholder,
+        errorBuilder: (context, _, _) => unavailable,
+      );
+    }
+
+    return CachedNetworkImage(
+      imageUrl: url,
+      width: width,
+      fit: BoxFit.cover,
+      // Decode near the size actually shown. Without this the full image
+      // is decoded into memory even though it is drawn small.
+      memCacheWidth: 900,
+      placeholder: (context, _) => placeholder,
+      // Called once per failure, unlike the error widget, which rebuilds.
+      errorListener: (error) => debugPrint('Chat photo did not load: $error'),
+      errorWidget: (context, _, _) => unavailable,
     );
   }
 

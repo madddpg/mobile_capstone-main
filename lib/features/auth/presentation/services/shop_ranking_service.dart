@@ -29,12 +29,17 @@ class ShopRankingService {
     }
 
     try {
-      // Approved + active shops. Firestore rules let any signed-in user read a
+      // Every approved shop. Firestore rules let any signed-in user read a
       // shop doc whose status is "approved".
+      //
+      // This used to also require subscriptionStatus "active", which is
+      // billing state. Every shop starts on the free Basic plan, and a shop
+      // without an active subscription was left off the list even though it
+      // is told about each new estimate and can quote on it. The list shows
+      // who can quote.
       final shopsQuery = await _firestore
           .collection('shops')
           .where('status', isEqualTo: 'approved')
-          .where('subscriptionStatus', isEqualTo: 'active')
           .get();
 
       debugPrint('ShopRankingService: Fetched ${shopsQuery.docs.length} shops');

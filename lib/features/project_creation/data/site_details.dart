@@ -281,6 +281,11 @@ class SiteDetails {
   /// is what the floor and the walls are measured from.
   final IrregularRoom? irregular;
 
+  /// Set when the job covers half of the room. The measurements above are the
+  /// whole room, and [SiteTakeoff] sizes every surface at half of it. Unlike
+  /// [partial], nothing about which half is measured.
+  final bool half;
+
   const SiteDetails({
     required this.job,
     required this.lengthM,
@@ -294,6 +299,7 @@ class SiteDetails {
     this.partial,
     this.irregular,
     this.paintCeiling = false,
+    this.half = false,
   });
 
   /// Starting values for the form. Length and width stay empty on purpose:
@@ -351,6 +357,7 @@ class SiteDetails {
     bool? paintCeiling,
     PartialArea? partial,
     IrregularRoom? irregular,
+    bool? half,
   }) {
     return SiteDetails(
       job: job,
@@ -365,6 +372,7 @@ class SiteDetails {
       paintCeiling: paintCeiling ?? this.paintCeiling,
       partial: partial ?? this.partial,
       irregular: irregular ?? this.irregular,
+      half: half ?? this.half,
     );
   }
 
@@ -472,6 +480,7 @@ class SiteDetails {
         'paintCeiling': paintCeiling,
         if (partial != null) 'partial': partial!.toMap(),
         if (irregular != null) 'irregular': irregular!.toMap(),
+        if (half) 'half': true,
       };
 
   static SiteDetails? fromMap(Map<String, dynamic>? map) {
@@ -498,6 +507,7 @@ class SiteDetails {
       counterLengthM: _asDouble(map['counterLengthM']),
       removeOldTiles: map['removeOldTiles'] == true,
       paintCeiling: map['paintCeiling'] == true,
+      half: map['half'] == true,
       irregular: IrregularRoom.fromMap(
         map['irregular'] is Map
             ? Map<String, dynamic>.from(map['irregular'] as Map)
@@ -542,14 +552,45 @@ class SiteTakeoff {
     required this.ceilingSqm,
     required this.skirtingM,
     required this.waterproofingSqm,
-  });
+    SiteTakeoff? whole,
+  }) : _whole = whole;
+
+  /// The whole room's takeoff when the job covers half of it, kept so each
+  /// line can still show the arithmetic its figure came from. Null otherwise.
+  final SiteTakeoff? _whole;
 
   RoomJob get job => details.job;
   double get paintSqm => _r(paintWallSqm + ceilingSqm);
 
   /// Counter top: the counter's length at a standard 0.60 m depth.
-  double get countertopSqm =>
-      _r(math.max(0.0, details.counterLengthM) * kCountertopDepthM);
+  double get countertopSqm {
+    final whole = _whole;
+    if (whole != null) return _r(whole.countertopSqm / 2);
+    return _r(math.max(0.0, details.counterLengthM) * kCountertopDepthM);
+  }
+
+  /// The surfaces the materials are sized from: the whole room, or half of
+  /// every surface when [SiteDetails.half] is set.
+  factory SiteTakeoff.from(SiteDetails d) {
+    final whole = SiteTakeoff._measure(d);
+    return d.half ? whole._halved() : whole;
+  }
+
+  /// Half of every surface, for a job that covers half of the room.
+  SiteTakeoff _halved() => SiteTakeoff._(
+        details: details,
+        floorSqm: _r(floorSqm / 2),
+        perimeterM: _r(perimeterM / 2),
+        grossWallSqm: _r(grossWallSqm / 2),
+        openingsSqm: _r(openingsSqm / 2),
+        netWallSqm: _r(netWallSqm / 2),
+        wallTileSqm: _r(wallTileSqm / 2),
+        paintWallSqm: _r(paintWallSqm / 2),
+        ceilingSqm: _r(ceilingSqm / 2),
+        skirtingM: _r(skirtingM / 2),
+        waterproofingSqm: _r(waterproofingSqm / 2),
+        whole: this,
+      );
 
   /// The rules, in one place:
   /// - walls are the room's perimeter times its height, less every door and
@@ -561,7 +602,7 @@ class SiteTakeoff {
   /// - skirting runs round the room except across doorways;
   /// - a wet room's waterproofing covers the floor and turns 0.30 m up the
   ///   walls.
-  factory SiteTakeoff.from(SiteDetails d) {
+  factory SiteTakeoff._measure(SiteDetails d) {
     final length = math.max(0.0, d.lengthM);
     final width = math.max(0.0, d.widthM);
     final height = math.max(0.0, d.heightM);
@@ -639,7 +680,33 @@ class SiteTakeoff {
   static String _m(double v) => v.toStringAsFixed(2);
   static String _sq(double v) => v.toStringAsFixed(1);
 
-  String get floorLine {
+  /// A line as measured on the whole room and, for a job that covers half of
+  /// it, the halved figure the materials are actually sized from.
+  String _line(String Function(SiteTakeoff t) measured, String halved) {
+    final whole = _whole;
+    return whole == null ? measured(this) : '${measured(whole)} → half: $halved';
+  }
+
+  String get floorLine => _line((t) => t._floorLine, '${_sq(floorSqm)} sq.m');
+
+  String get wallLine => _line((t) => t._wallLine, '${_sq(netWallSqm)} sq.m');
+
+  String get wallTileLine => details.wallTileHeight == WallTileHeight.none
+      ? _wallTileLine
+      : _line((t) => t._wallTileLine, '${_sq(wallTileSqm)} sq.m');
+
+  String get paintLine => _line((t) => t._paintLine, '${_sq(paintSqm)} sq.m');
+
+  String get skirtingLine =>
+      _line((t) => t._skirtingLine, '${_m(skirtingM)} m');
+
+  String get countertopLine =>
+      _line((t) => t._countertopLine, '${_sq(countertopSqm)} sq.m');
+
+  String get waterproofingLine =>
+      _line((t) => t._waterproofingLine, '${_sq(waterproofingSqm)} sq.m');
+
+  String get _floorLine {
     final shape = details.irregular;
     if (shape != null) {
       return 'Floor: ${_sq(floorSqm)} sq.m measured, '
@@ -660,34 +727,34 @@ class SiteTakeoff {
         '${_m(whole.totalWidthM)} m = ${_sq(whole.totalFloorSqm)} sq.m)';
   }
 
-  String get wallLine =>
+  String get _wallLine =>
       'Walls: ${_m(perimeterM)} m around × ${_m(details.heightM)} m = ${_sq(grossWallSqm)} sq.m, '
       'less ${_sq(openingsSqm)} sq.m of doors and windows = ${_sq(netWallSqm)} sq.m';
 
-  String get wallTileLine => switch (details.wallTileHeight) {
+  String get _wallTileLine => switch (details.wallTileHeight) {
         WallTileHeight.none => 'Wall tiles: none',
         WallTileHeight.backsplash =>
           'Backsplash: ${_m(details.counterLengthM)} m of counter × ${_m(kBacksplashHeightM)} m = ${_sq(wallTileSqm)} sq.m',
         WallTileHeight.wainscot =>
           'Half-wall tiles: ${_m(perimeterM)} m around × ${_m(kWainscotHeightM)} m, less doorways = ${_sq(wallTileSqm)} sq.m',
-        WallTileHeight.full => 'Full-height tiles: $wallLine',
+        WallTileHeight.full => 'Full-height tiles: $_wallLine',
       };
 
-  String get paintLine {
+  String get _paintLine {
     final parts = <String>['${_sq(paintWallSqm)} sq.m of wall'];
     if (ceilingSqm > 0) parts.add('${_sq(ceilingSqm)} sq.m of ceiling');
     return 'Paint: ${parts.join(' + ')} = ${_sq(paintSqm)} sq.m';
   }
 
-  String get skirtingLine {
+  String get _skirtingLine {
     final doorways = _r(perimeterM - skirtingM);
     return 'Skirting: ${_m(perimeterM)} m around, less ${_m(doorways)} m of doorways = ${_m(skirtingM)} m';
   }
 
-  String get countertopLine =>
+  String get _countertopLine =>
       'Countertop: ${_m(details.counterLengthM)} m of counter × ${_m(kCountertopDepthM)} m deep = ${_sq(countertopSqm)} sq.m';
 
-  String get waterproofingLine =>
+  String get _waterproofingLine =>
       'Waterproofing: ${_sq(floorSqm)} sq.m floor + ${_m(perimeterM)} m × ${_m(kWaterproofUpturnM)} m upturn = ${_sq(waterproofingSqm)} sq.m';
 
   /// One line for the top of the materials list.
@@ -701,6 +768,8 @@ class SiteTakeoff {
       parts.add('skirting ${_m(skirtingM)} m');
     }
     final text = parts.join(' · ');
-    return text.isEmpty ? text : '${text[0].toUpperCase()}${text.substring(1)}';
+    if (text.isEmpty) return text;
+    final line = '${text[0].toUpperCase()}${text.substring(1)}';
+    return _whole == null ? line : '$line (half of the room)';
   }
 }

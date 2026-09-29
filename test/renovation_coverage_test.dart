@@ -4,9 +4,8 @@ import 'package:iconstruct/core/models/project_model.dart';
 import 'package:iconstruct/features/bidding/data/project_post_payload.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
-import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 
-/// Coverage — Full, Partial, Extension — is how much of the space the job
+/// Coverage — Full, Half, Partial — is how much of the space the job
 /// covers, and is a different question from what kind of work it is. The two
 /// must never be written into the same field: `projectScope` already means the
 /// renovation type on a database a second application reads, and the words
@@ -23,19 +22,33 @@ void main() {
     test('reads its own stored name and its label', () {
       expect(RenovationCoverage.fromString('partial'),
           RenovationCoverage.partial);
+      expect(RenovationCoverage.fromString('Half'), RenovationCoverage.half);
+    });
+
+    test('offers Full, Half and Partial, in that order', () {
+      expect(RenovationCoverage.values.map((c) => c.label),
+          ['Full', 'Half', 'Partial']);
+    });
+
+    test('an estimate saved as an extension reads as Full', () {
+      // An extension was measured whole and sized from everything measured,
+      // which is what Full does.
+      expect(RenovationCoverage.fromString('extension'),
+          RenovationCoverage.full);
       expect(RenovationCoverage.fromString('Extension'),
-          RenovationCoverage.extension);
+          RenovationCoverage.full);
     });
 
     test('only a partial job has a portion to describe', () {
       expect(RenovationCoverage.partial.hasPortion, isTrue);
       expect(RenovationCoverage.full.hasPortion, isFalse);
-      expect(RenovationCoverage.extension.hasPortion, isFalse);
+      expect(RenovationCoverage.half.hasPortion, isFalse);
     });
 
-    test('only an extension measures new floor area', () {
-      expect(RenovationCoverage.extension.isNewArea, isTrue);
-      expect(RenovationCoverage.full.isNewArea, isFalse);
+    test('only a half job is sized at half', () {
+      expect(RenovationCoverage.half.isHalf, isTrue);
+      expect(RenovationCoverage.full.isHalf, isFalse);
+      expect(RenovationCoverage.partial.isHalf, isFalse);
     });
   });
 
@@ -60,10 +73,10 @@ void main() {
         materials: const [],
         totalAreaSqm: 3.0,
         budget: 'medium',
-        coverage: RenovationCoverage.extension.name,
+        coverage: RenovationCoverage.half.name,
       );
       expect(data['projectScope'], 'Cosmetic');
-      expect(data['coverage'], 'extension');
+      expect(data['coverage'], 'half');
     });
 
     test('a post without a coverage leaves the key out', () {
@@ -85,12 +98,12 @@ void main() {
 
     test('a reopened estimate reads each field under its own meaning', () {
       final project = ProjectModel.fromMap('p1', {
-        'projectName': 'Extension of Master Bedroom',
+        'projectName': 'Master Bedroom, left side',
         'projectScope': 'Structural',
-        'coverage': 'extension',
+        'coverage': 'half',
       });
       expect(project.scope, RenovationScope.structural);
-      expect(project.coverage, RenovationCoverage.extension);
+      expect(project.coverage, RenovationCoverage.half);
     });
 
     test('an estimate saved before coverage existed still reads its type', () {
@@ -100,51 +113,6 @@ void main() {
       });
       expect(project.scope, RenovationScope.structural);
       expect(project.coverage, RenovationCoverage.full);
-    });
-  });
-
-  group('which coverages a project offers', () {
-    test('a room that can gain floor area can be extended', () {
-      for (final type in ['Bathroom Renovation', 'Kitchen Renovation']) {
-        expect(
-          RenovationTemplatesCatalog.offersCoverage(
-              type, RenovationCoverage.extension),
-          isTrue,
-          reason: '$type can be extended',
-        );
-      }
-    });
-
-    test('work on a room that is already there cannot be an extension', () {
-      for (final type in [
-        'Floor Renovation',
-        'Interior Painting',
-        'Roof Repair',
-        'Wall Finishing',
-      ]) {
-        expect(
-          RenovationTemplatesCatalog.offersCoverage(
-              type, RenovationCoverage.extension),
-          isFalse,
-          reason: '$type adds no floor area',
-        );
-      }
-    });
-
-    test('every project can be done whole or in part', () {
-      for (final type in RenovationTemplatesCatalog.projectTypes) {
-        final offered = RenovationTemplatesCatalog.coveragesFor(type);
-        expect(offered, contains(RenovationCoverage.full));
-        expect(offered, contains(RenovationCoverage.partial));
-      }
-    });
-
-    test('an unavailable coverage says why', () {
-      expect(
-        RenovationTemplatesCatalog.unavailableCoverageReason(
-            'Interior Painting', RenovationCoverage.extension),
-        contains('does not add floor area'),
-      );
     });
   });
 }

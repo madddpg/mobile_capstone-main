@@ -12,6 +12,7 @@ import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
 import 'package:iconstruct/features/auth/presentation/services/shop_ranking_service.dart';
+import 'package:iconstruct/features/auth/presentation/widgets/rate_shop_sheet.dart';
 import 'package:iconstruct/features/auth/presentation/widgets/shop_rating_stars.dart';
 import 'package:iconstruct/features/auth/presentation/widgets/shop_storefront_sheet.dart';
 import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
@@ -19,9 +20,11 @@ import 'package:iconstruct/features/bidding/data/quotation_accept_service.dart';
 import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
 import 'package:iconstruct/features/bidding/data/quotation_status.dart';
 import 'package:iconstruct/features/bidding/data/remainder_canvass.dart';
+import 'package:iconstruct/features/bidding/data/shop_confirmation.dart';
 import 'package:iconstruct/features/bidding/data/supplier_cancellation.dart';
 import 'package:iconstruct/features/bidding/widgets/cancel_selection_sheet.dart';
 import 'package:iconstruct/features/bidding/widgets/accepted_lines_panel.dart';
+import 'package:iconstruct/features/bidding/widgets/counter_offers_panel.dart';
 import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
 import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.dart';
 import 'package:iconstruct/features/bidding/widgets/line_selection_sheet.dart';
@@ -187,8 +190,9 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
-                        child:
-                            CircularProgressIndicator(color: AppColors.cream),
+                        child: CircularProgressIndicator(
+                          color: AppColors.cream,
+                        ),
                       );
                     }
                     if (snapshot.hasError) {
@@ -228,10 +232,14 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                       final aSuggested = a.quote.id == advice.suggestedShopId;
                       final bSuggested = b.quote.id == advice.suggestedShopId;
                       if (aSuggested != bSuggested) return aSuggested ? -1 : 1;
-                      final cov = bomCoverageCount(bom, b.quote)
-                          .compareTo(bomCoverageCount(bom, a.quote));
+                      final cov = bomCoverageCount(
+                        bom,
+                        b.quote,
+                      ).compareTo(bomCoverageCount(bom, a.quote));
                       if (cov != 0) return cov;
-                      return a.quote.estimatedTotal.compareTo(b.quote.estimatedTotal);
+                      return a.quote.estimatedTotal.compareTo(
+                        b.quote.estimatedTotal,
+                      );
                     });
 
                     return ListView(
@@ -257,10 +265,14 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                           _ShopSummaryCard(
                             shop: shop,
                             bom: bom,
+                            estimateMaterials:
+                                projectData['materials'] is List
+                                    ? projectData['materials'] as List
+                                    : const [],
                             tags: comparison.highlightsFor(shop.quote.id),
                             isSuggested:
                                 shop.quote.id == advice.suggestedShopId &&
-                                    quotes.length > 1,
+                                quotes.length > 1,
                             isSelected: selectedQuotationId == shop.quote.id,
                             hasAcceptedOffer: selectedQuotationId != null,
                             postId: postId,
@@ -276,12 +288,12 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                             ),
                             onCancelSelection:
                                 selectedQuotationId == shop.quote.id
-                                    ? () => _cancelSelection(
-                                          context,
-                                          shop,
-                                          shops.length - 1,
-                                        )
-                                    : null,
+                                ? () => _cancelSelection(
+                                    context,
+                                    shop,
+                                    shops.length - 1,
+                                  )
+                                : null,
                             onDetails: () => _openQuoteDetails(
                               context,
                               shop: shop,
@@ -296,8 +308,8 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                         const SizedBox(height: 6),
                         Text(
                           'Every shop on the same row. A material a shop '
-                          'skipped is left blank, never filled in from another '
-                          'bid.',
+                          'cannot supply shows as Unavailable, never filled in '
+                          'from another bid.',
                           style: GoogleFonts.poppins(
                             color: AppColors.cream.withValues(alpha: 0.7),
                             fontSize: 12,
@@ -339,7 +351,9 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
       shop: shop,
       bom: bom,
       canAccept: selectedQuotationId == null && shop.isOpenOffer,
-      isSelected: selectedQuotationId == shop.quote.id,
+      canMessage:
+          selectedQuotationId == shop.quote.id &&
+          shop.confirmation == ShopConfirmation.confirmed,
     );
     if (!context.mounted || action == null) return;
     switch (action) {
@@ -390,10 +404,10 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
           content: Text(
             restored == 0
                 ? '${shop.quote.shopName} has been told, and your estimate is '
-                    'open for quotations again.'
+                      'open for quotations again.'
                 : '${shop.quote.shopName} has been told. '
-                    '$restored quotation${restored == 1 ? '' : 's'} can be '
-                    'chosen again.',
+                      '$restored quotation${restored == 1 ? '' : 's'} can be '
+                      'chosen again.',
           ),
         ),
         kind: AppMessageKind.success,
@@ -438,6 +452,7 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
         shopId: shop.shopId,
         shopName: shop.quote.shopName,
         acceptedIndexes: selection.acceptedIndexes,
+        declineReasons: selection.declineReasons,
       );
     } catch (e) {
       if (!context.mounted) return;
@@ -454,7 +469,18 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
 
     if (!context.mounted) return;
     Navigator.of(context, rootNavigator: true).pop();
-    await _openShopChat(context, shop, shop.quote.id);
+    // Chat used to open here. The shop confirms the order first now, and the
+    // card shows when they have.
+    showAppMessage(
+      context,
+      SnackBar(
+        content: Text(
+          'Sent to ${shop.quote.shopName}. Chat opens once they confirm the '
+          'order.',
+        ),
+      ),
+      kind: AppMessageKind.success,
+    );
   }
 
   Future<void> _openShopChat(
@@ -463,8 +489,11 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
     String? selectedQuotationId,
   ) async {
     // Read before the first await: a BuildContext must not cross one.
-    final builderName =
-        context.read<UserProvider>().currentUser?.fullName.trim();
+    final builderName = context
+        .read<UserProvider>()
+        .currentUser
+        ?.fullName
+        .trim();
 
     showDialog<void>(
       context: context,
@@ -549,6 +578,10 @@ class _ShopOffer {
   /// The quotation document as stored, for reading back which lines were kept.
   final Map<String, dynamic> quotationData;
 
+  /// The shop's answer to being selected. Only means something on the
+  /// quotation this estimate selected.
+  ShopConfirmation get confirmation => shopConfirmationOf(quotationData);
+
   const _ShopOffer({
     required this.quote,
     required this.status,
@@ -576,6 +609,10 @@ class _ShopSummaryCard extends StatelessWidget {
   /// Post id of the estimate re-canvassing the dropped lines, or empty.
   final String remainderPostId;
 
+  /// The estimate's own material list, as posted, for working out what the
+  /// selected shop left the builder still needing.
+  final List<dynamic> estimateMaterials;
+
   final VoidCallback onAccept;
   final VoidCallback onMessage;
   final VoidCallback onDetails;
@@ -592,6 +629,7 @@ class _ShopSummaryCard extends StatelessWidget {
     required this.hasAcceptedOffer,
     required this.postId,
     required this.remainderPostId,
+    required this.estimateMaterials,
     required this.onAccept,
     required this.onMessage,
     required this.onDetails,
@@ -603,14 +641,38 @@ class _ShopSummaryCard extends StatelessWidget {
     final quote = shop.quote;
     // With no material list on the estimate there is nothing to miss: every
     // line the shop sent counts as quoted.
-    final covered =
-        bom.isEmpty ? quote.lines.length : bomCoverageCount(bom, quote);
+    final covered = bom.isEmpty
+        ? quote.lines.length
+        : bomCoverageCount(bom, quote);
     final totalItems = bom.isEmpty ? quote.lines.length : bom.length;
     final missing = unquotedBomItems(bom, quote).length;
-    final extras =
-        extraQuotedLines(bom, quote).where((line) => line.hasPrice).length;
+    final extras = extraQuotedLines(
+      bom,
+      quote,
+    ).where((line) => line.hasPrice).length;
     final isLowest = tags.contains(BidHighlight.lowestTotal);
     final canAccept = !hasAcceptedOffer && shop.isOpenOffer;
+    // Selecting a shop is not the deal: the shop confirms it, and chat and
+    // rating wait until they have.
+    final confirmation = shop.confirmation;
+    final canMessage = isSelected && confirmation == ShopConfirmation.confirmed;
+    // What the builder still needs after choosing this shop, counted the way
+    // a re-canvass would post it.
+    final unlisted = isSelected
+        ? unlistedMaterials(
+            quotation: shop.quotationData,
+            estimateMaterials: estimateMaterials,
+          )
+        : const <Map<String, dynamic>>[];
+    final stillNeeded = isSelected
+        ? remainderMaterials(
+            dropped: linesStillNeeded(
+              quotation: shop.quotationData,
+              estimateMaterials: estimateMaterials,
+            ),
+            estimateMaterials: estimateMaterials,
+          ).length
+        : 0;
     final coverage = totalItems == 0 ? 1.0 : covered / totalItems;
     final leadTime = quote.leadTimeRaw.trim();
 
@@ -618,8 +680,8 @@ class _ShopSummaryCard extends StatelessWidget {
       borderColor: isSelected
           ? AppColors.success
           : isSuggested
-              ? IConstructPanel.midBlue
-              : null,
+          ? IConstructPanel.midBlue
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -638,7 +700,10 @@ class _ShopSummaryCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _StatusBadge(status: shop.status),
+              _StatusBadge(
+                status: shop.status,
+                confirmation: isSelected ? confirmation : null,
+              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -656,7 +721,9 @@ class _ShopSummaryCard extends StatelessWidget {
                     Text(
                       formatBidMoney(quote.estimatedTotal),
                       style: GoogleFonts.poppins(
-                        color: isLowest ? AppColors.success : AppColors.textDark,
+                        color: isLowest
+                            ? AppColors.success
+                            : AppColors.textDark,
                         fontWeight: FontWeight.w800,
                         fontSize: 22,
                         height: 1.1,
@@ -674,7 +741,9 @@ class _ShopSummaryCard extends StatelessWidget {
                   Text(
                     totalItems == 0 ? 'Lump sum' : '$covered of $totalItems',
                     style: GoogleFonts.poppins(
-                      color: coverage < 1 ? AppColors.warning : AppColors.success,
+                      color: coverage < 1
+                          ? AppColors.warning
+                          : AppColors.success,
                       fontWeight: FontWeight.w800,
                       fontSize: 15,
                     ),
@@ -691,8 +760,7 @@ class _ShopSummaryCard extends StatelessWidget {
                 value: coverage,
                 minHeight: 6,
                 backgroundColor: AppColors.navy.withValues(alpha: 0.10),
-                color:
-                    coverage >= 1 ? AppColors.success : AppColors.warning,
+                color: coverage >= 1 ? AppColors.success : AppColors.warning,
               ),
             ),
           ],
@@ -707,7 +775,7 @@ class _ShopSummaryCard extends StatelessWidget {
                 if (missing > 0)
                   _Fact(
                     icon: Icons.remove_circle_outline_rounded,
-                    text: '$missing not quoted',
+                    text: '$missing unavailable',
                     tint: AppColors.warning,
                   ),
                 if (extras > 0)
@@ -757,7 +825,7 @@ class _ShopSummaryCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (canAccept || isSelected) ...[
+              if (canAccept || canMessage) ...[
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton(
@@ -781,12 +849,65 @@ class _ShopSummaryCard extends StatelessWidget {
               ],
             ],
           ),
-          // What was actually agreed, and a way to canvass the rest. The
-          // status here comes from this estimate's own selection, so a
-          // quotation cannot show a partial agreement the builder never made.
+          if (isSelected && confirmation == ShopConfirmation.pending) ...[
+            const SizedBox(height: 12),
+            _ConfirmationNote(
+              icon: Icons.hourglass_top_rounded,
+              text:
+                  'Waiting for ${quote.shopName} to confirm the order. Chat '
+                  'and rating open once they do.',
+              tint: AppColors.warning,
+            ),
+          ],
+          if (isSelected && confirmation == ShopConfirmation.declined) ...[
+            const SizedBox(height: 12),
+            _ConfirmationNote(
+              icon: Icons.block_rounded,
+              text: '${quote.shopName} backed out of this order.',
+              tint: AppColors.danger,
+            ),
+          ],
+          if (canMessage && shop.profile != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => showRateShopSheet(context, shop.profile!),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.navySoft,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+                icon: const Icon(Icons.star_outline_rounded, size: 18),
+                label: Text(
+                  'Rate this shop',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          // Lower prices the shop offered on lines left as overpriced.
           if (isSelected &&
-              shop.status == 'partially_accepted' &&
-              readAcceptance(shop.quotationData).isPartial) ...[
+              confirmation != ShopConfirmation.declined &&
+              CounterOffersPanel.hasOffers(shop.quotationData)) ...[
+            const SizedBox(height: 12),
+            CounterOffersPanel(
+              quotationData: shop.quotationData,
+              postId: postId,
+              quotationId: quote.id,
+              shopName: quote.shopName,
+            ),
+          ],
+          // What was actually agreed, and a way to canvass what is still
+          // needed: lines left, and lines this shop cannot supply. The status
+          // here comes from this estimate's own selection, so a quotation
+          // cannot show an agreement the builder never made.
+          if (isSelected &&
+              confirmation != ShopConfirmation.declined &&
+              (shop.status == 'accepted' ||
+                  shop.status == 'partially_accepted') &&
+              (stillNeeded > 0 || remainderPostId.isNotEmpty)) ...[
             const SizedBox(height: 12),
             AcceptedLinesPanel(
               summary: readAcceptance(shop.quotationData),
@@ -794,6 +915,8 @@ class _ShopSummaryCard extends StatelessWidget {
               postId: postId,
               quotationId: shop.quote.id,
               shopName: shop.quote.shopName,
+              unlisted: unlisted,
+              stillNeeded: stillNeeded,
               remainderPostId: remainderPostId.isEmpty ? null : remainderPostId,
             ),
           ],
@@ -827,6 +950,48 @@ class _ShopSummaryCard extends StatelessWidget {
   }
 }
 
+/// Where the shop's confirmation stands, under the selected shop's buttons.
+class _ConfirmationNote extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color tint;
+
+  const _ConfirmationNote({
+    required this.icon,
+    required this.text,
+    required this.tint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: tint),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.poppins(
+                color: AppColors.textDark,
+                fontSize: 12.5,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Rating, town and plan — who the shop is, in one line under their name.
 class _ShopIdentityLine extends StatelessWidget {
   final RankedShop? profile;
@@ -839,10 +1004,7 @@ class _ShopIdentityLine extends StatelessWidget {
     if (shop == null) {
       return Text(
         'Shop profile not available',
-        style: GoogleFonts.poppins(
-          color: AppColors.textMuted,
-          fontSize: 11.5,
-        ),
+        style: GoogleFonts.poppins(color: AppColors.textMuted, fontSize: 11.5),
       );
     }
 
@@ -903,7 +1065,7 @@ Future<QuoteDetailAction?> _showQuoteDetailsSheet(
   required _ShopOffer shop,
   required List<QuotedLine> bom,
   required bool canAccept,
-  required bool isSelected,
+  required bool canMessage,
 }) {
   return showModalBottomSheet<QuoteDetailAction>(
     context: context,
@@ -913,7 +1075,7 @@ Future<QuoteDetailAction?> _showQuoteDetailsSheet(
       shop: shop,
       bom: bom,
       canAccept: canAccept,
-      isSelected: isSelected,
+      canMessage: canMessage,
     ),
   );
 }
@@ -922,24 +1084,29 @@ class _QuoteDetailsSheet extends StatelessWidget {
   final _ShopOffer shop;
   final List<QuotedLine> bom;
   final bool canAccept;
-  final bool isSelected;
+
+  /// The shop was selected and has confirmed, so the chat is open.
+  final bool canMessage;
 
   const _QuoteDetailsSheet({
     required this.shop,
     required this.bom,
     required this.canAccept,
-    required this.isSelected,
+    required this.canMessage,
   });
 
   @override
   Widget build(BuildContext context) {
     final quote = shop.quote;
-    final covered =
-        bom.isEmpty ? quote.lines.length : bomCoverageCount(bom, quote);
+    final covered = bom.isEmpty
+        ? quote.lines.length
+        : bomCoverageCount(bom, quote);
     final totalItems = bom.isEmpty ? quote.lines.length : bom.length;
     final missing = unquotedBomItems(bom, quote);
-    final extras =
-        extraQuotedLines(bom, quote).where((line) => line.hasPrice).toList();
+    final extras = extraQuotedLines(
+      bom,
+      quote,
+    ).where((line) => line.hasPrice).toList();
     final message = quote.message.trim();
     final profile = shop.profile;
     final listed = bom.isEmpty ? quote.lines : bom;
@@ -1065,9 +1232,10 @@ class _QuoteDetailsSheet extends StatelessWidget {
                   ),
                 if (missing.isNotEmpty)
                   _SheetSection(
-                    title: 'Not quoted',
+                    title: 'Unavailable',
                     subtitle:
-                        'This shop skipped these. Another shop may have bid them.',
+                        'This shop cannot supply these. Another shop may '
+                        'have quoted them.',
                     child: Wrap(
                       spacing: 6,
                       runSpacing: 6,
@@ -1111,7 +1279,7 @@ class _QuoteDetailsSheet extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (canAccept || isSelected) ...[
+                  if (canAccept || canMessage) ...[
                     const SizedBox(width: 10),
                     Expanded(
                       child: ElevatedButton(
@@ -1170,8 +1338,7 @@ class _QuoteDetailsSheet extends StatelessWidget {
             ),
             const SizedBox(height: 10),
           ],
-          if (location.isNotEmpty)
-            _SheetRow(label: 'Address', value: location),
+          if (location.isNotEmpty) _SheetRow(label: 'Address', value: location),
           if (profile.businessHours.trim().isNotEmpty)
             _SheetRow(label: 'Open', value: profile.businessHours.trim()),
           if (profile.phone.trim().isNotEmpty)
@@ -1389,7 +1556,7 @@ class _SheetLineRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                quoted ? formatBidMoney(line!.lineTotal) : 'No quote',
+                quoted ? formatBidMoney(line!.lineTotal) : 'Unavailable',
                 style: GoogleFonts.poppins(
                   color: quoted
                       ? Colors.white
@@ -1425,7 +1592,9 @@ class _MaterialCompareCard extends StatelessWidget {
     final quotes = shops.map((s) => s.quote).toList();
     final lowest = lowestPricedShopFor(quotes, item.name);
     final quotedCount = shops
-        .where((s) => findQuotedLine(s.quote.lines, item.name)?.hasPrice == true)
+        .where(
+          (s) => findQuotedLine(s.quote.lines, item.name)?.hasPrice == true,
+        )
         .length;
 
     final detail = [
@@ -1485,7 +1654,6 @@ class _ComparePriceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasPrice = line?.hasPrice == true;
-    final listedWithoutPrice = line != null && !hasPrice;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 7),
@@ -1522,11 +1690,9 @@ class _ComparePriceRow extends StatelessWidget {
             const SizedBox(width: 8),
           ],
           Text(
-            hasPrice
-                ? unitPriceLabel(line!, bom: item)
-                : listedWithoutPrice
-                    ? 'No price'
-                    : 'No quote',
+            // Not listed, listed without a price, and marked unavailable are
+            // one answer, and read the way the shop dashboard shows it.
+            hasPrice ? unitPriceLabel(line!, bom: item) : 'Unavailable',
             style: GoogleFonts.poppins(
               color: hasPrice
                   ? (isLowest ? AppColors.success : AppColors.textDark)
@@ -1775,7 +1941,7 @@ class _SmartAdviceCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${gap.materialName}: ${gap.missingFromShop} did not bid. '
+                        '${gap.materialName}: unavailable at ${gap.missingFromShop}. '
                         '${gap.quotedByShop} quoted ${formatBidMoney(gap.referenceTotal)}.',
                         style: GoogleFonts.poppins(
                           color: AppColors.textDark,
@@ -1914,37 +2080,55 @@ class _InsightChip extends StatelessWidget {
 class _StatusBadge extends StatelessWidget {
   final String status;
 
-  const _StatusBadge({required this.status});
+  /// The shop's answer, on the selected quotation only. A pending or declined
+  /// answer says more than "Selected" does.
+  final ShopConfirmation? confirmation;
+
+  const _StatusBadge({required this.status, this.confirmation});
 
   @override
   Widget build(BuildContext context) {
-    final key = status.toLowerCase();
+    final key = switch (confirmation) {
+      ShopConfirmation.pending => 'awaiting_shop',
+      ShopConfirmation.declined => 'shop_declined',
+      _ => status.toLowerCase(),
+    };
     final (:label, :bg, :fg) = switch (key) {
+      'awaiting_shop' => (
+        label: 'Awaiting shop',
+        bg: const Color(0xFFFEF3C7),
+        fg: const Color(0xFF92400E),
+      ),
+      'shop_declined' => (
+        label: 'Shop backed out',
+        bg: const Color(0xFFFECACA),
+        fg: const Color(0xFF991B1B),
+      ),
       'accepted' => (
-          label: 'Selected',
-          bg: const Color(0xFFD1FAE5),
-          fg: const Color(0xFF065F46),
-        ),
+        label: 'Selected',
+        bg: const Color(0xFFD1FAE5),
+        fg: const Color(0xFF065F46),
+      ),
       'partially_accepted' => (
-          label: 'Partly selected',
-          bg: const Color(0xFFD1FAE5),
-          fg: const Color(0xFF065F46),
-        ),
+        label: 'Partly selected',
+        bg: const Color(0xFFD1FAE5),
+        fg: const Color(0xFF065F46),
+      ),
       'cancelled' => (
-          label: 'Cancelled',
-          bg: const Color(0xFFFECACA),
-          fg: const Color(0xFF991B1B),
-        ),
+        label: 'Cancelled',
+        bg: const Color(0xFFFECACA),
+        fg: const Color(0xFF991B1B),
+      ),
       'rejected' => (
-          label: 'Not selected',
-          bg: const Color(0xFFE5E7EB),
-          fg: const Color(0xFF4B5563),
-        ),
+        label: 'Not selected',
+        bg: const Color(0xFFE5E7EB),
+        fg: const Color(0xFF4B5563),
+      ),
       _ => (
-          label: 'Open offer',
-          bg: const Color(0xFFFEF3C7),
-          fg: const Color(0xFF92400E),
-        ),
+        label: 'Open offer',
+        bg: const Color(0xFFFEF3C7),
+        fg: const Color(0xFF92400E),
+      ),
     };
 
     return _Pill(label: label, bg: bg, fg: fg);
@@ -1960,20 +2144,20 @@ class _HighlightPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final (:label, :bg, :fg) = switch (tag) {
       BidHighlight.lowestTotal => (
-          label: 'Lowest total',
-          bg: const Color(0xFFD1FAE5),
-          fg: const Color(0xFF065F46),
-        ),
+        label: 'Lowest total',
+        bg: const Color(0xFFD1FAE5),
+        fg: const Color(0xFF065F46),
+      ),
       BidHighlight.fastestLead => (
-          label: 'Fastest lead',
-          bg: const Color(0xFFDBEAFE),
-          fg: const Color(0xFF1E3A8A),
-        ),
+        label: 'Fastest lead',
+        bg: const Color(0xFFDBEAFE),
+        fg: const Color(0xFF1E3A8A),
+      ),
       BidHighlight.mostComplete => (
-          label: 'Most complete',
-          bg: const Color(0xFFFEF3C7),
-          fg: const Color(0xFF92400E),
-        ),
+        label: 'Most complete',
+        bg: const Color(0xFFFEF3C7),
+        fg: const Color(0xFF92400E),
+      ),
     };
 
     return _Pill(label: label, bg: bg, fg: fg);

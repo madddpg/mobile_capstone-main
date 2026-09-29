@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:iconstruct/features/auth/presentation/models/shop_rating.dart';
+import 'package:iconstruct/features/bidding/data/shop_confirmation.dart';
 
 /// Reads and writes builder ratings of hardware shops.
 ///
@@ -74,10 +75,13 @@ class ShopRatingService {
     await _ratingRef(shopId, uid).delete();
   }
 
-  /// Projects where this builder selected [shopId], and so may rate it.
+  /// Projects where this builder selected [shopId] and the shop confirmed the
+  /// order, and so may rate it.
   ///
   /// Returns the posts newest first. An empty list means the builder has not
-  /// done business with this shop and the rating action stays hidden.
+  /// done business with this shop and the rating action stays hidden. An
+  /// order the shop has not confirmed yet, or backed out of, is not business
+  /// done.
   Future<List<({String postId, String title})>> ratableProjects(
     String shopId,
   ) async {
@@ -91,7 +95,14 @@ class ShopRatingService {
           .where('selectedShopId', isEqualTo: shopId)
           .get();
 
-      final rows = snap.docs.map((d) {
+      final confirmed = await Future.wait(
+        snap.docs.map((d) => _shopConfirmed(d.id, d.data())),
+      );
+
+      final rows = [
+        for (var i = 0; i < snap.docs.length; i++)
+          if (confirmed[i]) snap.docs[i],
+      ].map((d) {
         final data = d.data();
         final title = (data['projectName'] ?? data['projectTitle'] ?? '')
             .toString()
@@ -108,5 +119,20 @@ class ShopRatingService {
       // not break the shop profile the builder came to read.
       return const [];
     }
+  }
+
+  /// Whether the shop confirmed the order on this post. A quotation from
+  /// before shops confirmed carries no answer and counts as confirmed.
+  Future<bool> _shopConfirmed(String postId, Map<String, dynamic> post) async {
+    final quotationId = (post['selectedQuotationId'] ?? '').toString().trim();
+    if (quotationId.isEmpty) return true;
+    final snap = await _db
+        .collection('projectPosts')
+        .doc(postId)
+        .collection('quotations')
+        .doc(quotationId)
+        .get();
+    return shopConfirmationOf(snap.data() ?? const {}) ==
+        ShopConfirmation.confirmed;
   }
 }
