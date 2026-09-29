@@ -7,13 +7,15 @@ import 'package:iconstruct/features/bidding/data/project_post_payload.dart';
 import 'package:iconstruct/features/bidding/data/quotation_accept_service.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
 
-/// Re-canvassing the lines a builder did not take from their chosen shop.
+/// Re-canvassing what a builder still needs after choosing a shop.
 ///
 /// Partial acceptance lets a builder take cement from one shop and leave the
 /// tile. Accepting still closes the estimate to every other shop, because an
 /// estimate has one supplier: chat, ratings and the security rules all rely on
 /// that. So the lines left behind go out again as a new estimate of their own,
-/// linked to the first, and shops quote only those.
+/// linked to the first, and shops quote only those. Lines the chosen shop
+/// cannot supply go with them: the builder needs those from somewhere else
+/// too.
 
 /// Fields that carry a shop's price. A builder's estimate never holds one.
 const Set<String> _priceKeys = {
@@ -27,6 +29,44 @@ const Set<String> _priceKeys = {
   'listPrice',
   'accepted',
 };
+
+/// Materials on the estimate that [quotation] does not list at all.
+///
+/// The app shows these as unavailable, the same as a line the shop marked, so
+/// they are canvassed with the rest.
+List<Map<String, dynamic>> unlistedMaterials({
+  required Map<String, dynamic> quotation,
+  required List<dynamic> estimateMaterials,
+}) {
+  final quoted = parseQuotedLines(quotation);
+  final out = <Map<String, dynamic>>[];
+  for (final raw in estimateMaterials.whereType<Map>()) {
+    final entry = Map<String, dynamic>.from(raw);
+    final name = quotedItemName(entry);
+    if (name.isNotEmpty && findQuotedLine(quoted, name) == null) {
+      out.add(entry);
+    }
+  }
+  return out;
+}
+
+/// Everything the builder still needs after choosing the shop behind
+/// [quotation]: the lines they did not take, the lines the shop cannot
+/// supply, and the estimate's materials the shop did not list.
+List<Map<String, dynamic>> linesStillNeeded({
+  required Map<String, dynamic> quotation,
+  required List<dynamic> estimateMaterials,
+}) {
+  final summary = readAcceptance(quotation);
+  return [
+    ...summary.dropped,
+    ...summary.unavailable,
+    ...unlistedMaterials(
+      quotation: quotation,
+      estimateMaterials: estimateMaterials,
+    ),
+  ];
+}
 
 /// The material list for re-canvassing [dropped] lines.
 ///
@@ -55,7 +95,8 @@ List<Map<String, dynamic>> remainderMaterials({
     final key = normalizeMaterialName(name);
     if (key.isEmpty || !seen.add(key)) continue;
 
-    final source = byName[key] ??
+    final source =
+        byName[key] ??
         {
           'name': name,
           'quantity': line['quantity'] ?? line['qty'] ?? 0,
@@ -148,14 +189,15 @@ String remainderProjectName(String original) {
 
 class RemainderCanvassService {
   RemainderCanvassService({FirebaseFirestore? firestore, FirebaseAuth? auth})
-      : _db = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+    : _db = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
-  /// Posts the lines the builder did not take from [quotationId] as a new
-  /// estimate linked to [postId], and returns the new estimate's post id.
+  /// Posts what the builder still needs after choosing [quotationId] (see
+  /// [linesStillNeeded]) as a new estimate linked to [postId], and returns the
+  /// new estimate's post id.
   ///
   /// Runs as one transaction, and a second call returns the estimate the first
   /// one created, so a double tap cannot post the same lines twice.
@@ -185,26 +227,29 @@ class RemainderCanvassService {
 
       final selected = (post['selectedQuotationId'] ?? '').toString().trim();
       if (selected != quotationId) {
-        throw Exception(
-          'Take part of this quotation first, then canvass the rest.',
-        );
+        throw Exception('Select this shop first, then canvass what is left.');
       }
 
       final quotationSnap = await txn.get(quotationRef);
-      final summary = readAcceptance(quotationSnap.data() ?? {});
-      if (!summary.isPartial) {
+      final rawMaterials = post['materials'];
+      final estimateMaterials = rawMaterials is List ? rawMaterials : const [];
+      final needed = linesStillNeeded(
+        quotation: quotationSnap.data() ?? {},
+        estimateMaterials: estimateMaterials,
+      );
+      if (needed.isEmpty) {
         throw Exception(
-          'Every line from this shop was taken, so there is nothing left to canvass.',
+          'You took everything on your list from this shop, so there is '
+          'nothing left to canvass.',
         );
       }
 
-      final rawMaterials = post['materials'];
       final materials = remainderMaterials(
-        dropped: summary.dropped,
-        estimateMaterials: rawMaterials is List ? rawMaterials : const [],
+        dropped: needed,
+        estimateMaterials: estimateMaterials,
       );
       if (materials.isEmpty) {
-        throw Exception('The lines you did not take could not be read.');
+        throw Exception('The lines you still need could not be read.');
       }
 
       // ---- then all writes ----

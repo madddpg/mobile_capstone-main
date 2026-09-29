@@ -768,9 +768,7 @@ class _QuoteLineItems extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      line.hasPrice
-                          ? _unitPriceLabel(line)
-                          : 'No item price',
+                      line.hasPrice ? _unitPriceLabel(line) : 'Unavailable',
                       style: GoogleFonts.poppins(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
@@ -907,11 +905,9 @@ class _MaterialCanvassCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                hasPrice
-                    ? _unitPriceLabel(line!)
-                    : (line != null
-                          ? 'Listed, no price'
-                          : 'Not quoted'),
+                // Not listed, listed without a price, and marked unavailable
+                // are one answer, read the way the shop dashboard shows it.
+                hasPrice ? _unitPriceLabel(line!) : 'Unavailable',
                 style: GoogleFonts.poppins(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,

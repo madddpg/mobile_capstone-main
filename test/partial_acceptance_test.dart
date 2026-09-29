@@ -5,14 +5,22 @@ import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
 /// believes they owe. Both have to be right.
 void main() {
   List<Map<String, dynamic>> lines() => [
-        {'name': 'Portland Cement', 'quantity': 18, 'unit': 'bags', 'unitPrice': 260},
-        {'name': 'Floor Tiles', 'quantity': 60, 'unit': 'pcs', 'subtotal': 4500},
-        {'name': 'Tile Adhesive', 'quantity': 4, 'unit': 'bags', 'unitPrice': 320},
-      ];
+    {
+      'name': 'Portland Cement',
+      'quantity': 18,
+      'unit': 'bags',
+      'unitPrice': 260,
+    },
+    {'name': 'Floor Tiles', 'quantity': 60, 'unit': 'pcs', 'subtotal': 4500},
+    {'name': 'Tile Adhesive', 'quantity': 4, 'unit': 'bags', 'unitPrice': 320},
+  ];
 
   group('lineTotalOf', () {
     test('a stated subtotal wins over unit price', () {
-      expect(lineTotalOf({'subtotal': 4500, 'unitPrice': 10, 'quantity': 2}), 4500);
+      expect(
+        lineTotalOf({'subtotal': 4500, 'unitPrice': 10, 'quantity': 2}),
+        4500,
+      );
     });
 
     test('unit price times quantity when there is no subtotal', () {
@@ -136,9 +144,11 @@ void main() {
         'description',
       ];
       for (final field in fields) {
-        expect(quotedItemName({field: 'Portland Cement 40kg'}),
-            'Portland Cement 40kg',
-            reason: 'did not read $field');
+        expect(
+          quotedItemName({field: 'Portland Cement 40kg'}),
+          'Portland Cement 40kg',
+          reason: 'did not read $field',
+        );
       }
     });
 
@@ -154,6 +164,117 @@ void main() {
 
     test('is empty when the line truly has none', () {
       expect(quotedItemName({'unitPrice': 250, 'quantity': 4}), isEmpty);
+    });
+  });
+
+  // A line the shop cannot supply is not an offer. The builder never took it
+  // and never left it, so it is never asked about and never makes an
+  // acceptance partial.
+  group('an unavailable line', () {
+    Map<String, dynamic> roofPaint() => {
+      'name': 'Roof Paint',
+      'quantity': 2,
+      'unit': 'gal',
+      'status': 'unavailable',
+    };
+
+    test('is one the shop marked unavailable, however it spells it', () {
+      for (final status in [
+        'unavailable',
+        'Unavailable',
+        'not_available',
+        'Out of stock',
+      ]) {
+        expect(
+          isUnavailableLine({
+            'name': 'Roof Paint',
+            'unitPrice': 900,
+            'status': status,
+          }),
+          isTrue,
+          reason: status,
+        );
+      }
+      expect(
+        isUnavailableLine({
+          'name': 'Roof Paint',
+          'unitPrice': 900,
+          'available': false,
+        }),
+        isTrue,
+      );
+    });
+
+    test('is one sent with no price, which is the same answer', () {
+      expect(isUnavailableLine({'name': 'Roof Paint', 'quantity': 2}), isTrue);
+    });
+
+    test('is not a priced line, nor a substitute', () {
+      expect(isUnavailableLine(lines().first), isFalse);
+      expect(
+        isUnavailableLine({
+          'name': 'laway',
+          'price': 343,
+          'qty': 20,
+          'status': 'substituted',
+        }),
+        isFalse,
+      );
+    });
+
+    test('is never taken, whatever the selection says', () {
+      final out = resolveAcceptance(
+        items: [...lines(), roofPaint()],
+        acceptedIndexes: {0, 1, 2, 3},
+      );
+      expect(out.items[3]['accepted'], isFalse);
+    });
+
+    test('does not make taking every offered line partial', () {
+      final out = resolveAcceptance(
+        items: [...lines(), roofPaint()],
+        acceptedIndexes: {0, 1, 2},
+      );
+      expect(out.status, 'accepted');
+      expect(out.acceptedCount, 3);
+      expect(out.totalCount, 3);
+    });
+
+    test('never carries a reason', () {
+      final out = resolveAcceptance(
+        items: [
+          ...lines(),
+          {...roofPaint(), 'declineReason': 'overpriced'},
+        ],
+        acceptedIndexes: {0, 1, 2},
+        declineReasons: {3: DeclineReason.overpriced},
+      );
+      expect(out.items[3].containsKey('declineReason'), isFalse);
+    });
+
+    test('is read back apart from the lines taken and left', () {
+      final summary = readAcceptance({
+        'status': 'partially_accepted',
+        'items': [
+          {...lines()[0], 'accepted': true},
+          {...lines()[1], 'accepted': false},
+          {...roofPaint(), 'accepted': false},
+        ],
+      });
+      expect(summary.kept.single['name'], 'Portland Cement');
+      expect(summary.dropped.single['name'], 'Floor Tiles');
+      expect(summary.unavailable.single['name'], 'Roof Paint');
+      expect(summary.totalCount, 2);
+    });
+
+    test('is not counted as taken on a plain acceptance', () {
+      final summary = readAcceptance({
+        'status': 'accepted',
+        'items': [lines()[0], roofPaint()],
+      });
+      expect(summary.kept, hasLength(1));
+      expect(summary.unavailable, hasLength(1));
+      expect(summary.isPartial, isFalse);
     });
   });
 }

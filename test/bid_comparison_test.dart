@@ -118,7 +118,12 @@ void main() {
     test('matches singular and plural names', () {
       final lines = parseQuotedLines({
         'items': [
-          {'name': 'Floor Tile', 'unitPrice': 99, 'quantity': 20, 'unit': 'sqm'},
+          {
+            'name': 'Floor Tile',
+            'unitPrice': 99,
+            'quantity': 20,
+            'unit': 'sqm',
+          },
         ],
       });
       expect(findQuotedLine(lines, 'Floor Tiles')?.unitPrice, 99);
@@ -127,9 +132,7 @@ void main() {
 
   group('findQuotedLine', () {
     test('matches ignoring case and extra spaces', () {
-      const lines = [
-        QuotedLine(name: 'Ceramic  Tiles', unitPrice: 120),
-      ];
+      const lines = [QuotedLine(name: 'Ceramic  Tiles', unitPrice: 120)];
       expect(findQuotedLine(lines, 'ceramic tiles')?.unitPrice, 120);
     });
   });
@@ -165,7 +168,12 @@ void main() {
       'shopName': 'GIShop',
       'estimatedTotal': 26,
       'materials': [
-        {'productName': 'Roofing sealant', 'price': 22, 'qty': 1, 'unit': 'pcs'},
+        {
+          'productName': 'Roofing sealant',
+          'price': 22,
+          'qty': 1,
+          'unit': 'pcs',
+        },
       ],
     });
     final other = BidQuote.fromMap('other', {
@@ -183,15 +191,39 @@ void main() {
       expect(unquotedBomItems(bom, giShop).single.name, 'Roof paint');
     });
 
+    test(
+      'a line marked unavailable is not quoted, even with a price left on it',
+      () {
+        final marked = BidQuote.fromMap('marked', {
+          'shopName': 'Marked',
+          'estimatedTotal': 22,
+          'materials': [
+            {'name': 'Roofing sealant', 'unitPrice': 22, 'quantity': 1},
+            {
+              'name': 'Roof paint',
+              'unitPrice': 50,
+              'quantity': 3,
+              'status': 'unavailable',
+            },
+          ],
+        });
+        expect(bomCoverageCount(bom, marked), 1);
+        expect(unquotedBomItems(bom, marked).single.name, 'Roof paint');
+      },
+    );
+
     test('lists extra shop items that are not on the estimate', () {
-      final extras = extraQuotedLines(bom, BidQuote.fromMap('x', {
-        'shopName': 'Extra',
-        'estimatedTotal': 10,
-        'materials': [
-          {'name': 'Roofing sealant', 'price': 22},
-          {'name': 'Roofing screws', 'price': 2},
-        ],
-      }));
+      final extras = extraQuotedLines(
+        bom,
+        BidQuote.fromMap('x', {
+          'shopName': 'Extra',
+          'estimatedTotal': 10,
+          'materials': [
+            {'name': 'Roofing sealant', 'price': 22},
+            {'name': 'Roofing screws', 'price': 2},
+          ],
+        }),
+      );
       expect(extras.map((l) => l.name), ['Roofing screws']);
     });
 

@@ -15,25 +15,25 @@ import 'package:iconstruct/features/bidding/widgets/line_selection_sheet.dart';
 
 /// Exactly as the shop dashboard stored it.
 Map<String, dynamic> _laway() => {
-      'category': 'Tile Setting',
-      'lineNote': '',
-      'price': 343,
-      'productName': 'laway',
-      'qty': 20,
-      'requestedName': 'Tile Adhesive (25 kg)',
-      'size': '',
-      'status': 'substituted',
-      'subtotal': 6860,
-      'unit': 'bags',
-    };
+  'category': 'Tile Setting',
+  'lineNote': '',
+  'price': 343,
+  'productName': 'laway',
+  'qty': 20,
+  'requestedName': 'Tile Adhesive (25 kg)',
+  'size': '',
+  'status': 'substituted',
+  'subtotal': 6860,
+  'unit': 'bags',
+};
 
 Map<String, dynamic> _paint() => {
-      'productName': 'Interior Latex Paint (4 L)',
-      'qty': 4,
-      'unit': 'gal',
-      'price': 10,
-      'subtotal': 40,
-    };
+  'productName': 'Interior Latex Paint (4 L)',
+  'qty': 4,
+  'unit': 'gal',
+  'price': 10,
+  'subtotal': 40,
+};
 
 void main() {
   group('a substituted line', () {
@@ -125,23 +125,28 @@ void main() {
   group('the select-shop modal', () {
     setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
 
-    Future<void> pump(WidgetTester tester, List<Map<String, dynamic>> items,
-        {double total = 0}) {
+    Future<void> pump(
+      WidgetTester tester,
+      List<Map<String, dynamic>> items, {
+      double total = 0,
+    }) {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
-      return tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Align(
-            alignment: Alignment.bottomCenter,
-            child: SelectShopSheet(
-              items: items,
-              shopName: 'Chito Hardware',
-              quotedTotal: total,
+      return tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.bottomCenter,
+              child: SelectShopSheet(
+                items: items,
+                shopName: 'Chito Hardware',
+                quotedTotal: total,
+              ),
             ),
           ),
         ),
-      ));
+      );
     }
 
     testWidgets('shows a substitute and what it replaces', (tester) async {
@@ -187,13 +192,40 @@ void main() {
 
       await tester.tap(find.text('Overpriced'));
       await tester.pump();
-      expect(find.text('The shop can offer you a lower price for it.'),
-          findsOneWidget);
+      expect(
+        find.text('The shop can offer you a lower price for it.'),
+        findsOneWidget,
+      );
       // Choosing a reason does not tick the line back.
       expect(find.text('1 of 2 lines'), findsOneWidget);
 
       await tester.tap(find.text('laway'));
       await tester.pumpAndSettle();
+      expect(find.text('Why not take it?'), findsNothing);
+    });
+
+    testWidgets('a line the shop cannot supply reads Unavailable, and is not '
+        'asked about', (tester) async {
+      await pump(tester, [
+        _paint(),
+        {
+          'productName': 'Roof Paint (1 gal)',
+          'qty': 2,
+          'unit': 'gal',
+          'status': 'unavailable',
+        },
+      ]);
+
+      expect(find.text('Unavailable'), findsOneWidget);
+      expect(find.text('1 line quoted · 1 unavailable'), findsOneWidget);
+      // Every line the shop offered is taken, so nothing reads as left.
+      expect(find.text('Accept all'), findsOneWidget);
+      expect(find.text('Why not take it?'), findsNothing);
+
+      // It cannot be ticked.
+      await tester.tap(find.text('Roof Paint (1 gal)'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('Accept all'), findsOneWidget);
       expect(find.text('Why not take it?'), findsNothing);
     });
 
@@ -203,24 +235,26 @@ void main() {
       addTearDown(tester.view.reset);
 
       LineSelectionResult? result;
-      await tester.pumpWidget(MaterialApp(
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () async {
-              result = await showModalBottomSheet<LineSelectionResult>(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => SelectShopSheet(
-                  items: [_paint(), _laway()],
-                  shopName: 'Chito Hardware',
-                  quotedTotal: 0,
-                ),
-              );
-            },
-            child: const Text('open'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                result = await showModalBottomSheet<LineSelectionResult>(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => SelectShopSheet(
+                    items: [_paint(), _laway()],
+                    shopName: 'Chito Hardware',
+                    quotedTotal: 0,
+                  ),
+                );
+              },
+              child: const Text('open'),
+            ),
           ),
         ),
-      ));
+      );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
 

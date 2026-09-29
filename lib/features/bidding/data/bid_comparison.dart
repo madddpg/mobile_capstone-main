@@ -19,7 +19,9 @@ String normalizeMaterialName(String raw) {
 }
 
 String _stemMaterialName(String raw) {
-  final words = normalizeMaterialName(raw).split(' ').where((w) => w.isNotEmpty);
+  final words = normalizeMaterialName(
+    raw,
+  ).split(' ').where((w) => w.isNotEmpty);
   return words
       .map((word) {
         if (word.length > 3 && word.endsWith('s')) {
@@ -90,6 +92,7 @@ List<QuotedLine> _linesFromRaw(dynamic raw) {
         subtotal: subtotal,
         requestedName: isSubstitutedLine(map) ? requestedItemName(map) : '',
         note: quotedLineNote(map),
+        markedUnavailable: isMarkedUnavailable(map),
       ),
     );
   }
@@ -106,6 +109,12 @@ List<QuotedLine> _mergeQuotedLines(List<QuotedLine> incoming) {
       byName[key] = line;
       continue;
     }
+    // A copy marked unavailable has nothing to add to one that was offered,
+    // not even the price left on it.
+    if (existing.markedUnavailable != line.markedUnavailable) {
+      if (existing.markedUnavailable) byName[key] = line;
+      continue;
+    }
     final named = existing.hasPrice ? existing : line;
     byName[key] = QuotedLine(
       name: named.name,
@@ -116,6 +125,7 @@ List<QuotedLine> _mergeQuotedLines(List<QuotedLine> incoming) {
       size: existing.size.trim().isNotEmpty ? existing.size : line.size,
       unitPrice: existing.unitPrice > 0 ? existing.unitPrice : line.unitPrice,
       subtotal: existing.subtotal > 0 ? existing.subtotal : line.subtotal,
+      markedUnavailable: existing.markedUnavailable,
     );
   }
   return byName.values.toList();
@@ -164,6 +174,9 @@ class QuotedLine {
   final double unitPrice;
   final double subtotal;
 
+  /// The shop marked the line as one it cannot supply.
+  final bool markedUnavailable;
+
   const QuotedLine({
     required this.name,
     this.requestedName = '',
@@ -173,9 +186,13 @@ class QuotedLine {
     this.size = '',
     this.unitPrice = 0,
     this.subtotal = 0,
+    this.markedUnavailable = false,
   });
 
-  bool get hasPrice => unitPrice > 0 || subtotal > 0;
+  /// Whether the shop offered this line. A line marked unavailable is not an
+  /// offer even if a price was left on it, and a line with no price is not one
+  /// either: both read as "Unavailable".
+  bool get hasPrice => !markedUnavailable && (unitPrice > 0 || subtotal > 0);
 
   bool get isSubstitute => requestedName.trim().isNotEmpty;
 
@@ -421,15 +438,17 @@ CanvassAdvice canvassAdvice(List<QuotedLine> bom, List<BidQuote> quotes) {
       headline: '${suggested.shopName} is the only quotation so far.',
       detail: missing.isEmpty
           ? 'Review the line items before you select this shop.'
-          : 'They did not price ${missing.map((m) => m.name).join(', ')}. '
-              'You can still select them; those items stay unquoted.',
+          : 'Unavailable from them: ${missing.map((m) => m.name).join(', ')}. '
+                'You can still select them and buy those elsewhere.',
       gaps: gaps,
     );
   }
 
   final suggestedCov = bomCoverageCount(bom, suggested);
   final total = bom.length;
-  final coveredLabel = total > 0 ? '$suggestedCov of $total items' : 'listed items';
+  final coveredLabel = total > 0
+      ? '$suggestedCov of $total items'
+      : 'listed items';
 
   if (suggested.id == cheapest.id) {
     return CanvassAdvice(
@@ -438,7 +457,7 @@ CanvassAdvice canvassAdvice(List<QuotedLine> bom, List<BidQuote> quotes) {
       detail: total > 0 && suggestedCov == total
           ? 'Lowest quotation and covers your full estimate list.'
           : 'Best among these bids on coverage and price ($coveredLabel). '
-              'Skipped lines are not free — they stay unquoted if you pick this shop.',
+                'Unavailable items are not in that total — buy them elsewhere if you pick this shop.',
       gaps: gaps,
     );
   }
@@ -458,7 +477,8 @@ CanvassAdvice canvassAdvice(List<QuotedLine> bom, List<BidQuote> quotes) {
     headline: 'Suggested: ${suggested.shopName}',
     detail:
         '${cheapest.shopName} looks cheaper at ${formatBidMoney(cheapest.estimatedTotal)}, '
-        'but skipped $gapNames. ${suggested.shopName} covers more of the estimate '
+        'but $gapNames ${skippedByCheap.length == 1 ? 'is' : 'are'} unavailable '
+        'there. ${suggested.shopName} covers more of the estimate '
         '($coveredLabel) at ${formatBidMoney(suggested.estimatedTotal)}. '
         'Pick one shop — the other bid does not fill in the gaps.',
     gaps: gaps,
@@ -565,7 +585,8 @@ class BidComparison {
       if (days != null) {
         if (bestDays == null || days < bestDays) {
           fastest = q;
-        } else if (days == bestDays && q.estimatedTotal < (fastest?.estimatedTotal ?? 0)) {
+        } else if (days == bestDays &&
+            q.estimatedTotal < (fastest?.estimatedTotal ?? 0)) {
           fastest = q;
         }
       }
@@ -602,7 +623,7 @@ class BidComparison {
     if (quotes.length == 1) {
       return [
         '${quotes.first.shopName} submitted the only quotation so far '
-        '(₱${quotes.first.estimatedTotal.toStringAsFixed(0)} total).',
+            '(₱${quotes.first.estimatedTotal.toStringAsFixed(0)} total).',
       ];
     }
 

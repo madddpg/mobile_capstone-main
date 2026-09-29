@@ -133,13 +133,25 @@ class SelectShopSheet extends StatefulWidget {
 class _SelectShopSheetState extends State<SelectShopSheet> {
   // Everything starts ticked. The builder is dropping lines, not building a
   // list from nothing, so the common case is a couple of taps.
-  late final Set<int> _kept = {for (var i = 0; i < widget.items.length; i++) i};
+  late final Set<int> _kept = {..._offered};
+
+  /// Positions of the lines the shop can supply. The rest are unavailable:
+  /// shown as the dashboard shows them, never tickable, and never counted as
+  /// lines the builder left.
+  late final List<int> _offered = [
+    for (var i = 0; i < widget.items.length; i++)
+      if (!isUnavailableLine(widget.items[i])) i,
+  ];
+
+  late final int _unavailable = widget.items.length - _offered.length;
 
   /// Why each unticked line was left. Optional: a line with no reason is
   /// simply not taken, and cannot be offered at a lower price later.
   final Map<int, DeclineReason> _reasons = {};
 
-  late final int _substitutes = widget.items.where(isSubstitutedLine).length;
+  late final int _substitutes = widget.items
+      .where((item) => isSubstitutedLine(item) && !isUnavailableLine(item))
+      .length;
 
   bool get _lumpSum => widget.items.isEmpty;
 
@@ -182,7 +194,7 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
               acceptedIndexes: Set<int>.from(_kept),
               acceptedTotal: _total,
               acceptedCount: _kept.length,
-              totalCount: widget.items.length,
+              totalCount: _offered.length,
               declineReasons: {
                 for (final entry in _reasons.entries)
                   if (!_kept.contains(entry.key)) entry.key: entry.value,
@@ -225,7 +237,7 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
   }
 
   Widget _header() {
-    final count = widget.items.length;
+    final count = _offered.length;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 8, 4),
       child: Row(
@@ -253,6 +265,7 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
                           if (_substitutes > 0)
                             '$_substitutes substitute'
                                 '${_substitutes == 1 ? '' : 's'}',
+                          if (_unavailable > 0) '$_unavailable unavailable',
                         ].join(' · '),
                   style: GoogleFonts.poppins(
                     fontSize: 12.5,
@@ -288,7 +301,7 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
   }
 
   Widget _lineList() {
-    final all = widget.items.length;
+    final offered = _offered.length;
     return ListView(
       shrinkWrap: true,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -310,35 +323,37 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
                 ),
               ),
             ),
-            TextButton(
-              onPressed: () => setState(() {
-                if (_kept.length == all) {
-                  _kept.clear();
-                } else {
-                  _kept.addAll({for (var i = 0; i < all; i++) i});
-                  _reasons.clear();
-                }
-              }),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.navySoft,
-                visualDensity: VisualDensity.compact,
-              ),
-              child: Text(
-                _kept.length == all ? 'Untick all' : 'Tick all',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+            if (offered > 0)
+              TextButton(
+                onPressed: () => setState(() {
+                  if (_kept.length == offered) {
+                    _kept.clear();
+                  } else {
+                    _kept.addAll(_offered);
+                    _reasons.clear();
+                  }
+                }),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.navySoft,
+                  visualDensity: VisualDensity.compact,
+                ),
+                child: Text(
+                  _kept.length == offered ? 'Untick all' : 'Tick all',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 4),
-        for (var i = 0; i < all; i++)
+        for (var i = 0; i < widget.items.length; i++)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _LineCard(
               item: widget.items[i],
+              unavailable: !_offered.contains(i),
               kept: _kept.contains(i),
               onTap: () => _toggle(i),
               reason: _reasons[i],
@@ -382,7 +397,8 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
   }
 
   Widget _footer(BuildContext context) {
-    final all = widget.items.length;
+    // Unavailable lines were never on offer, so "all" is every line offered.
+    final all = _offered.length;
     final kept = _kept.length;
     final canAccept = _lumpSum || kept > 0;
     final label = _lumpSum
@@ -480,31 +496,38 @@ class _LineCard extends StatelessWidget {
   final DeclineReason? reason;
   final ValueChanged<DeclineReason> onReason;
 
+  /// The shop cannot supply this line. It is shown, as the dashboard shows
+  /// it, but cannot be ticked and is not asked about.
+  final bool unavailable;
+
   const _LineCard({
     required this.item,
     required this.kept,
     required this.onTap,
     required this.reason,
     required this.onReason,
+    this.unavailable = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final name = quotedItemName(item);
-    final substitute = isSubstitutedLine(item);
+    // A substitute the shop then marked unavailable is not offered either.
+    final substitute = !unavailable && isSubstitutedLine(item);
     final requested = requestedItemName(item);
     final note = quotedLineNote(item);
-    final quantity = _quantityLine(item);
+    final quantity = unavailable ? '' : _quantityLine(item);
     final total = lineTotalOf(item);
     final fade = kept ? 1.0 : 0.45;
 
     return Semantics(
-      checked: kept,
+      checked: unavailable ? null : kept,
+      enabled: !unavailable,
       child: Material(
         color: substitute ? _subTint : Colors.white,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
-          onTap: onTap,
+          onTap: unavailable ? null : onTap,
           borderRadius: BorderRadius.circular(14),
           child: Container(
             padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
@@ -526,7 +549,9 @@ class _LineCard extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 1),
                         child: Icon(
-                          kept
+                          unavailable
+                              ? Icons.remove_circle_outline_rounded
+                              : kept
                               ? Icons.check_circle_rounded
                               : Icons.radio_button_unchecked_rounded,
                           size: 22,
@@ -549,7 +574,10 @@ class _LineCard extends StatelessWidget {
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
                                     color: AppColors.textDark,
-                                    decoration: kept
+                                    // Struck through when the builder left
+                                    // it, not when the shop could not
+                                    // supply it.
+                                    decoration: kept || unavailable
                                         ? null
                                         : TextDecoration.lineThrough,
                                   ),
@@ -597,21 +625,23 @@ class _LineCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        total > 0 ? _money(total) : 'No price',
+                        unavailable ? 'Unavailable' : _money(total),
                         style: GoogleFonts.poppins(
-                          fontSize: 14,
+                          fontSize: unavailable ? 12.5 : 14,
                           fontWeight: FontWeight.w700,
-                          color: total > 0
-                              ? AppColors.textDark
-                              : AppColors.textMuted,
+                          color: unavailable
+                              ? AppColors.textMuted
+                              : AppColors.textDark,
                         ),
                       ),
                     ],
                   ),
                 ),
                 // Outside the fade: the question is for the line just unticked,
-                // and has to read as live.
-                if (!kept) _ReasonPicker(reason: reason, onReason: onReason),
+                // and has to read as live. Never asked about a line the shop
+                // could not supply: the builder did not leave it.
+                if (!kept && !unavailable)
+                  _ReasonPicker(reason: reason, onReason: onReason),
               ],
             ),
           ),

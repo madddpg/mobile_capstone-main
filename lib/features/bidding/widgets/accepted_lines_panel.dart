@@ -10,8 +10,8 @@ import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
 import 'package:iconstruct/features/bidding/data/remainder_canvass.dart';
 import 'package:iconstruct/features/bidding/screens/posted_project_details_screen.dart';
 
-/// What the builder took from a partly accepted quotation, and a way to
-/// canvass what they left.
+/// What the builder took from the shop they chose, and a way to canvass what
+/// they still need: the lines they left and the ones the shop cannot supply.
 ///
 /// Before this, the card went on showing the shop's full quoted total, and
 /// nothing anywhere said which lines had been kept, so the agreement was only
@@ -23,6 +23,14 @@ class AcceptedLinesPanel extends StatelessWidget {
   final String quotationId;
   final String shopName;
 
+  /// Materials on the estimate the shop's quotation does not list at all,
+  /// shown with the lines it marked unavailable.
+  final List<Map<String, dynamic>> unlisted;
+
+  /// How many materials a re-canvass would post. Defaults to every line left
+  /// or unavailable.
+  final int? stillNeeded;
+
   /// Post id of the estimate already re-canvassing the dropped lines, if any.
   final String? remainderPostId;
 
@@ -33,12 +41,16 @@ class AcceptedLinesPanel extends StatelessWidget {
     required this.postId,
     required this.quotationId,
     required this.shopName,
+    this.unlisted = const [],
+    this.stillNeeded,
     this.remainderPostId,
   });
 
   @override
   Widget build(BuildContext context) {
-    final dropped = summary.dropped.length;
+    final unavailable = [...summary.unavailable, ...unlisted];
+    final needed =
+        stillNeeded ?? summary.dropped.length + unavailable.length;
     final hasRemainder = (remainderPostId ?? '').isNotEmpty;
 
     return Container(
@@ -52,7 +64,10 @@ class AcceptedLinesPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'You took ${summary.kept.length} of ${summary.totalCount} lines',
+            summary.dropped.isEmpty
+                ? 'You took everything $shopName could supply'
+                : 'You took ${summary.kept.length} of ${summary.totalCount} '
+                    'lines',
             style: GoogleFonts.poppins(
               color: AppColors.textDark,
               fontWeight: FontWeight.w700,
@@ -82,38 +97,48 @@ class AcceptedLinesPanel extends StatelessWidget {
             color: AppColors.textMuted,
             showReasons: true,
           ),
-          const SizedBox(height: 12),
-          ConstrainedBox(
-            constraints: const BoxConstraints(
-              minWidth: double.infinity,
-              minHeight: 44,
+          if (unavailable.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _LineGroup(
+              label: 'Unavailable',
+              lines: unavailable,
+              color: AppColors.textMuted,
             ),
-            child: OutlinedButton(
-              onPressed: hasRemainder
-                  ? () => _openEstimate(context, remainderPostId!)
-                  : () => canvassDroppedLines(
+          ],
+          if (hasRemainder || needed > 0) ...[
+            const SizedBox(height: 12),
+            ConstrainedBox(
+              constraints: const BoxConstraints(
+                minWidth: double.infinity,
+                minHeight: 44,
+              ),
+              child: OutlinedButton(
+                onPressed: hasRemainder
+                    ? () => _openEstimate(context, remainderPostId!)
+                    : () => canvassDroppedLines(
                         context,
                         postId: postId,
                         quotationId: quotationId,
                         shopName: shopName,
-                        droppedCount: dropped,
+                        neededCount: needed,
                       ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.navySoft,
-                side: const BorderSide(color: AppColors.navySoft),
-                shape: const StadiumBorder(),
-              ),
-              child: Text(
-                hasRemainder
-                    ? 'View the re-canvass'
-                    : dropped == 1
-                        ? 'Canvass the line you did not take'
-                        : 'Canvass the $dropped lines you did not take',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.navySoft,
+                  side: const BorderSide(color: AppColors.navySoft),
+                  shape: const StadiumBorder(),
+                ),
+                child: Text(
+                  hasRemainder
+                      ? 'View the re-canvass'
+                      : needed == 1
+                      ? 'Canvass the line you still need'
+                      : 'Canvass the $needed lines you still need',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -188,23 +213,25 @@ void _openEstimate(BuildContext context, String postId) {
   );
 }
 
-/// Confirms, then posts the dropped lines as a new estimate and opens it.
+/// Confirms, then posts what the builder still needs as a new estimate and
+/// opens it.
 Future<void> canvassDroppedLines(
   BuildContext context, {
   required String postId,
   required String quotationId,
   required String shopName,
-  required int droppedCount,
+  required int neededCount,
 }) async {
-  final lineWord = droppedCount == 1 ? 'line' : '$droppedCount lines';
+  final lineWord = neededCount == 1 ? 'line' : '$neededCount lines';
   final ok = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Canvass what you did not take?'),
+      title: const Text('Canvass what you still need?'),
       content: Text(
-        'This posts a new estimate with only the $lineWord you did not take '
-        'from $shopName, and asks hardware shops to quote them. Your order '
-        'with $shopName stays as it is.',
+        'This posts a new estimate with only the $lineWord you still need: '
+        'the ones you did not take from $shopName and the ones they cannot '
+        'supply. Hardware shops are asked to quote them. Your order with '
+        '$shopName stays as it is.',
       ),
       actions: [
         TextButton(
@@ -223,9 +250,8 @@ Future<void> canvassDroppedLines(
   showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => const Center(
-      child: CircularProgressIndicator(color: AppColors.cream),
-    ),
+    builder: (_) =>
+        const Center(child: CircularProgressIndicator(color: AppColors.cream)),
   );
 
   try {

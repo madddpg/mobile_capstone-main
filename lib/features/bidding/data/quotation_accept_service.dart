@@ -11,12 +11,7 @@ import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart
 ///
 /// Security rules treat **`userId`** as the canonical owner id. Older or
 /// web-side docs may use the aliases instead.
-const postedEstimateOwnerKeys = [
-  'userId',
-  'builderId',
-  'ownerId',
-  'postedBy',
-];
+const postedEstimateOwnerKeys = ['userId', 'builderId', 'ownerId', 'postedBy'];
 
 /// First non-empty owner id on a `projectPosts` document (`userId` first).
 String? postedEstimateOwnerId(Map<String, dynamic> data) {
@@ -28,9 +23,7 @@ String? postedEstimateOwnerId(Map<String, dynamic> data) {
 }
 
 bool isPostedEstimateOwner(Map<String, dynamic> data, String uid) {
-  return postedEstimateOwnerKeys.any(
-    (key) => data[key]?.toString() == uid,
-  );
+  return postedEstimateOwnerKeys.any((key) => data[key]?.toString() == uid);
 }
 
 String quotationShopId(Map<String, dynamic> data, String documentId) {
@@ -44,11 +37,9 @@ String quotationShopId(Map<String, dynamic> data, String documentId) {
 /// Accepting no longer opens the chat. The shop confirms the order from the
 /// dashboard first, and chat waits for that (see `shop_confirmation.dart`).
 class QuotationAcceptService {
-  QuotationAcceptService({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  QuotationAcceptService({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _db = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
@@ -102,8 +93,9 @@ class QuotationAcceptService {
         );
       }
 
-      final existing =
-          (projectData['selectedQuotationId'] ?? '').toString().trim();
+      final existing = (projectData['selectedQuotationId'] ?? '')
+          .toString()
+          .trim();
       if (existing.isNotEmpty && existing != quotationId) {
         throw Exception('You already accepted an offer for this estimate.');
       }
@@ -112,14 +104,15 @@ class QuotationAcceptService {
       if (!quotationSnap.exists) {
         throw Exception('That quotation is no longer available.');
       }
-      final resolvedShopId =
-          quotationShopId(quotationSnap.data() ?? <String, dynamic>{}, shopId);
+      final resolvedShopId = quotationShopId(
+        quotationSnap.data() ?? <String, dynamic>{},
+        shopId,
+      );
       if (resolvedShopId.isEmpty) {
         throw Exception('This quotation is missing a shop id.');
       }
 
-      final savedProjectId =
-          (projectData['projectId'] ?? '').toString().trim();
+      final savedProjectId = (projectData['projectId'] ?? '').toString().trim();
       DocumentReference<Map<String, dynamic>>? savedProjectRef;
       var savedProjectExists = false;
       if (savedProjectId.isNotEmpty) {
@@ -255,8 +248,9 @@ class QuotationAcceptService {
 
     final projectData = projectSnap.data() ?? <String, dynamic>{};
     if (!isPostedEstimateOwner(projectData, user.uid)) return false;
-    final selected =
-        (projectData['selectedQuotationId'] ?? '').toString().trim();
+    final selected = (projectData['selectedQuotationId'] ?? '')
+        .toString()
+        .trim();
     if (selected.isEmpty || selected != quotationId) return false;
 
     final quotationRef = projectRef.collection('quotations').doc(quotationId);
