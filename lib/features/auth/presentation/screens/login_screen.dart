@@ -3,7 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/features/auth/data/email_service.dart';
 import 'package:iconstruct/features/auth/data/auth_login_error.dart';
 import 'package:iconstruct/features/auth/presentation/screens/forgot_password_screen.dart';
-import 'package:iconstruct/features/auth/presentation/screens/main_home_screen.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
+import 'package:iconstruct/features/onboarding/presentation/screens/landing_screen.dart';
 import 'package:iconstruct/features/auth/presentation/widgets/otp_dialog.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 
@@ -86,11 +87,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
       debugPrint('Logged in successfully. Firebase UID: $uid');
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const MainHomeScreen()),
-        (route) => route.isFirst,
-      );
+      // Nothing from before sign-in stays under home, so back from home
+      // cannot land on the landing or sign-in screen.
+      Navigator.of(context)
+          .pushAndRemoveUntil(AppNav.homeRoute(), (route) => false);
     } on EmailNotVerifiedException catch (e) {
       if (!mounted) return;
       // Credentials were right, so let them finish verification here instead of
@@ -115,6 +115,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return RootBackFallback(
+      fallback: (_) => const LandingScreen(),
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -146,7 +153,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       size: 18,
                     ),
                     color: const Color(0xFF32465C),
-                    onPressed: () => Navigator.of(context).maybePop(),
+                    onPressed: () => AppNav.back(
+                      context,
+                      rootFallback: (_) => const LandingScreen(),
+                    ),
                   ),
                 ),
                 // Form block centered in remaining space

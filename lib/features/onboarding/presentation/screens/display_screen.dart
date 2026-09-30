@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:iconstruct/core/state/onboarding_preferences.dart';
 import 'package:iconstruct/core/widgets/app_image.dart';
-import 'package:iconstruct/features/auth/presentation/screens/main_home_screen.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/landing_screen.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/main_display.dart';
 
@@ -52,13 +52,15 @@ class _DisplayScreenState extends State<DisplayScreen>
 
     if (!mounted) return;
 
-    Navigator.of(context).pushReplacement(
+    final navigator = Navigator.of(context);
+    if (signedIn) {
+      navigator.pushAndRemoveUntil(AppNav.homeRoute(), (_) => false);
+      return;
+    }
+    navigator.pushReplacement(
       MaterialPageRoute(
-        builder: (_) {
-          if (signedIn) return const MainHomeScreen();
-          if (seenIntro) return const LandingScreen();
-          return const MainDisplayScreen();
-        },
+        builder: (_) =>
+            seenIntro ? const LandingScreen() : const MainDisplayScreen(),
       ),
     );
   }

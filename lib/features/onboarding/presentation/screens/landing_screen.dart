@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/register_screen.dart';
+import 'package:iconstruct/features/onboarding/presentation/screens/main_display.dart';
 
 class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});
@@ -119,8 +121,13 @@ class _LandingScreenState extends State<LandingScreen>
                   position: _slideOut,
                   child: _FloatingBackButton(
                     onTap: () {
+                      // Landing is the root once the intro or splash
+                      // replaced itself, so back replays the intro.
                       _runExit(() {
-                        Navigator.of(context).maybePop();
+                        AppNav.back(
+                          context,
+                          rootFallback: (_) => const MainDisplayScreen(),
+                        );
                       });
                     },
                   ),

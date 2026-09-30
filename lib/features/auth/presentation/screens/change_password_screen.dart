@@ -6,6 +6,7 @@ import 'package:iconstruct/core/firebase/firestore_error.dart';
 import 'package:iconstruct/core/validation/password_policy.dart';
 import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -200,7 +201,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         backgroundColor: creamBg,
         elevation: 0,
         leading: GestureDetector(
-          onTap: () => Navigator.pop(context),
+          onTap: () => AppNav.back(context),
           child: Container(
             margin: const EdgeInsets.all(8),
             decoration: BoxDecoration(

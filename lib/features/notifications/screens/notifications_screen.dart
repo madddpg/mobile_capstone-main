@@ -6,6 +6,7 @@ import 'package:iconstruct/core/firebase/firestore_error.dart';
 import 'package:iconstruct/features/bidding/screens/posted_project_details_screen.dart';
 import 'package:iconstruct/features/bidding/screens/quotations_screen.dart';
 import 'package:iconstruct/features/chat/screens/chat_thread_screen.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -50,7 +51,7 @@ class NotificationsScreen extends StatelessWidget {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => Navigator.pop(context),
+            onTap: () => AppNav.back(context),
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(

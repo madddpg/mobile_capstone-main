@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 
 class TermsConditionsScreen extends StatelessWidget {
   const TermsConditionsScreen({super.key});
@@ -69,7 +70,7 @@ class TermsConditionsScreen extends StatelessWidget {
         backgroundColor: cream,
         elevation: 0,
         leading: GestureDetector(
-          onTap: () => Navigator.pop(context),
+          onTap: () => AppNav.back(context),
           child: Container(
             margin: const EdgeInsets.all(8),
             decoration: BoxDecoration(

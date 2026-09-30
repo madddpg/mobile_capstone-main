@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/features/bidding/screens/quotations_screen.dart';
 import 'package:iconstruct/features/chat/screens/chat_thread_screen.dart';
 import 'package:iconstruct/firebase_options.dart';
@@ -266,7 +267,8 @@ class FCMService {
     if ((type == 'chat_unlocked' || type == 'chat_message') &&
         conversationId != null &&
         conversationId.toString().isNotEmpty) {
-      nav.push(
+      AppNav.openFromNotification(
+        nav,
         MaterialPageRoute(
           builder: (_) => ChatThreadScreen(
             conversationId: conversationId.toString(),
@@ -279,7 +281,8 @@ class FCMService {
     if (type == 'new_quotation' &&
         postId != null &&
         postId.toString().isNotEmpty) {
-      nav.push(
+      AppNav.openFromNotification(
+        nav,
         MaterialPageRoute(
           builder: (_) => QuotationsScreen(postId: postId.toString()),
         ),

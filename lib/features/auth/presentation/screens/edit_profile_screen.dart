@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:iconstruct/core/firebase/firestore_error.dart';
 import 'package:iconstruct/core/widgets/user_avatar.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final String firstName;
@@ -121,7 +122,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: Row(
                       children: [
                         GestureDetector(
-                          onTap: () => Navigator.pop(context),
+                          onTap: () => AppNav.back(context),
                           child: Container(
                             width: 44,
                             height: 44,

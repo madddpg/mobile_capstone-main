@@ -11,6 +11,7 @@ import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
 import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'quotations_screen.dart';
 
 class PostedProjectDetailsScreen extends StatelessWidget {
@@ -137,7 +138,7 @@ class PostedProjectDetailsScreen extends StatelessWidget {
                       top: 10,
                       left: 20,
                       child: GestureDetector(
-                        onTap: () => Navigator.pop(context),
+                        onTap: () => AppNav.back(context),
                         child: Container(
                           width: 44,
                           height: 44,

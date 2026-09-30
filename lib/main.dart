@@ -8,6 +8,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:iconstruct/core/firebase/app_check_gate.dart';
 import 'package:iconstruct/core/layout/app_scale.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/core/services/fcm_service.dart';
 import 'package:iconstruct/core/state/user_state/user_provider.dart';
 import 'firebase_options.dart';
@@ -110,6 +111,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
+      navigatorObservers: [NavigationHistory.instance],
       title: 'iConstruct',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
