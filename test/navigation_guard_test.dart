@@ -369,7 +369,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Recalculate quantities you typed?'), findsOneWidget);
-      expect(find.textContaining('${row.name}: 77'), findsOneWidget);
+      expect(find.textContaining('${row.name} (you typed 77)'), findsOneWidget);
 
       await tester.tap(find.text('Keep my quantities'));
       await tester.pumpAndSettle();

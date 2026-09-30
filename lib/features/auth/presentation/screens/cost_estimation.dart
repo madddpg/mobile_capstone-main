@@ -213,7 +213,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   }
 
   /// Lines whose typed quantity would be replaced if row [index] became
-  /// [replacement], described as "name: typed → new unit".
+  /// [replacement], each saying what was typed and what it becomes.
   List<String> _typedLinesReplacedBy(
     int index,
     RenovationTemplateItem replacement,
@@ -236,12 +236,13 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
           item.unit == selection.unit) {
         continue;
       }
-      final renamed = item.name == selection.materialName
-          ? ''
-          : '${item.name}, ';
+      final typed = _formatQty(selection.quantity);
+      final becomes = '${_formatQty(item.defaultQuantity)} ${item.unit}';
       lines.add(
-        '${selection.materialName}: ${_formatQty(selection.quantity)} → '
-        '$renamed${_formatQty(item.defaultQuantity)} ${item.unit}',
+        item.name == selection.materialName
+            ? '${selection.materialName}: your $typed becomes $becomes'
+            : '${selection.materialName} (you typed $typed) becomes $becomes '
+                  'of ${item.name}',
       );
     }
     return lines;
