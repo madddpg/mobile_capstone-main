@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +11,7 @@ import 'package:iconstruct/features/auth/presentation/screens/cost_estimation.da
 import 'package:iconstruct/core/firebase/firestore_error.dart';
 import 'package:iconstruct/core/models/project_model.dart';
 import 'package:iconstruct/core/navigation/planning_nav.dart';
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/core/state/active_project_state.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
@@ -220,6 +223,81 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
     _remarksController = TextEditingController(
       text: widget.projectNotes?.trim() ?? '',
     );
+    _openedWith = _signature();
+    _savedAs = widget.existingProject != null ? _openedWith : null;
+  }
+
+  /// The estimate as it stood when this screen opened.
+  late final String _openedWith;
+
+  /// The estimate as last saved, or null while a new one was never saved.
+  String? _savedAs;
+
+  /// Everything a save writes, as one string, to tell whether it changed.
+  String _signature() => jsonEncode([
+    _projectName,
+    _projectType,
+    _projectArea,
+    _selectedBudget,
+    _remarksController.text.trim(),
+    _buildMaterialMaps(),
+    _excludedWork.length,
+  ]);
+
+  LeaveWarning? _backWarning() {
+    if (_alreadyPosted) return null;
+    final now = _signature();
+    if (widget.existingProject != null) {
+      if (now == _savedAs) return null;
+      return const LeaveWarning(
+        title: 'Leave without saving?',
+        message:
+            'You changed this estimate but have not saved it. Going back '
+            'discards those changes.',
+        keeps:
+            'The last saved version stays in Files. Tap Save Draft first '
+            'to keep your changes.',
+        confirmLabel: 'Discard changes',
+        cancelLabel: 'Stay',
+      );
+    }
+    if (now == _openedWith) return null;
+    return const LeaveWarning(
+      title: 'Leave the review?',
+      message:
+          'Changes you made on this screen, such as the estimate name, '
+          'budget, remarks or removed materials, do not carry back and will '
+          'be lost.',
+      keeps: 'Your material list on the previous screen is kept as it was.',
+      confirmLabel: 'Go back',
+      cancelLabel: 'Stay',
+    );
+  }
+
+  LeaveWarning? _exitWarning() {
+    if (_alreadyPosted) return null;
+    final saved = _savedAs;
+    if (saved == null) {
+      return const LeaveWarning.exitEstimate(
+        message:
+            'This estimate has not been saved yet. If you leave now, the '
+            'material list you reviewed and everything chosen before it will '
+            'be cleared.',
+        keeps:
+            'Tip: tap Save Draft first to keep it in Files and come back '
+            'to it later.',
+      );
+    }
+    if (_signature() == saved) return null;
+    return const LeaveWarning(
+      title: 'Leave without saving?',
+      message:
+          'You have changes to this estimate that have not been saved. '
+          'If you leave now, they will be lost.',
+      keeps: 'The last saved version stays in Files.',
+      confirmLabel: 'Discard changes',
+      cancelLabel: 'Stay',
+    );
   }
 
   @override
@@ -234,19 +312,23 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return OffsetPanelShell(
-      extent: OffsetPanelExtent.scrollBody,
-      wrapPanel: false,
-      activeNav: OffsetNavTab.finalize,
-      header: OffsetPanelHeaders.backAndAvatar(context),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildContentCard(context),
-          const SizedBox(height: 20),
-          _buildFinalizeCard(context),
-          const SizedBox(height: 24),
-        ],
+    return ProgressGuard(
+      onBack: _backWarning,
+      onExit: _exitWarning,
+      child: OffsetPanelShell(
+        extent: OffsetPanelExtent.scrollBody,
+        wrapPanel: false,
+        activeNav: OffsetNavTab.finalize,
+        header: OffsetPanelHeaders.backAndAvatar(context),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildContentCard(context),
+            const SizedBox(height: 20),
+            _buildFinalizeCard(context),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -876,6 +958,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
               .doc();
 
       await savedRef.set(projectData, SetOptions(merge: true));
+      _savedAs = _signature();
 
       if (mounted) {
         showAppMessage(
@@ -1131,12 +1214,14 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           ),
           kind: AppMessageKind.success,
         );
-        Navigator.pushReplacement(
-          context,
+        // The estimate's planning screens are done with once it is posted:
+        // back from the post goes home, not to the BOM it was built on.
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (context) =>
                 PostedProjectDetailsScreen(postId: newPostRef.id),
           ),
+          (route) => route.isFirst,
         );
       }
     } catch (e) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
@@ -68,6 +69,9 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
       subtitle: '${widget.types.label} · ${widget.renovationType}',
       instruction:
           'Next, choose how to plan materials: the AI Planner or a template.',
+      onExit: () => _nameController.text.trim().isEmpty
+          ? null
+          : const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
         label: 'Continue',
         onPressed: _continue,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 
@@ -89,6 +90,17 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   /// is told what is deliberately not being asked for.
   final List<RenovationTemplateItem> _excludedItems = [];
 
+  /// Rows whose quantity the builder typed in. A recalculation that would
+  /// replace one of these asks first; rows still on their computed quantity
+  /// are simply re-sized.
+  final Set<AddedPlumbingSelection> _typedQty = Set.identity();
+
+  /// Type swaps and size changes made on this screen.
+  int _swaps = 0;
+
+  /// Whether the builder changed the list at all since it was built.
+  bool _edited = false;
+
   /// Work of the job's kinds the builder left unticked, named as work: "Tile
   /// the walls" tells a shop more than a missing wall-tile line does. These
   /// cannot be put back here; the work is chosen on the checklist.
@@ -167,7 +179,10 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   /// other row keeps its (possibly hand-edited) quantity and controller — and
   /// the swapped row's quantity is recomputed for its new size instead of
   /// carrying the previous size's piece count.
-  void _swapTemplateItem(int index, MaterialAlternative alternative) {
+  Future<void> _swapTemplateItem(
+    int index,
+    MaterialAlternative alternative,
+  ) async {
     if (index < 0 || index >= _templateItems.length) return;
     final swapped = BomQuantityEstimator.applyAlternative(
       item: _templateItems[index],
@@ -176,14 +191,116 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
       takeoff: widget.takeoff,
     );
 
+    final proceed = await _confirmRecalculation(
+      change: 'Switching to ${alternative.name}',
+      index: index,
+      replacement: swapped,
+    );
+    if (!proceed || !mounted) return;
+    if (index >= _templateItems.length) return;
+
     setState(() {
+      _edited = true;
+      _swaps++;
       _templateItems[index] = swapped;
+      _typedQty.remove(_selectedProducts[index]);
       _selectedProducts[index].qtyController.dispose();
       _selectedProducts[index] = _selectionForItem(swapped);
       if (BomQuantityEstimator.affectsTileSetting(swapped)) {
         _resyncTileSetting();
       }
     });
+  }
+
+  /// Lines whose typed quantity would be replaced if row [index] became
+  /// [replacement], described as "name: typed → new unit".
+  List<String> _typedLinesReplacedBy(
+    int index,
+    RenovationTemplateItem replacement,
+  ) {
+    var next = List.of(_templateItems)..[index] = replacement;
+    if (BomQuantityEstimator.affectsTileSetting(replacement)) {
+      next = BomQuantityEstimator.requantifyTileSetting(
+        next,
+        widget.projectAreaSqm ?? 1.0,
+        takeoff: widget.takeoff,
+      );
+    }
+    final lines = <String>[];
+    for (var i = 0; i < next.length && i < _selectedProducts.length; i++) {
+      final selection = _selectedProducts[i];
+      if (!_typedQty.contains(selection)) continue;
+      if (i != index && identical(next[i], _templateItems[i])) continue;
+      final item = next[i];
+      if (item.defaultQuantity == selection.quantity &&
+          item.unit == selection.unit) {
+        continue;
+      }
+      final renamed = item.name == selection.materialName
+          ? ''
+          : '${item.name}, ';
+      lines.add(
+        '${selection.materialName}: ${_formatQty(selection.quantity)} → '
+        '$renamed${_formatQty(item.defaultQuantity)} ${item.unit}',
+      );
+    }
+    return lines;
+  }
+
+  /// Asks before a type or size change re-sizes quantities the builder typed.
+  /// True when nothing typed is affected or the builder agreed.
+  Future<bool> _confirmRecalculation({
+    required String change,
+    required int index,
+    required RenovationTemplateItem replacement,
+  }) {
+    final lines = _typedLinesReplacedBy(index, replacement);
+    if (lines.isEmpty) return Future.value(true);
+    return confirmLeaveWarning(
+      context,
+      LeaveWarning(
+        title: 'Recalculate quantities you typed?',
+        message:
+            '$change re-sizes ${lines.length == 1 ? 'this line' : 'these lines'} '
+            'from your measurements, replacing the quantity you entered by '
+            'hand:\n\n${lines.map((l) => '• $l').join('\n')}',
+        keeps:
+            'Every other line keeps its quantity. You can type a new '
+            'quantity again afterwards.',
+        confirmLabel: 'Recalculate',
+        cancelLabel: 'Keep my quantities',
+      ),
+    );
+  }
+
+  /// What going back to the measurements would undo, or null when the list
+  /// is still exactly as it was built.
+  LeaveWarning? _backWarning() {
+    if (!_edited) return null;
+    String count(int n, String one, String many) => '$n ${n == 1 ? one : many}';
+    final parts = [
+      if (_typedQty.isNotEmpty)
+        count(_typedQty.length, 'quantity you typed', 'quantities you typed'),
+      if (_swaps > 0)
+        count(_swaps, 'type or size change', 'type or size changes'),
+      if (_excludedItems.isNotEmpty)
+        count(_excludedItems.length, 'removed item', 'removed items'),
+    ];
+    final what = parts.isEmpty
+        ? 'the changes you made to this list'
+        : parts.length == 1
+        ? parts.single
+        : '${parts.sublist(0, parts.length - 1).join(', ')} and ${parts.last}';
+    return LeaveWarning(
+      title: 'Undo your material list edits?',
+      message:
+          'Going back to the measurements undoes $what. When you '
+          'continue again, the list is rebuilt from the measurements, so a '
+          'new area or room size re-scales every quantity.',
+      keeps: 'Your measurements are kept, so you can adjust them and continue.',
+      confirmLabel: 'Go back',
+      cancelLabel: 'Keep my edits',
+    );
   }
 
   /// Re-sizes the adhesive and grout lines after the tiles they serve change,
@@ -201,6 +318,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
       _templateItems[i] = next;
 
       final selection = _selectedProducts[i];
+      _typedQty.remove(selection);
       if (next.unit != selection.unit) {
         selection.qtyController.dispose();
         _selectedProducts[i] = _selectionForItem(next);
@@ -299,6 +417,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   void _restoreExcluded(int index) {
     if (index < 0 || index >= _excludedItems.length) return;
     setState(() {
+      _edited = true;
       final item = _excludedItems.removeAt(index);
       _templateItems.add(item);
       _selectedProducts.add(_selectionForItem(item));
@@ -342,13 +461,17 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
             ? widget.projectName
             : widget.projectName.replaceFirst(' ', '\n'));
 
-    return OffsetPanelShell(
-      activeNav: OffsetNavTab.estimate,
-      panelColor: IConstructPanel.navy,
-      header: OffsetPanelHeaders.avatarAndMenu(context),
-      contentPadding:
-          IConstructPanel.contentPaddingOf(context).copyWith(bottom: 20),
-      body: _buildTemplateBomBody(context, titleText),
+    return ProgressGuard(
+      onBack: _backWarning,
+      onExit: () => const LeaveWarning.exitEstimate(),
+      child: OffsetPanelShell(
+        activeNav: OffsetNavTab.estimate,
+        panelColor: IConstructPanel.navy,
+        header: OffsetPanelHeaders.backAndAvatar(context),
+        contentPadding: IConstructPanel.contentPaddingOf(context)
+            .copyWith(bottom: 20),
+        body: _buildTemplateBomBody(context, titleText),
+      ),
     );
   }
 
@@ -573,7 +696,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                             ),
                             onSizeChanged: item.availableSizes.isEmpty
                                 ? null
-                                : (newSize) {
+                                : (newSize) async {
                                     if (newSize == null || newSize.isEmpty) return;
                                     final result = BomQuantityEstimator.recalculateForSize(
                                       item: item,
@@ -582,7 +705,26 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                                       takeoff: widget.takeoff,
                                       counts: widget.counts,
                                     );
+                                    final proceed = await _confirmRecalculation(
+                                      change: 'Changing the size to $newSize',
+                                      index: index,
+                                      replacement: item.copyWith(
+                                        size: newSize,
+                                        defaultQuantity: result.newQty,
+                                      ),
+                                    );
+                                    if (!proceed || !mounted) return;
+                                    if (index >= _selectedProducts.length ||
+                                        !identical(
+                                          _selectedProducts[index],
+                                          selected,
+                                        )) {
+                                      return;
+                                    }
                                     setState(() {
+                                      _edited = true;
+                                      _swaps++;
+                                      _typedQty.remove(selected);
                                       selected.size = newSize;
                                       selected.quantity = result.newQty;
                                       selected.qtyController.text =
@@ -604,6 +746,8 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                                   ? parsed
                                   : 0.0;
                               setState(() {
+                                _edited = true;
+                                _typedQty.add(selected);
                                 selected.quantity = clean;
                                 _templateItems[index] = item.copyWith(
                                   defaultQuantity: clean,
@@ -612,6 +756,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                             },
                             onRemove: () {
                               setState(() {
+                                _edited = true;
                                 final dropped = _templateItems.removeAt(index);
                                 final removed =
                                     _selectedProducts.removeAt(index);
@@ -624,6 +769,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                                     defaultQuantity: removed.quantity,
                                   ),
                                 );
+                                _typedQty.remove(removed);
                                 removed.qtyController.dispose();
                                 if (BomQuantityEstimator.affectsTileSetting(item)) {
                                   _resyncTileSetting();

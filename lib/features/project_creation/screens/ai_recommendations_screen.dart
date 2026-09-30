@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/features/project_creation/data/ai_material_consultant_service.dart';
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
@@ -135,6 +136,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
       instruction:
           'The AI picks the work your description calls for from this '
           'project\'s checklist. You can change any of it next.',
+      onExit: () => const LeaveWarning.exitEstimate(),
       body: _loading ? _buildLoading() : _buildError(_error ?? ''),
     );
   }

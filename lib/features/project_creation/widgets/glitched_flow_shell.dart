@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 
@@ -16,6 +17,12 @@ class GlitchedFlowShell extends StatelessWidget {
   final Widget? trailingAction;
   final bool showBackOnCard;
 
+  /// See [ProgressGuard.onBack].
+  final LeaveWarning? Function()? onBack;
+
+  /// See [ProgressGuard.onExit].
+  final LeaveWarning? Function()? onExit;
+
   const GlitchedFlowShell({
     super.key,
     required this.title,
@@ -24,6 +31,8 @@ class GlitchedFlowShell extends StatelessWidget {
     required this.body,
     this.trailingAction,
     this.showBackOnCard = true,
+    this.onBack,
+    this.onExit,
   });
 
   static const Color cream = IConstructPanel.cream;
@@ -33,6 +42,14 @@ class GlitchedFlowShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ProgressGuard(
+      onBack: onBack,
+      onExit: onExit,
+      child: _buildShell(context),
+    );
+  }
+
+  Widget _buildShell(BuildContext context) {
     return OffsetPanelShell(
       activeNav: OffsetNavTab.estimate,
       panelColor: IConstructPanel.navy,

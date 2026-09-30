@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/screens/describe_project_screen.dart';
@@ -64,6 +65,7 @@ class SelectPlanningMethodScreen extends StatelessWidget {
           'Template = the standard materials for a ${types.label.toLowerCase()} '
           '${projectName.toLowerCase()}.\nAI Planner = materials recommended '
           'from what you describe.',
+      onExit: () => const LeaveWarning.exitEstimate(),
       // The two tiles share the panel height when there is room. When there
       // is not, as on a small phone with large text, they keep their natural
       // height and the panel scrolls instead of clipping them.

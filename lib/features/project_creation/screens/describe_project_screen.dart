@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
@@ -141,6 +142,19 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
     );
   }
 
+  LeaveWarning? _backWarning() {
+    if (_description.isEmpty) return null;
+    return const LeaveWarning(
+      title: 'Clear your description?',
+      message:
+          'Going back clears what you wrote about the job. If you come '
+          'back to this step, you will need to type it again.',
+      keeps: 'Your estimate name and renovation type stay as they are.',
+      confirmLabel: 'Go back',
+      cancelLabel: 'Keep editing',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hintStyle = GoogleFonts.poppins(
@@ -156,6 +170,8 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
           ? 'Tell us what you want done, in your own words. The AI recommends materials from it.'
           : 'Tell the shops what you want done. Anything you say about tiles, '
               'ceiling paint or removing old tiles is set on the next step.',
+      onBack: _backWarning,
+      onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
         label: _isAi ? 'Recommend' : 'Continue',
         width: 160,

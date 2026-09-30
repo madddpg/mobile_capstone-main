@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/app_nav.dart';
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/core/widgets/user_avatar.dart';
@@ -177,7 +179,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
           "Thanks! Opening the checklist with the work you chose. Check it, "
           "then measure the room so the quantities fit it.",
         );
-        _openChecklist();
+        await _openChecklist();
         break;
     }
   }
@@ -636,9 +638,12 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
 
   /// Opens the checklist with the work the builder chose in the chat ticked,
   /// or with the usual starting work when they chose none.
-  void _openChecklist() {
+  ///
+  /// Pushed over the chat rather than replacing it, so back from the
+  /// checklist returns to this conversation instead of discarding it.
+  Future<void> _openChecklist() async {
     if (!mounted) return;
-    Navigator.pushReplacement(
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => SelectWorkItemsScreen(
@@ -655,6 +660,33 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
           budgetPreference: _budget,
         ),
       ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _step = _stepChat;
+      _showBomChip = true;
+    });
+    await _addBotMessage(
+      "Welcome back — your conversation is right where you left it. Keep "
+      "chatting, or tap Build my BOM when you're ready.",
+    );
+  }
+
+  LeaveWarning? _backWarning() {
+    final sent = _messages.where((m) => m.isUser).length;
+    final added = _confirmedWork.length;
+    if (sent == 0 && added == 0) return null;
+    final addedNote = added == 0
+        ? ''
+        : ' and the $added work item${added == 1 ? '' : 's'} you added from it';
+    return LeaveWarning(
+      title: 'Leave the AI conversation?',
+      message:
+          'Going back discards this chat$addedNote. If you open the AI '
+          'consultant again, it starts a fresh conversation.',
+      keeps: 'Your estimate name and renovation type are kept.',
+      confirmLabel: 'Discard chat',
+      cancelLabel: 'Keep chatting',
     );
   }
 
@@ -690,6 +722,19 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return ProgressGuard(
+      onBack: _backWarning,
+      onExit: () => const LeaveWarning.exitEstimate(
+        message:
+            'This estimate has not been saved yet. If you leave now, '
+            'your AI conversation and the choices you have made so far will '
+            'be cleared.',
+      ),
+      child: _buildShell(),
+    );
+  }
+
+  Widget _buildShell() {
     return OffsetPanelShell(
       extent: OffsetPanelExtent.fillBottom,
       panelColor: IConstructPanel.navy,
@@ -806,7 +851,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
-              onTap: () => Navigator.pop(context),
+              onTap: () => AppNav.back(context),
               child: const SizedBox(
                 width: 40,
                 height: 40,
