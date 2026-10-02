@@ -10,6 +10,7 @@ import 'package:iconstruct/features/auth/presentation/screens/saved_projects.dar
 import 'package:iconstruct/features/bidding/screens/quotations_screen.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 
 /// Cross-screen navigation for the planning / finalize flow.
 ///
@@ -63,7 +64,19 @@ class PlanningNav {
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFFEDE4D4)),
+        child: SizedBox(
+          width: 300,
+          child: AppSkeletonCardList(
+            count: 1,
+            scrollable: false,
+            cardColor: Color(0xFFEDE4D4),
+            cardRadius: 28,
+            cardPadding: EdgeInsets.all(20),
+            padding: EdgeInsets.zero,
+            textLines: 3,
+            statusPill: true,
+          ),
+        ),
       ),
     );
 
@@ -92,8 +105,7 @@ class PlanningNav {
         // No draft in progress — resume the latest posted estimate's bids.
         if (last == null) {
           for (final doc in snap.docs) {
-            final candidate =
-                _unfinishedOrNull(ProjectModel.fromDocument(doc));
+            final candidate = _unfinishedOrNull(ProjectModel.fromDocument(doc));
             if (candidate != null) {
               last = candidate;
               break;
@@ -162,8 +174,6 @@ class PlanningNav {
   }
 
   static void _toast(BuildContext context, String message) {
-    showAppMessage(context, 
-      SnackBar(content: Text(message)),
-    );
+    showAppMessage(context, SnackBar(content: Text(message)));
   }
 }

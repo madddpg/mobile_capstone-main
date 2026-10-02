@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_pill_nav.dart';
 import 'package:iconstruct/core/navigation/planning_nav.dart';
@@ -71,17 +72,22 @@ class PostedProjectDetailsScreen extends StatelessWidget {
           }
 
           if (!snapshot.hasData) {
-            return Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [blueGradientTop, blueGradientBottom],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+            return Stack(
+              children: [
+                const Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [blueGradientTop, blueGradientBottom],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              child: const Center(
-                child: CircularProgressIndicator(color: creamBg),
-              ),
+                AppSkeletonEstimateBody(onBack: () => Navigator.pop(context)),
+                const OffsetPillNav(activeTab: OffsetNavTab.bidding),
+              ],
             );
           }
 
@@ -93,8 +99,8 @@ class PostedProjectDetailsScreen extends StatelessWidget {
           final int quoteCount = data['quotationCount'] ?? 0;
           final selectedShopId = (data['selectedShopId'] ?? '').toString();
           final selectedShopName = (data['selectedShopName'] ?? '').toString();
-          final selectedQuotationId =
-              (data['selectedQuotationId'] ?? '').toString();
+          final selectedQuotationId = (data['selectedQuotationId'] ?? '')
+              .toString();
           final hasSelectedShop = selectedShopId.isNotEmpty;
 
           return Stack(
@@ -318,9 +324,9 @@ class PostedProjectDetailsScreen extends StatelessWidget {
                                         builder: (_) => ChatThreadScreen(
                                           conversationId:
                                               ChatService.conversationId(
-                                            postId,
-                                            selectedShopId,
-                                          ),
+                                                postId,
+                                                selectedShopId,
+                                              ),
                                           shopName: selectedShopName.isEmpty
                                               ? null
                                               : selectedShopName,

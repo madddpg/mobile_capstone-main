@@ -8,6 +8,7 @@ import 'package:iconstruct/features/project_creation/data/renovation_scope.dart'
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/screens/ai_consultation_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/select_work_items_screen.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
 
 /// The AI reads the builder's description and picks the work it calls for.
@@ -140,21 +141,19 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
   }
 
   TextStyle get _bodyStyle => GoogleFonts.poppins(
-        fontSize: 12,
-        color: const Color(0xFFE0D7C9),
-        height: 1.4,
-      );
+    fontSize: 12,
+    color: const Color(0xFFE0D7C9),
+    height: 1.4,
+  );
 
   Widget _buildLoading() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(color: GlitchedFlowShell.cream),
-          const SizedBox(height: 14),
-          Text('Reading your description…', style: _bodyStyle),
-        ],
-      ),
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        Text('Reading your description…', style: _bodyStyle),
+        const SizedBox(height: 18),
+        const AppSkeletonChecklist(count: 4),
+      ],
     );
   }
 

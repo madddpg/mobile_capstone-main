@@ -10,6 +10,7 @@ import 'package:iconstruct/features/bidding/screens/project_bids_screen.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
 import 'package:iconstruct/features/project_creation/data/project_status_service.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 
 class ProjectTrackingScreen extends StatelessWidget {
   const ProjectTrackingScreen({super.key});
@@ -76,7 +77,9 @@ class ProjectTrackingScreen extends StatelessWidget {
                   width: double.infinity,
                   decoration: const BoxDecoration(
                     color: _cream,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(32),
+                    ),
                   ),
                   child: user == null
                       ? Center(
@@ -95,10 +98,15 @@ class ProjectTrackingScreen extends StatelessWidget {
                           builder: (context, snapshot) {
                             if (snapshot.connectionState ==
                                 ConnectionState.waiting) {
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                  color: _darkBlue,
-                                ),
+                              return const AppSkeletonCardList(
+                                count: 4,
+                                cardColor: Colors.white,
+                                cardRadius: 20,
+                                cardPadding: EdgeInsets.all(18),
+                                cardMargin: EdgeInsets.only(bottom: 16),
+                                padding: EdgeInsets.fromLTRB(20, 24, 20, 32),
+                                textLines: 3,
+                                statusPill: true,
                               );
                             }
 
@@ -139,7 +147,9 @@ class ProjectTrackingScreen extends StatelessWidget {
                                         textAlign: TextAlign.center,
                                         style: GoogleFonts.poppins(
                                           fontSize: 13,
-                                          color: _darkBlue.withValues(alpha: 0.6),
+                                          color: _darkBlue.withValues(
+                                            alpha: 0.6,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -149,13 +159,19 @@ class ProjectTrackingScreen extends StatelessWidget {
                             }
 
                             return ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                24,
+                                20,
+                                32,
+                              ),
                               itemCount: docs.length,
                               separatorBuilder: (_, _) =>
                                   const SizedBox(height: 16),
                               itemBuilder: (context, index) {
-                                final project =
-                                    ProjectModel.fromDocument(docs[index]);
+                                final project = ProjectModel.fromDocument(
+                                  docs[index],
+                                );
                                 return _TrackingCard(
                                   project: project,
                                   userId: user.uid,
@@ -214,12 +230,7 @@ class _TrackingCard extends StatelessWidget {
           }
         }
 
-        return _card(
-          context,
-          stage: stage,
-          bidCount: bidCount,
-          post: post,
-        );
+        return _card(context, stage: stage, bidCount: bidCount, post: post);
       },
     );
   }
@@ -338,8 +349,9 @@ class _TrackingCard extends StatelessWidget {
                               Icon(
                                 Icons.local_offer_outlined,
                                 size: 14,
-                                color: const Color(0xFF059669)
-                                    .withValues(alpha: 0.9),
+                                color: const Color(
+                                  0xFF059669,
+                                ).withValues(alpha: 0.9),
                               ),
                               const SizedBox(width: 6),
                               Text(
@@ -431,18 +443,18 @@ class _TrackingCard extends StatelessWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      showAppMessage(context,
+      showAppMessage(
+        context,
         SnackBar(
-          content: Text(firestoreUserMessage(e, action: 'update this estimate')),
+          content: Text(
+            firestoreUserMessage(e, action: 'update this estimate'),
+          ),
         ),
       );
     }
   }
 
-  Future<void> _reopen(
-    BuildContext context,
-    Map<String, dynamic>? post,
-  ) async {
+  Future<void> _reopen(BuildContext context, Map<String, dynamic>? post) async {
     try {
       await ProjectStatusService.instance.reopen(
         userId: userId,
@@ -457,7 +469,8 @@ class _TrackingCard extends StatelessWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      showAppMessage(context,
+      showAppMessage(
+        context,
         SnackBar(
           content: Text(firestoreUserMessage(e, action: 'reopen canvassing')),
         ),
@@ -614,9 +627,7 @@ class _LifecycleTimeline extends StatelessWidget {
               return Expanded(
                 child: Container(
                   height: 3,
-                  color: done
-                      ? const Color(0xFF059669)
-                      : Colors.grey.shade300,
+                  color: done ? const Color(0xFF059669) : Colors.grey.shade300,
                 ),
               );
             }
@@ -649,8 +660,8 @@ class _LifecycleTimeline extends StatelessWidget {
                   align: i == 0
                       ? TextAlign.left
                       : i == ProjectLifecycle.shortLabels.length - 1
-                          ? TextAlign.right
-                          : TextAlign.center,
+                      ? TextAlign.right
+                      : TextAlign.center,
                 ),
               ),
           ],

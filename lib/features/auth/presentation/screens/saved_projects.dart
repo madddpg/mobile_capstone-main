@@ -14,6 +14,7 @@ import 'package:iconstruct/features/project_creation/data/bom_export.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
 import 'package:iconstruct/features/project_creation/widgets/bom_share_sheet.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 
 /// How [SavedProjectsScreen] focuses the list for different home entry points.
 enum SavedProjectsFocus {
@@ -37,14 +38,14 @@ enum SavedProjectsSort {
 
 extension on SavedProjectsSort {
   String get label => switch (this) {
-        SavedProjectsSort.newestUpdated => 'Newest updated',
-        SavedProjectsSort.oldestUpdated => 'Oldest updated',
-        SavedProjectsSort.nameAsc => 'Name A–Z',
-        SavedProjectsSort.nameDesc => 'Name Z–A',
-        SavedProjectsSort.status => 'Planning status',
-        SavedProjectsSort.areaHigh => 'Largest area',
-        SavedProjectsSort.areaLow => 'Smallest area',
-      };
+    SavedProjectsSort.newestUpdated => 'Newest updated',
+    SavedProjectsSort.oldestUpdated => 'Oldest updated',
+    SavedProjectsSort.nameAsc => 'Name A–Z',
+    SavedProjectsSort.nameDesc => 'Name Z–A',
+    SavedProjectsSort.status => 'Planning status',
+    SavedProjectsSort.areaHigh => 'Largest area',
+    SavedProjectsSort.areaLow => 'Smallest area',
+  };
 
   List<ProjectModel> apply(List<ProjectModel> source) {
     final list = List<ProjectModel>.from(source);
@@ -81,10 +82,7 @@ extension on SavedProjectsSort {
 class SavedProjectsScreen extends StatefulWidget {
   final SavedProjectsFocus focus;
 
-  const SavedProjectsScreen({
-    super.key,
-    this.focus = SavedProjectsFocus.all,
-  });
+  const SavedProjectsScreen({super.key, this.focus = SavedProjectsFocus.all});
 
   @override
   State<SavedProjectsScreen> createState() => _SavedProjectsScreenState();
@@ -168,10 +166,7 @@ class _SavedProjectsScreenState extends State<SavedProjectsScreen> {
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Container(
-              height: 1,
-              color: creamBg.withValues(alpha: 0.4),
-            ),
+            child: Container(height: 1, color: creamBg.withValues(alpha: 0.4)),
           ),
           const SizedBox(height: 20),
           Expanded(
@@ -180,9 +175,7 @@ class _SavedProjectsScreenState extends State<SavedProjectsScreen> {
               builder: (context, authSnapshot) {
                 final user = authSnapshot.data;
                 if (authSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: creamBg),
-                  );
+                  return const _SavedProjectsSkeleton();
                 }
                 if (user == null) {
                   return Center(
@@ -207,9 +200,7 @@ class _SavedProjectsScreenState extends State<SavedProjectsScreen> {
                       .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: creamBg),
-                      );
+                      return const _SavedProjectsSkeleton();
                     }
 
                     if (snapshot.hasError) {
@@ -275,11 +266,11 @@ class _SavedProjectsScreenState extends State<SavedProjectsScreen> {
                     // already on the canvassing board.
                     final filtered = isPostFocus
                         ? allProjects
-                            .where(
-                              (p) =>
-                                  p.materials.isNotEmpty && p.postId == null,
-                            )
-                            .toList()
+                              .where(
+                                (p) =>
+                                    p.materials.isNotEmpty && p.postId == null,
+                              )
+                              .toList()
                         : allProjects;
 
                     final projects = _sort.apply(filtered);
@@ -318,9 +309,9 @@ class _SavedProjectsScreenState extends State<SavedProjectsScreen> {
                             final project = projects[index];
                             return ProjectCard(
                               project: project,
-                              isActive: project.id ==
-                                  ActiveProjectState
-                                      .instance.activeProject?.id,
+                              isActive:
+                                  project.id ==
+                                  ActiveProjectState.instance.activeProject?.id,
                               emphasizePost: isPostFocus,
                             );
                           },
@@ -373,8 +364,9 @@ class _SortControl extends StatelessWidget {
                   option.label,
                   style: TextStyle(
                     color: const Color(0xFF2A3E4E),
-                    fontWeight:
-                        option == value ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight: option == value
+                        ? FontWeight.w700
+                        : FontWeight.w500,
                   ),
                 ),
               ],
@@ -413,6 +405,24 @@ class _SortControl extends StatelessWidget {
   }
 
   String _sortHint(SavedProjectsSort sort) => sort.label;
+}
+
+class _SavedProjectsSkeleton extends StatelessWidget {
+  const _SavedProjectsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const AppSkeletonCardList(
+      count: 4,
+      cardColor: Color(0xFFEDE4D4),
+      cardRadius: 28,
+      cardPadding: EdgeInsets.all(20),
+      cardMargin: EdgeInsets.only(bottom: 24),
+      padding: EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 120),
+      textLines: 3,
+      statusPill: true,
+    );
+  }
 }
 
 // --- Reusable Card ---
@@ -490,7 +500,8 @@ class ProjectCard extends StatelessWidget {
     if (project.postId != null ||
         ProjectLifecycle.stageIndex(project.status) >=
             ProjectLifecycle.stageWaiting) {
-      showAppMessage(context, 
+      showAppMessage(
+        context,
         const SnackBar(
           content: Text('This project is already posted for bidding.'),
         ),
@@ -536,16 +547,12 @@ class ProjectCard extends StatelessWidget {
       };
 
       batch.set(newPostRef, projectPostData);
-      batch.set(
-        savedProjectRef,
-        {
-          'status': ProjectLifecycle.waitingForQuotations,
-          'postId': newPostRef.id,
-          'postedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      batch.set(savedProjectRef, {
+        'status': ProjectLifecycle.waitingForQuotations,
+        'postId': newPostRef.id,
+        'postedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       await batch.commit();
 
@@ -564,7 +571,8 @@ class ProjectCard extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         Navigator.pop(context); // Remove loading
-        showAppMessage(context, 
+        showAppMessage(
+          context,
           SnackBar(
             content: Text(
               firestoreUserMessage(e, action: 'post this estimate for bidding'),
@@ -640,7 +648,10 @@ class ProjectCard extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('•  ', style: TextStyle(color: Color(0xFF5A6E7E))),
+                      const Text(
+                        '•  ',
+                        style: TextStyle(color: Color(0xFF5A6E7E)),
+                      ),
                       Expanded(
                         child: Text(
                           line,
@@ -678,9 +689,7 @@ class ProjectCard extends StatelessWidget {
                   if (context.mounted) {
                     showAppMessage(
                       context,
-                      const SnackBar(
-                        content: Text('Estimate deleted.'),
-                      ),
+                      const SnackBar(content: Text('Estimate deleted.')),
                       kind: AppMessageKind.success,
                     );
 
@@ -690,7 +699,8 @@ class ProjectCard extends StatelessWidget {
                   }
                 } catch (e) {
                   if (context.mounted) {
-                    showAppMessage(context, 
+                    showAppMessage(
+                      context,
                       SnackBar(
                         content: Text(
                           firestoreUserMessage(
@@ -740,7 +750,8 @@ class ProjectCard extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         if (project.postId == null) {
-          showAppMessage(context, 
+          showAppMessage(
+            context,
             const SnackBar(content: Text('This project is not posted yet.')),
           );
         } else {
@@ -997,8 +1008,7 @@ class ProjectCard extends StatelessWidget {
                 builder: (context, snapshot) {
                   final data = snapshot.data?.data() as Map<String, dynamic>?;
                   final rawCount = data?['quotationCount'];
-                  final int count =
-                      rawCount is num ? rawCount.toInt() : 0;
+                  final int count = rawCount is num ? rawCount.toInt() : 0;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

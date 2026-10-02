@@ -13,6 +13,7 @@ import 'package:iconstruct/features/auth/presentation/widgets/shop_rating_stars.
 import 'package:iconstruct/features/auth/presentation/screens/home_screen.dart';
 import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
 import 'package:iconstruct/features/auth/presentation/services/shop_ranking_service.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/widgets/offset_pill_nav.dart';
 import 'package:iconstruct/core/widgets/user_avatar.dart';
 import 'package:iconstruct/features/onboarding/data/home_guide_steps.dart';
@@ -600,9 +601,17 @@ class _TopShopsSectionState extends State<_TopShopsSection> {
             future: _shopsFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 30),
-                  child: Center(child: CircularProgressIndicator(color: cream)),
+                return const AppSkeletonCardList(
+                  count: 3,
+                  scrollable: false,
+                  cardColor: Colors.white,
+                  cardRadius: 18,
+                  cardPadding: EdgeInsets.all(14),
+                  cardMargin: EdgeInsets.only(bottom: 12),
+                  padding: EdgeInsets.zero,
+                  leadingCircle: true,
+                  leadingSize: 34,
+                  textLines: 2,
                 );
               }
 

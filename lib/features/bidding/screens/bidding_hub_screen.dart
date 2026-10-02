@@ -7,6 +7,7 @@ import 'package:iconstruct/core/firebase/firestore_error.dart';
 import 'package:iconstruct/core/models/project_model.dart';
 import 'package:iconstruct/core/navigation/planning_nav.dart';
 import 'package:iconstruct/core/state/active_project_state.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_pill_nav.dart';
 import 'package:iconstruct/features/auth/presentation/screens/saved_projects.dart';
@@ -39,9 +40,7 @@ class _BiddingHubScreenState extends State<BiddingHubScreen> {
       future: _postIdFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const _BiddingScaffold(
-            child: Center(child: CircularProgressIndicator(color: _cream)),
-          );
+          return const _BiddingScaffold(child: AppSkeletonEstimateBody());
         }
 
         if (snapshot.hasError) {
@@ -55,10 +54,7 @@ class _BiddingHubScreenState extends State<BiddingHubScreen> {
                     action: 'load your posted estimate',
                   ),
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    color: _cream,
-                    height: 1.4,
-                  ),
+                  style: GoogleFonts.poppins(color: _cream, height: 1.4),
                 ),
               ),
             ),

@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:iconstruct/core/firebase/firestore_error.dart';
 import 'package:iconstruct/core/state/onboarding_preferences.dart';
 import 'package:iconstruct/core/state/user_state/user_provider.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/widgets/user_avatar.dart';
 import 'package:iconstruct/features/auth/presentation/screens/change_password_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/edit_profile_screen.dart';
@@ -75,12 +76,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final TaskSnapshot snapshot = await uploadTask;
       final String downloadUrl = await snapshot.ref.getDownloadURL();
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
-        {
-          'profileImage': downloadUrl,
-          'profileImageUpdatedAt': FieldValue.serverTimestamp(),
-        },
-      );
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+            'profileImage': downloadUrl,
+            'profileImageUpdatedAt': FieldValue.serverTimestamp(),
+          });
 
       if (mounted) {
         showAppMessage(
@@ -91,7 +93,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showAppMessage(context, 
+        showAppMessage(
+          context,
           SnackBar(
             content: Text(
               firestoreUserMessage(e, action: 'update your profile photo'),
@@ -202,8 +205,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 }
 
                 if (currentUserModel == null) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: _darkBlue),
+                  return AppSkeletonProfile(
+                    onBack: () => Navigator.pop(context),
                   );
                 }
 
@@ -411,8 +414,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      const TermsConditionsScreen(),
+                                  builder: (_) => const TermsConditionsScreen(),
                                 ),
                               );
                             },
