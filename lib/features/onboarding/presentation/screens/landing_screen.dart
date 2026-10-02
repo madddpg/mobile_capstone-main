@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/register_screen.dart';
 
@@ -228,93 +229,23 @@ class _LandingCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 36),
-                      Align(
-                        alignment: Alignment.center,
-                        child: FractionallySizedBox(
-                          widthFactor: 0.75,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(minHeight: 55),
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                elevation: 0,
-                                padding: EdgeInsets.zero,
-                                shadowColor: Colors.transparent,
-                                backgroundColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
-                              ),
-                              onPressed: onGetStarted,
-                              child: Ink(
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    begin: Alignment.centerLeft,
-                                    end: Alignment.centerRight,
-                                    colors: [
-                                      Color(0xE6EDE4D4), // #EDE4D4 @ 90%
-                                      Color(0xB3FFFFFF), // #FFFFFF @ 70%
-                                      Color(0xFF648DB6), // #648DB6 @ 100%
-                                    ],
-                                    stops: [0.0, 0.5, 1.0],
-                                  ),
-                                  borderRadius: BorderRadius.circular(50),
-                                ),
-                                child: const Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 14,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      'Get Started',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontFamily: 'Inter',
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFF2C3E50),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+                      AppPrimaryButton(
+                        label: 'Get Started',
+                        onPressed: onGetStarted,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Already have an account?',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 15,
+                          color: Color(0xFF2C3E50),
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      // Wraps onto a second line when the sentence and the
-                      // link do not fit side by side.
-                      SizedBox(
-                        width: double.infinity,
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            const Text(
-                              'Already have an account? ',
-                              style: TextStyle(
-                                fontFamily: 'Poppins',
-                                fontSize: 15,
-                                color: Color(0xFF2C3E50),
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: onLogin,
-                              child: const Text(
-                                'Login',
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 15,
-                                  color: Color(0xFF2C3E50),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      const SizedBox(height: 12),
+                      AppSecondaryButton(label: 'Login', onPressed: onLogin),
                     ],
                   ),
                 ),

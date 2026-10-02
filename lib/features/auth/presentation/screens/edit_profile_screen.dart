@@ -3,8 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:iconstruct/core/firebase/firestore_error.dart';
+import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/user_avatar.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/keyboard_form.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final String firstName;
@@ -49,7 +51,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final lName = _lNameController.text.trim();
 
     if (fName.isEmpty || lName.isEmpty) {
-      showAppMessage(context, 
+      showAppMessage(
+        context,
         const SnackBar(content: Text('Please fill out all fields.')),
       );
       return;
@@ -71,7 +74,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      showAppMessage(context, 
+      showAppMessage(
+        context,
         SnackBar(
           content: Text(firestoreUserMessage(e, action: 'update your profile')),
         ),
@@ -155,90 +159,58 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                   const SizedBox(height: 30),
 
-                  // Editable Fields Area
                   Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 28),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Avatar Thumbnail Preview
-                          Center(
-                            child: Stack(
-                              alignment: Alignment.bottomRight,
-                              children: [
-                                const UserAvatar(size: 100, hasBorder: true),
-                                Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF648DB6),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.edit_rounded,
-                                    color: creamBg,
-                                    size: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 48),
-
-                          _buildInputLabel('First Name:'),
-                          _buildTextField(
-                            'e.g., John',
-                            controller: _fNameController,
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          _buildInputLabel('Last Name:'),
-                          _buildTextField(
-                            'e.g., Doe',
-                            controller: _lNameController,
-                          ),
-
-                          const SizedBox(height: 50),
-
-                          // Minimum height, not fixed: the label grows with
-                          // the text scale.
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              minWidth: double.infinity,
-                              minHeight: 54,
-                            ),
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _saveProfile,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: darkBlue,
-                                foregroundColor: creamBg,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                elevation: 8,
-                                shadowColor: Colors.black.withAlpha(80),
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                        color: creamBg,
-                                        strokeWidth: 2.5,
-                                      ),
-                                    )
-                                  : Text(
-                                      'Save Changes',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(28, 0, 28, 16),
+                      child: KeyboardForm(
+                        alignFieldsAboveAction: true,
+                        action: AppPrimaryButton(
+                          label: 'Save Changes',
+                          loading: _isLoading,
+                          onPressed: _isLoading ? null : _saveProfile,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Avatar Thumbnail Preview
+                            Center(
+                              child: Stack(
+                                alignment: Alignment.bottomRight,
+                                children: [
+                                  const UserAvatar(size: 100, hasBorder: true),
+                                  Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF648DB6),
+                                      shape: BoxShape.circle,
                                     ),
+                                    child: const Icon(
+                                      Icons.edit_rounded,
+                                      color: creamBg,
+                                      size: 16,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+
+                            const SizedBox(height: 48),
+
+                            _buildInputLabel('First Name:'),
+                            _buildTextField(
+                              'e.g., John',
+                              controller: _fNameController,
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            _buildInputLabel('Last Name:'),
+                            _buildTextField(
+                              'e.g., Doe',
+                              controller: _lNameController,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -287,6 +259,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           color: const Color(0xFF2C3E50),
           fontSize: 15,
         ),
+        scrollPadding: kFieldScrollPadding,
         decoration: InputDecoration(
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,

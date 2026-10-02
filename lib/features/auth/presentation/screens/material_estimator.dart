@@ -1195,6 +1195,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         enableInteractiveSelection: !readOnly,
         keyboardType: keyboardType,
         maxLines: maxLines,
+        scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 96),
         style: GoogleFonts.poppins(
           color: Colors.white.withValues(alpha: readOnly ? 0.85 : 1),
           fontSize: 14,

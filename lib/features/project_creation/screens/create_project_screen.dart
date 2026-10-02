@@ -97,7 +97,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                 fontSize: 14,
               ),
               decoration: _fieldDecoration('e.g. Master Bathroom Makeover'),
-              scrollPadding: const EdgeInsets.only(bottom: 140),
+              scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Project name is required';

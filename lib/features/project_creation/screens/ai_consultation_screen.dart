@@ -225,8 +225,8 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     final reply = result.reply.isNotEmpty
         ? result.reply
         : (result.inScope
-            ? "Tell me more about the work you want — I only suggest; you decide."
-            : "I can only help with iConstruct renovation planning for this estimate.");
+              ? "Tell me more about the work you want — I only suggest; you decide."
+              : "I can only help with iConstruct renovation planning for this estimate.");
 
     setState(() {
       _messages.add(ChatMessage(text: reply, isUser: false));
@@ -545,10 +545,8 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                         shrinkWrap: true,
                         padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
                         itemCount: _confirmedWork.length,
-                        separatorBuilder: (_, _) => const Divider(
-                          color: Color(0x22EDE4D4),
-                          height: 1,
-                        ),
+                        separatorBuilder: (_, _) =>
+                            const Divider(color: Color(0x22EDE4D4), height: 1),
                         itemBuilder: (context, index) {
                           final name = _labelOf(_confirmedWork[index]);
                           return ListTile(
@@ -601,7 +599,10 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   Future<void> _skipSuggestions() async {
     setState(() {
       _messages.add(
-        const ChatMessage(text: 'Skip suggestions — keep chatting', isUser: true),
+        const ChatMessage(
+          text: 'Skip suggestions — keep chatting',
+          isUser: true,
+        ),
       );
       _pendingRecommendations = [];
       _pendingSelected.clear();
@@ -616,7 +617,9 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
 
   Future<void> _onChipReady() async {
     setState(() {
-      _messages.add(const ChatMessage(text: "I'm ready — build my BOM", isUser: true));
+      _messages.add(
+        const ChatMessage(text: "I'm ready — build my BOM", isUser: true),
+      );
       _showBomChip = false;
     });
     _scrollToBottom();
@@ -696,18 +699,27 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       borderRadius: IConstructPanel.offsetTallRadiusOf(context),
       contentPadding: EdgeInsets.zero,
       header: _buildTopBar(),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final height = constraints.maxHeight;
-          // Starts at the bottom, where the input box is.
-          return SingleChildScrollView(
-            reverse: true,
-            child: SizedBox(
-              height: height < _minPanelHeight ? _minPanelHeight : height,
-              child: _buildPanel(compact: height < _compactBelow),
+      body: Column(
+        children: [
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final height = constraints.maxHeight;
+                // The message list scrolls at every height. The composer stays
+                // outside this scroll, so opening the keyboard does not rebuild
+                // it or cover it.
+                return SingleChildScrollView(
+                  reverse: true,
+                  child: SizedBox(
+                    height: height < _minPanelHeight ? _minPanelHeight : height,
+                    child: _buildPanel(compact: height < _compactBelow),
+                  ),
+                );
+              },
             ),
-          );
-        },
+          ),
+          _buildMessageInput(),
+        ],
       ),
     );
   }
@@ -791,7 +803,6 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
             },
           ),
         ),
-        _buildMessageInput(),
       ],
     );
   }
@@ -921,7 +932,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                 child: TextField(
                   controller: _textController,
                   style: const TextStyle(color: Colors.white),
-                  scrollPadding: const EdgeInsets.only(bottom: 80),
+                  scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
                   decoration: InputDecoration(
                     hintText: 'Describe your project ideas freely…',
                     hintStyle: TextStyle(
@@ -1060,9 +1071,7 @@ class _ChoiceChipButton extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: filled
-                  ? const Color(0xFF2C3E50)
-                  : const Color(0xFFEDE4D4),
+              color: filled ? const Color(0xFF2C3E50) : const Color(0xFFEDE4D4),
             ),
           ),
         ),

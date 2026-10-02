@@ -6,7 +6,9 @@ import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart'
 import 'package:iconstruct/features/auth/data/otp_send_policy.dart';
 import 'package:iconstruct/features/auth/data/auth_login_error.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
+import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/keyboard_form.dart';
 
 class OtpDialog extends StatefulWidget {
   final String email;
@@ -85,9 +87,9 @@ class _OtpDialogState extends State<OtpDialog> {
   }
 
   String get _enteredOtp => _otpControllers.map((c) {
-        final digits = c.text.replaceAll(RegExp(r'\D'), '');
-        return digits.isEmpty ? '' : digits[digits.length - 1];
-      }).join();
+    final digits = c.text.replaceAll(RegExp(r'\D'), '');
+    return digits.isEmpty ? '' : digits[digits.length - 1];
+  }).join();
 
   void _onOtpChanged(int index, String value) {
     if (value.isNotEmpty && index < 5) {
@@ -170,9 +172,7 @@ class _OtpDialogState extends State<OtpDialog> {
 
       showAppMessage(
         context,
-        const SnackBar(
-          content: Text('Verification successful. Please login.'),
-        ),
+        const SnackBar(content: Text('Verification successful. Please login.')),
         kind: AppMessageKind.success,
       );
       Navigator.of(context).pushAndRemoveUntil(
@@ -195,170 +195,156 @@ class _OtpDialogState extends State<OtpDialog> {
       backgroundColor: const Color(0xFFE9DECC),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'OTP Verification',
-              style: GoogleFonts.inter(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF24384C),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(6, (index) {
-                // Up to 36 wide, narrower when the dialog is: six fixed 36px
-                // boxes did not fit inside the dialog on a 320px phone.
-                return Flexible(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: 36,
-                      minHeight: 48,
-                    ),
-                    child: TextFormField(
-                      controller: _otpControllers[index],
-                      focusNode: _otpFocusNodes[index],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      maxLength: 1,
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF24384C),
-                      ),
-                      decoration: InputDecoration(
-                        counterText: '',
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: EdgeInsets.zero,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Colors.black12),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Colors.black12),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF24384C),
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                      onChanged: (value) => _onOtpChanged(index, value),
-                    ),
-                  ),
-                );
-              }),
-            ),
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 16),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.warning_amber_rounded,
-                    color: AppColors.warning,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _errorMessage!,
-                      style: GoogleFonts.inter(
-                        color: AppColors.warning,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      textAlign: TextAlign.left,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  "Did not receive the OTP? ",
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFF24384C),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                GestureDetector(
-                  onTap: _canResend && !_resendingEmail
-                      ? _resendVerificationEmail
-                      : null,
-                  child: _resendingEmail
-                      ? const SizedBox(
-                          height: 12,
-                          width: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Color(0xFF24384C),
-                          ),
-                        )
-                      : Text(
-                          _canResend
-                              ? 'Resend'
-                              : 'Resend in ${_resendCountdown}s',
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF24384C),
-                            fontWeight: FontWeight.w800,
-                            fontSize: 11,
-                            decoration: _canResend
-                                ? TextDecoration.underline
-                                : TextDecoration.none,
-                          ),
-                        ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // Minimum height, not fixed: the label grows with the text scale.
-            ConstrainedBox(
-              constraints: const BoxConstraints(
-                minWidth: double.infinity,
-                minHeight: 48,
-              ),
-              child: ElevatedButton(
-                onPressed: _checkingVerification ? null : _checkVerification,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E455E),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: _checkingVerification
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
-                        ),
-                      )
-                    : Text(
-                        'Submit',
+            Flexible(
+              child: RevealFocusedField(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'OTP Verification',
                         style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF24384C),
                         ),
                       ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(6, (index) {
+                          // Up to 36 wide, narrower when the dialog is: six fixed 36px
+                          // boxes did not fit inside the dialog on a 320px phone.
+                          return Flexible(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                maxWidth: 36,
+                                minHeight: 48,
+                              ),
+                              child: TextFormField(
+                                controller: _otpControllers[index],
+                                focusNode: _otpFocusNodes[index],
+                                keyboardType: TextInputType.number,
+                                scrollPadding: kFieldScrollPadding,
+                                textAlign: TextAlign.center,
+                                maxLength: 1,
+                                style: GoogleFonts.inter(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF24384C),
+                                ),
+                                decoration: InputDecoration(
+                                  counterText: '',
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  contentPadding: EdgeInsets.zero,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                      color: Colors.black12,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                      color: Colors.black12,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF24384C),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                onChanged: (value) =>
+                                    _onOtpChanged(index, value),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                      if (_errorMessage != null) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              color: AppColors.warning,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: GoogleFonts.inter(
+                                  color: AppColors.warning,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                textAlign: TextAlign.left,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "Did not receive the OTP? ",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF24384C),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: _canResend && !_resendingEmail
+                                ? _resendVerificationEmail
+                                : null,
+                            child: _resendingEmail
+                                ? const SizedBox(
+                                    height: 12,
+                                    width: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Color(0xFF24384C),
+                                    ),
+                                  )
+                                : Text(
+                                    _canResend
+                                        ? 'Resend'
+                                        : 'Resend in ${_resendCountdown}s',
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF24384C),
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11,
+                                      decoration: _canResend
+                                          ? TextDecoration.underline
+                                          : TextDecoration.none,
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
+            ),
+            const SizedBox(height: 16),
+            AppPrimaryButton(
+              label: 'Submit',
+              loading: _checkingVerification,
+              onPressed: _checkingVerification ? null : _checkVerification,
             ),
           ],
         ),

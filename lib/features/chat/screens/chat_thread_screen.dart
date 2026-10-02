@@ -124,13 +124,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
           .collection('quotations')
           .doc(quotationId)
           .snapshots()
-          .listen(
-        (snap) {
-          _setConfirmation(shopConfirmationOf(snap.data() ?? const {}));
-          done();
-        },
-        onError: (Object _) => done(),
-      );
+          .listen((snap) {
+            _setConfirmation(shopConfirmationOf(snap.data() ?? const {}));
+            done();
+          }, onError: (Object _) => done());
     } catch (_) {
       done();
     }
@@ -297,7 +294,11 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       if (!mounted) return;
       showAppMessage(
         context,
-        SnackBar(content: Text(firestoreUserMessage(e, action: 'send this attachment'))),
+        SnackBar(
+          content: Text(
+            firestoreUserMessage(e, action: 'send this attachment'),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -350,247 +351,308 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
     return Stack(
       children: [
         OffsetPanelShell(
-      extent: OffsetPanelExtent.centeredWithNav,
-      safeAreaBottom: false,
-      activeNav: OffsetNavTab.chat,
-      panelColor: IConstructPanel.darkBlue,
-      contentPadding: EdgeInsets.zero,
-      header: OffsetPanelHeaders.backOnly(context),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _chat.watchConversation(widget.conversationId),
-        builder: (context, convSnap) {
-          final data = convSnap.data?.data();
-          final shopName =
-              widget.shopName ?? (data?['shopName'] ?? 'Hardware shop').toString();
-          final title = (data?['projectTitle'] ?? '').toString();
-          final closed = (data?['status'] ?? 'open').toString() == 'closed';
+          extent: OffsetPanelExtent.centeredWithNav,
+          safeAreaBottom: false,
+          activeNav: OffsetNavTab.chat,
+          panelColor: IConstructPanel.darkBlue,
+          contentPadding: EdgeInsets.zero,
+          header: OffsetPanelHeaders.backOnly(context),
+          body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: _chat.watchConversation(widget.conversationId),
+            builder: (context, convSnap) {
+              final data = convSnap.data?.data();
+              final shopName =
+                  widget.shopName ??
+                  (data?['shopName'] ?? 'Hardware shop').toString();
+              final title = (data?['projectTitle'] ?? '').toString();
+              final closed = (data?['status'] ?? 'open').toString() == 'closed';
 
-          // With the keyboard up on a small phone the panel is short, and a
-          // two-line shop name and the project title left no room for the
-          // messages. The header drops to one line until there is space.
-          return LayoutBuilder(
-            builder: (context, constraints) {
-          final compact = constraints.maxHeight < _compactBelow;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              SizedBox(height: compact ? 10 : 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  shopName,
-                  textAlign: TextAlign.center,
-                  maxLines: compact ? 1 : null,
-                  overflow: compact ? TextOverflow.ellipsis : null,
-                  style: GoogleFonts.poppins(
-                    color: AppColors.cream,
-                    fontSize: compact ? 17 : 20,
-                    fontWeight: FontWeight.w800,
-                    height: 1.15,
-                  ),
-                ),
-              ),
-              if (title.isNotEmpty && !compact)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
-                  child: Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(
-                      color: AppColors.cream.withValues(alpha: 0.7),
-                      fontSize: 12.5,
-                    ),
-                  ),
-                ),
-              SizedBox(height: compact ? 8 : 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  height: 1,
-                  color: AppColors.cream.withValues(alpha: 0.35),
-                ),
-              ),
-              Expanded(
-                child: _confirmation != ShopConfirmation.confirmed
-                    ? _LockedThread(
-                        text: _confirmation == ShopConfirmation.declined
-                            ? '$shopName backed out of this order, so this '
-                                'chat is closed.'
-                            : 'Waiting for $shopName to confirm your order. '
-                                'You can message them once they do.',
-                        declined:
-                            _confirmation == ShopConfirmation.declined,
-                      )
-                    : _preparing
-                    ? const Center(
-                        child: CircularProgressIndicator(color: AppColors.cream),
-                      )
-                    : _prepareError != null
-                    ? Padding(
-                        padding: const EdgeInsets.all(28),
-                        child: Text(
-                          _prepareError!,
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            color: AppColors.cream.withValues(alpha: 0.85),
-                          ),
-                        ),
-                      )
-                    : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _chat.watchMessages(widget.conversationId),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting &&
-                        !snapshot.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: AppColors.cream),
-                      );
-                    }
-                    if (snapshot.hasError) {
-                      return Padding(
-                        padding: const EdgeInsets.all(28),
-                        child: Text(
-                          firestoreUserMessage(
-                            snapshot.error!,
-                            action: 'load this conversation',
-                          ),
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            color: AppColors.cream.withValues(alpha: 0.85),
-                          ),
-                        ),
-                      );
-                    }
-
-                    // watchMessages returns newest-first; reverse for display.
-                    final raw = snapshot.data?.docs ?? [];
-
-                    // A message arriving while the thread is open is already
-                    // being read, so clear its badge rather than leaving a
-                    // count for something on screen.
-                    if (raw.isNotEmpty && raw.first.id != _markedReadUpTo) {
-                      _markedReadUpTo = raw.first.id;
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _chat.markConversationRead(widget.conversationId);
-                      });
-                    }
-
-                    final docs = raw.reversed.toList();
-                    if (docs.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.all(28),
-                        child: Text(
-                          'Quote accepted — you can now message this shop about materials and pickup.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            color: AppColors.cream.withValues(alpha: 0.8),
-                            height: 1.4,
-                          ),
-                        ),
-                      );
-                    }
-
-                    return MessengerMessageList(
-                      docs: docs.map((d) => d.data()).toList(),
-                      uid: uid,
-                      shopName: shopName,
-                      conversation: data,
-                      controller: _scroll,
-                    );
-                  },
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: closed
-                    ? Text(
-                        'This thread is closed.',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          color: AppColors.cream.withValues(alpha: 0.7),
-                        ),
-                      )
-                    : _preparing ||
-                            _prepareError != null ||
-                            _confirmation != ShopConfirmation.confirmed
-                    ? const SizedBox.shrink()
-                    : Row(
-                        children: [
-                          IconButton(
-                            onPressed: (_sending || _uploading) ? null : _attach,
-                            tooltip: 'Attach a photo or document',
-                            icon: _uploading
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.cream,
-                                    ),
-                                  )
-                                : const Icon(
-                                    Icons.add_circle_outline_rounded,
-                                    color: AppColors.cream,
-                                  ),
-                          ),
-                          Expanded(
-                            child: TextField(
-                              controller: _controller,
-                              minLines: 1,
-                              maxLines: 4,
-                              style: GoogleFonts.poppins(
-                                color: AppColors.textDark,
-                                fontSize: 14,
+              // With the keyboard up on a small phone the panel is short, and a
+              // two-line shop name and the project title left no room for the
+              // messages. The header drops to one line until there is space.
+              return Column(
+                children: [
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final compact = constraints.maxHeight < _compactBelow;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            SizedBox(height: compact ? 10 : 20),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
                               ),
-                              decoration: InputDecoration(
-                                hintText: 'Message this shop…',
-                                hintStyle: GoogleFonts.poppins(
-                                  color: AppColors.textMuted,
-                                  fontSize: 13,
-                                ),
-                                filled: true,
-                                fillColor: AppColors.cream,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(22),
-                                  borderSide: BorderSide.none,
+                              child: Text(
+                                shopName,
+                                textAlign: TextAlign.center,
+                                maxLines: compact ? 1 : null,
+                                overflow: compact
+                                    ? TextOverflow.ellipsis
+                                    : null,
+                                style: GoogleFonts.poppins(
+                                  color: AppColors.cream,
+                                  fontSize: compact ? 17 : 20,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.15,
                                 ),
                               ),
-                              textInputAction: TextInputAction.send,
-                              onSubmitted: (_) => _send(),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Material(
-                            color: AppColors.cream,
-                            shape: const CircleBorder(),
-                            child: IconButton(
-                              onPressed: _sending ? null : _send,
-                              icon: _sending
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
+                            if (title.isNotEmpty && !compact)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  24,
+                                  4,
+                                  24,
+                                  0,
+                                ),
+                                child: Text(
+                                  title,
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.poppins(
+                                    color: AppColors.cream.withValues(
+                                      alpha: 0.7,
+                                    ),
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                              ),
+                            SizedBox(height: compact ? 8 : 12),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              child: Container(
+                                height: 1,
+                                color: AppColors.cream.withValues(alpha: 0.35),
+                              ),
+                            ),
+                            Expanded(
+                              child: _confirmation != ShopConfirmation.confirmed
+                                  ? _LockedThread(
+                                      text:
+                                          _confirmation ==
+                                              ShopConfirmation.declined
+                                          ? '$shopName backed out of this order, so this '
+                                                'chat is closed.'
+                                          : 'Waiting for $shopName to confirm your order. '
+                                                'You can message them once they do.',
+                                      declined:
+                                          _confirmation ==
+                                          ShopConfirmation.declined,
+                                    )
+                                  : _preparing
+                                  ? const Center(
                                       child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                                        color: AppColors.cream,
                                       ),
                                     )
-                                  : const Icon(
-                                      Icons.send_rounded,
-                                      color: AppColors.navySoft,
+                                  : _prepareError != null
+                                  ? Padding(
+                                      padding: const EdgeInsets.all(28),
+                                      child: Text(
+                                        _prepareError!,
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.poppins(
+                                          color: AppColors.cream.withValues(
+                                            alpha: 0.85,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : StreamBuilder<
+                                      QuerySnapshot<Map<String, dynamic>>
+                                    >(
+                                      stream: _chat.watchMessages(
+                                        widget.conversationId,
+                                      ),
+                                      builder: (context, snapshot) {
+                                        if (snapshot.connectionState ==
+                                                ConnectionState.waiting &&
+                                            !snapshot.hasData) {
+                                          return const Center(
+                                            child: CircularProgressIndicator(
+                                              color: AppColors.cream,
+                                            ),
+                                          );
+                                        }
+                                        if (snapshot.hasError) {
+                                          return Padding(
+                                            padding: const EdgeInsets.all(28),
+                                            child: Text(
+                                              firestoreUserMessage(
+                                                snapshot.error!,
+                                                action:
+                                                    'load this conversation',
+                                              ),
+                                              textAlign: TextAlign.center,
+                                              style: GoogleFonts.poppins(
+                                                color: AppColors.cream
+                                                    .withValues(alpha: 0.85),
+                                              ),
+                                            ),
+                                          );
+                                        }
+
+                                        // watchMessages returns newest-first; reverse for display.
+                                        final raw = snapshot.data?.docs ?? [];
+
+                                        // A message arriving while the thread is open is already
+                                        // being read, so clear its badge rather than leaving a
+                                        // count for something on screen.
+                                        if (raw.isNotEmpty &&
+                                            raw.first.id != _markedReadUpTo) {
+                                          _markedReadUpTo = raw.first.id;
+                                          WidgetsBinding.instance
+                                              .addPostFrameCallback((_) {
+                                                _chat.markConversationRead(
+                                                  widget.conversationId,
+                                                );
+                                              });
+                                        }
+
+                                        final docs = raw.reversed.toList();
+                                        if (docs.isEmpty) {
+                                          return Padding(
+                                            padding: const EdgeInsets.all(28),
+                                            child: Text(
+                                              'Quote accepted — you can now message this shop about materials and pickup.',
+                                              textAlign: TextAlign.center,
+                                              style: GoogleFonts.poppins(
+                                                color: AppColors.cream
+                                                    .withValues(alpha: 0.8),
+                                                height: 1.4,
+                                              ),
+                                            ),
+                                          );
+                                        }
+
+                                        return MessengerMessageList(
+                                          docs: docs
+                                              .map((d) => d.data())
+                                              .toList(),
+                                          uid: uid,
+                                          shopName: shopName,
+                                          conversation: data,
+                                          controller: _scroll,
+                                        );
+                                      },
                                     ),
                             ),
-                          ),
-                        ],
-                      ),
-              ),
-            ],
-          );
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                              child: closed
+                                  ? Text(
+                                      'This thread is closed.',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.poppins(
+                                        color: AppColors.cream.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                      ),
+                                    )
+                                  : _preparing ||
+                                        _prepareError != null ||
+                                        _confirmation !=
+                                            ShopConfirmation.confirmed
+                                  ? const SizedBox.shrink()
+                                  : Row(
+                                      children: [
+                                        IconButton(
+                                          onPressed: (_sending || _uploading)
+                                              ? null
+                                              : _attach,
+                                          tooltip: 'Attach a photo or document',
+                                          icon: _uploading
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: AppColors.cream,
+                                                      ),
+                                                )
+                                              : const Icon(
+                                                  Icons
+                                                      .add_circle_outline_rounded,
+                                                  color: AppColors.cream,
+                                                ),
+                                        ),
+                                        Expanded(
+                                          child: TextField(
+                                            controller: _controller,
+                                            minLines: 1,
+                                            maxLines: 4,
+                                            style: GoogleFonts.poppins(
+                                              color: AppColors.textDark,
+                                              fontSize: 14,
+                                            ),
+                                            scrollPadding:
+                                                const EdgeInsets.fromLTRB(
+                                                  20,
+                                                  24,
+                                                  20,
+                                                  28,
+                                                ),
+                                            decoration: InputDecoration(
+                                              hintText: 'Message this shop…',
+                                              hintStyle: GoogleFonts.poppins(
+                                                color: AppColors.textMuted,
+                                                fontSize: 13,
+                                              ),
+                                              filled: true,
+                                              fillColor: AppColors.cream,
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 12,
+                                                  ),
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(22),
+                                                borderSide: BorderSide.none,
+                                              ),
+                                            ),
+                                            textInputAction:
+                                                TextInputAction.send,
+                                            onSubmitted: (_) => _send(),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Material(
+                                          color: AppColors.cream,
+                                          shape: const CircleBorder(),
+                                          child: IconButton(
+                                            onPressed: _sending ? null : _send,
+                                            icon: _sending
+                                                ? const SizedBox(
+                                                    width: 18,
+                                                    height: 18,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                        ),
+                                                  )
+                                                : const Icon(
+                                                    Icons.send_rounded,
+                                                    color: AppColors.navySoft,
+                                                  ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
             },
-          );
-        },
-      ),
+          ),
         ),
         if (_guideVisible)
           Positioned.fill(

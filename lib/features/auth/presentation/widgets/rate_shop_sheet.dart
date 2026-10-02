@@ -256,6 +256,7 @@ class _RateShopSheetState extends State<_RateShopSheet> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _comment,
+                    scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 96),
                     maxLines: 3,
                     maxLength: 500,
                     style: GoogleFonts.poppins(

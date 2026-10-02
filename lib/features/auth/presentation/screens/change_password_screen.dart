@@ -5,7 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:iconstruct/core/firebase/firestore_error.dart';
 import 'package:iconstruct/core/validation/password_policy.dart';
 import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart';
+import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/keyboard_form.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -40,7 +42,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     if (currentPassword.isEmpty ||
         newPassword.isEmpty ||
         confirmPassword.isEmpty) {
-      showAppMessage(context, 
+      showAppMessage(
+        context,
         const SnackBar(content: Text('Please fill in all fields.')),
       );
       return;
@@ -53,7 +56,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     }
 
     if (newPassword != confirmPassword) {
-      showAppMessage(context, 
+      showAppMessage(
+        context,
         const SnackBar(content: Text('New passwords do not match.')),
       );
       return;
@@ -68,7 +72,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
       if (user == null || user.email == null) {
         if (!mounted) return;
-        showAppMessage(context, 
+        showAppMessage(
+          context,
           const SnackBar(content: Text('No logged-in user found.')),
         );
         setState(() {
@@ -123,7 +128,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       }
 
       if (mounted) {
-        showAppMessage(context, 
+        showAppMessage(
+          context,
           SnackBar(
             content: Text(message),
             backgroundColor: Colors.red.shade400,
@@ -132,7 +138,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showAppMessage(context, 
+        showAppMessage(
+          context,
           SnackBar(
             content: Text(
               firestoreUserMessage(e, action: 'change your password'),
@@ -159,6 +166,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return TextField(
       controller: controller,
       obscureText: obscureText,
+      scrollPadding: kFieldScrollPadding,
       style: GoogleFonts.poppins(color: const Color(0xFF2C3E50), fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
@@ -224,95 +232,71 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ),
         centerTitle: true,
       ),
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Create a new strong password to secure your account.',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: const Color(0xFF5A6E7E),
-                ),
-              ),
-              const SizedBox(height: 32),
-              _buildPasswordField(
-                controller: _currentPasswordController,
-                label: 'Current Password',
-                obscureText: _obscureCurrent,
-                onToggleVisibility: () {
-                  setState(() {
-                    _obscureCurrent = !_obscureCurrent;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildPasswordField(
-                controller: _newPasswordController,
-                label: 'New Password',
-                obscureText: _obscureNew,
-                onToggleVisibility: () {
-                  setState(() {
-                    _obscureNew = !_obscureNew;
-                  });
-                },
-              ),
-              const SizedBox(height: 8),
-              Text(
-                PasswordPolicy.hint,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  height: 1.4,
-                  color: const Color(0xFF5C6F84),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildPasswordField(
-                controller: _confirmPasswordController,
-                label: 'Confirm New Password',
-                obscureText: _obscureConfirm,
-                onToggleVisibility: () {
-                  setState(() {
-                    _obscureConfirm = !_obscureConfirm;
-                  });
-                },
-              ),
-              const SizedBox(height: 48),
-              // Minimum height, not fixed: the label grows with the text scale.
-              ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 54),
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: darkBlue,
-                    foregroundColor: creamBg,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 8,
-                    shadowColor: Colors.black.withAlpha(100),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+          child: KeyboardForm(
+            alignFieldsAboveAction: true,
+            action: AppPrimaryButton(
+              label: 'Update Password',
+              loading: _isLoading,
+              onPressed: _isLoading ? null : _updatePassword,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Create a new strong password to secure your account.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: const Color(0xFF5A6E7E),
                   ),
-                  onPressed: _isLoading ? null : _updatePassword,
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: creamBg,
-                          ),
-                        )
-                      : Text(
-                          'Update Password',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 32),
+                _buildPasswordField(
+                  controller: _currentPasswordController,
+                  label: 'Current Password',
+                  obscureText: _obscureCurrent,
+                  onToggleVisibility: () {
+                    setState(() {
+                      _obscureCurrent = !_obscureCurrent;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildPasswordField(
+                  controller: _newPasswordController,
+                  label: 'New Password',
+                  obscureText: _obscureNew,
+                  onToggleVisibility: () {
+                    setState(() {
+                      _obscureNew = !_obscureNew;
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  PasswordPolicy.hint,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: const Color(0xFF5C6F84),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildPasswordField(
+                  controller: _confirmPasswordController,
+                  label: 'Confirm New Password',
+                  obscureText: _obscureConfirm,
+                  onToggleVisibility: () {
+                    setState(() {
+                      _obscureConfirm = !_obscureConfirm;
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
