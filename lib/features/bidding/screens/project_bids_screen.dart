@@ -8,6 +8,7 @@ import 'package:iconstruct/core/firebase/firestore_error.dart';
 import 'package:iconstruct/core/state/user_state/user_provider.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
@@ -49,6 +50,26 @@ class ProjectBidsScreen extends StatefulWidget {
 
   @override
   State<ProjectBidsScreen> createState() => _ProjectBidsScreenState();
+}
+
+class _QuotationSkeletonList extends StatelessWidget {
+  const _QuotationSkeletonList();
+
+  @override
+  Widget build(BuildContext context) {
+    return const AppSkeletonCardList(
+      count: 3,
+      tone: AppSkeletonTone.onLight,
+      cardColor: AppColors.cream,
+      cardRadius: 24,
+      cardPadding: EdgeInsets.all(18),
+      padding: EdgeInsets.fromLTRB(20, 16, 18, 28),
+      leadingCircle: true,
+      leadingSize: 40,
+      textLines: 3,
+      statusPill: true,
+    );
+  }
 }
 
 class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
@@ -106,8 +127,42 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
         stream: _postStream,
         builder: (context, projectSnapshot) {
           if (projectSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.cream),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Text(
+                    projectName,
+                    style: GoogleFonts.poppins(
+                      color: AppColors.cream,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      height: 1.15,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 28),
+                  child: AppSkeleton(
+                    width: 180,
+                    height: 12,
+                    tone: AppSkeletonTone.onDark,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Container(
+                    height: 1,
+                    color: AppColors.cream.withValues(alpha: 0.35),
+                  ),
+                ),
+                const Expanded(child: _QuotationSkeletonList()),
+              ],
             );
           }
 
@@ -189,11 +244,7 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                   stream: _quotationsStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.cream,
-                        ),
-                      );
+                      return const _QuotationSkeletonList();
                     }
                     if (snapshot.hasError) {
                       return const _PanelMessage('Could not load quotations.');
@@ -265,10 +316,9 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                           _ShopSummaryCard(
                             shop: shop,
                             bom: bom,
-                            estimateMaterials:
-                                projectData['materials'] is List
-                                    ? projectData['materials'] as List
-                                    : const [],
+                            estimateMaterials: projectData['materials'] is List
+                                ? projectData['materials'] as List
+                                : const [],
                             tags: comparison.highlightsFor(shop.quote.id),
                             isSuggested:
                                 shop.quote.id == advice.suggestedShopId &&

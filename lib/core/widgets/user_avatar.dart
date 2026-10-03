@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:iconstruct/core/widgets/app_image.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import '../state/user_state/user_provider.dart';
 
 class UserAvatar extends StatelessWidget {
@@ -29,8 +30,10 @@ class UserAvatar extends StatelessWidget {
           // tests render the shared panel header without Firebase behind it.
           // A missing provider shows the default person icon instead of
           // failing the whole screen.
-          final profileUrl =
-              context.watch<UserProvider?>()?.currentUser?.profileImageUrl;
+          final profileUrl = context
+              .watch<UserProvider?>()
+              ?.currentUser
+              ?.profileImageUrl;
 
           Widget content;
           if (profileUrl != null && profileUrl.isNotEmpty) {
@@ -40,15 +43,9 @@ class UserAvatar extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
-              placeholder: Center(
-                child: SizedBox(
-                  width: size * 0.45,
-                  height: size * 0.45,
-                  child: const CircularProgressIndicator(
-                    color: creamBg,
-                    strokeWidth: 2,
-                  ),
-                ),
+              placeholder: AppSkeleton.circle(
+                size: size,
+                tone: AppSkeletonTone.onDark,
               ),
               error: Icon(
                 Icons.person_rounded,

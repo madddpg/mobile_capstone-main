@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
+
 /// Shared image loader that keeps decode size close to the on-screen size.
 ///
 /// Without [cacheWidth]/[memCacheWidth], Flutter decodes full-resolution
@@ -61,16 +63,7 @@ class AppImage {
       fadeInDuration: const Duration(milliseconds: 150),
       placeholder: (context, url) =>
           placeholder ??
-          ColoredBox(
-            color: Colors.black12,
-            child: Center(
-              child: SizedBox(
-                width: (width ?? 24) * 0.4,
-                height: (height ?? 24) * 0.4,
-                child: const CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          ),
+          AppSkeleton(width: width, height: height ?? width ?? 48, radius: 8),
       errorWidget: (context, url, err) =>
           error ??
           const ColoredBox(

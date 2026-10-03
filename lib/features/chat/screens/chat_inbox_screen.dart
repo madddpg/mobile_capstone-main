@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/firebase/firestore_error.dart';
 import 'package:iconstruct/core/state/onboarding_preferences.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
@@ -116,15 +117,20 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                         ),
                       )
                     : StreamBuilder<
-                        List<QueryDocumentSnapshot<Map<String, dynamic>>>>(
+                        List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                      >(
                         stream: ChatService().watchMyConversations(),
                         builder: (context, snapshot) {
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(
-                                color: AppColors.cream,
-                              ),
+                            return const AppSkeletonCardList(
+                              count: 4,
+                              cardColor: AppColors.cream,
+                              cardRadius: 22,
+                              cardPadding: EdgeInsets.fromLTRB(18, 16, 18, 16),
+                              cardMargin: EdgeInsets.only(bottom: 12),
+                              padding: EdgeInsets.fromLTRB(20, 16, 18, 28),
+                              textLines: 3,
                             );
                           }
                           if (snapshot.hasError) {
@@ -137,7 +143,9 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                                 ),
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.poppins(
-                                  color: AppColors.cream.withValues(alpha: 0.85),
+                                  color: AppColors.cream.withValues(
+                                    alpha: 0.85,
+                                  ),
                                   height: 1.4,
                                 ),
                               ),
@@ -167,13 +175,13 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                             itemBuilder: (context, index) {
                               final doc = docs[index];
                               final data = doc.data();
-                              final shopName = (data['shopName'] ??
-                                      'Hardware shop')
-                                  .toString();
-                              final title =
-                                  (data['projectTitle'] ?? 'Estimate')
+                              final shopName =
+                                  (data['shopName'] ?? 'Hardware shop')
                                       .toString();
-                              final last = (data['lastMessage'] ?? '').toString();
+                              final title = (data['projectTitle'] ?? 'Estimate')
+                                  .toString();
+                              final last = (data['lastMessage'] ?? '')
+                                  .toString();
                               return Material(
                                 color: AppColors.cream,
                                 borderRadius: BorderRadius.circular(22),

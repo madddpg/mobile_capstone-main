@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
 import 'package:iconstruct/features/bidding/screens/project_bids_screen.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 
 class QuotationsScreen extends StatefulWidget {
   final String postId;
@@ -277,10 +278,14 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 .snapshots(),
             builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(
-                color: QuotationsScreen.navyColor,
-              ),
+            return const AppSkeletonCardList(
+              count: 4,
+              cardColor: Colors.white,
+              cardRadius: 16,
+              cardPadding: EdgeInsets.all(18),
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+              textLines: 3,
+              statusPill: true,
             );
           }
 

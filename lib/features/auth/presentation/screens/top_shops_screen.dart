@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
 import 'package:iconstruct/features/auth/presentation/services/shop_ranking_service.dart';
 import 'package:iconstruct/features/auth/presentation/widgets/shop_rating_stars.dart';
@@ -45,8 +46,16 @@ class _TopShopsScreenState extends State<TopShopsScreen> {
         future: _shopsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: darkBlue),
+            return const AppSkeletonCardList(
+              count: 6,
+              cardColor: Colors.white,
+              cardRadius: 16,
+              cardPadding: EdgeInsets.all(16),
+              cardMargin: EdgeInsets.only(bottom: 12),
+              padding: EdgeInsets.all(24),
+              leadingCircle: true,
+              leadingSize: 32,
+              textLines: 2,
             );
           }
 

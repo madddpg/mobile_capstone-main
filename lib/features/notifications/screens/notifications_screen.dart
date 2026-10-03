@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/firebase/firestore_error.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/features/bidding/screens/posted_project_details_screen.dart';
 import 'package:iconstruct/features/bidding/screens/quotations_screen.dart';
 import 'package:iconstruct/features/chat/screens/chat_thread_screen.dart';
@@ -105,8 +106,16 @@ class NotificationsScreen extends StatelessWidget {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xFFF4E7CB)),
+          return const AppSkeletonCardList(
+            count: 5,
+            cardColor: Color(0xFFF4E7CB),
+            cardRadius: 20,
+            cardPadding: EdgeInsets.all(16),
+            cardMargin: EdgeInsets.only(bottom: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            leadingCircle: true,
+            leadingSize: 12,
+            textLines: 3,
           );
         }
 
@@ -213,7 +222,9 @@ class NotificationBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF2C3E50).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2C3E50).withValues(alpha: 0.2)),
+        border: Border.all(
+          color: const Color(0xFF2C3E50).withValues(alpha: 0.2),
+        ),
       ),
       child: Text(
         _formatProjectType(projectType),
@@ -263,7 +274,9 @@ class NotificationCard extends StatelessWidget {
           .collection('notifications')
           .doc(id)
           .update({'isRead': true})
-          .catchError((_) {/* offline / not owned — non-fatal */});
+          .catchError((_) {
+            /* offline / not owned — non-fatal */
+          });
     }
 
     // Navigate based on type
@@ -300,8 +313,9 @@ class NotificationCard extends StatelessWidget {
     final String message = data['message'] ?? '';
     final bool isRead = data['isRead'] ?? false;
     final String projectType = data['projectType'] ?? '';
-    final Timestamp? createdAt =
-        data['createdAt'] is Timestamp ? data['createdAt'] as Timestamp : null;
+    final Timestamp? createdAt = data['createdAt'] is Timestamp
+        ? data['createdAt'] as Timestamp
+        : null;
     final String timeFormatted = _formatTimestamp(createdAt);
 
     return GestureDetector(

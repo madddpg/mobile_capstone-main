@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/features/chat/data/chat_attachment_service.dart';
 
@@ -39,8 +40,18 @@ class MessengerMessageList extends StatelessWidget {
   static const Duration _runGap = Duration(minutes: 60);
 
   static const List<String> _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   static DateTime? _sentAt(Map<String, dynamic> m) {
@@ -106,10 +117,10 @@ class MessengerMessageList extends StatelessWidget {
   }
 
   bool _startsRun(int i) => startsNewRun(
-        previous: i == 0 ? null : docs[i - 1],
-        current: docs[i],
-        uid: uid,
-      );
+    previous: i == 0 ? null : docs[i - 1],
+    current: docs[i],
+    uid: uid,
+  );
 
   bool _endsRun(int i) => i == docs.length - 1 || _startsRun(i + 1);
 
@@ -245,11 +256,16 @@ class MessengerMessageList extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: maxWidth),
       decoration: BoxDecoration(
         color: mine ? IConstructPanel.midBlue : AppColors.cream,
-        borderRadius: _radius(mine: mine, startsRun: startsRun, endsRun: endsRun),
+        borderRadius: _radius(
+          mine: mine,
+          startsRun: startsRun,
+          endsRun: endsRun,
+        ),
       ),
       child: Column(
-        crossAxisAlignment:
-            mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: mine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           if (hasAttachment)
@@ -380,8 +396,9 @@ class MessengerMessageList extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: maxWidth - 26),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: (mine ? Colors.white : AppColors.textDark)
-            .withValues(alpha: 0.12),
+        color: (mine ? Colors.white : AppColors.textDark).withValues(
+          alpha: 0.12,
+        ),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -429,16 +446,11 @@ class MessengerMessageList extends StatelessWidget {
   /// which needs no CORS. The browser's own cache stands in for the disk cache,
   /// and attachments are uploaded as immutable, so it keeps them.
   Widget _photo(String url, bool mine, double width) {
-    final placeholder = Container(
+    final placeholder = AppSkeleton(
       width: width,
       height: 150,
-      color: Colors.black.withValues(alpha: 0.18),
-      alignment: Alignment.center,
-      child: const SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
+      radius: 10,
+      tone: mine ? AppSkeletonTone.onDark : AppSkeletonTone.onLight,
     );
     final unavailable = Container(
       width: width,

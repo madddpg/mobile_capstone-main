@@ -11,6 +11,7 @@ import 'package:iconstruct/core/theme/app_theme.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/features/bidding/data/shop_confirmation.dart';
 import 'package:iconstruct/features/chat/data/chat_attachment_service.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
@@ -422,9 +423,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                             _confirmation == ShopConfirmation.declined,
                       )
                     : _preparing
-                    ? const Center(
-                        child: CircularProgressIndicator(color: AppColors.cream),
-                      )
+                    ? const AppSkeletonChatThread()
                     : _prepareError != null
                     ? Padding(
                         padding: const EdgeInsets.all(28),
@@ -441,9 +440,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting &&
                         !snapshot.hasData) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: AppColors.cream),
-                      );
+                      return const AppSkeletonChatThread();
                     }
                     if (snapshot.hasError) {
                       return Padding(
