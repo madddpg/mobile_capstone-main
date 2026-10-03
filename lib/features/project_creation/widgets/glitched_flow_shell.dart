@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
+import 'package:iconstruct/core/widgets/keyboard_form.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 
 /// Content chrome for Cost Estimation–style planning steps.
@@ -56,89 +59,116 @@ class GlitchedFlowShell extends StatelessWidget {
       header: showBackOnCard
           ? OffsetPanelHeaders.backAndAvatar(context)
           : OffsetPanelHeaders.avatarAndMenu(context),
-      body: _ScrollWhenShort(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                height: 1.15,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: RevealFocusedField(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return _StablePanelScroll(
+                    viewport: constraints.maxHeight,
+                    header: _header(),
+                    body: body,
+                  );
+                },
               ),
             ),
-            if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                subtitle!,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: cream.withValues(alpha: 0.85),
-                ),
-              ),
-            ],
+          ),
+          if (trailingAction != null) ...[
             const SizedBox(height: 10),
-            const Divider(color: cream, thickness: 1),
-            const SizedBox(height: 10),
-            Text(
-              instruction,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: IConstructPanel.creamSoft,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Divider(color: cream, thickness: 1),
-            const SizedBox(height: 12),
-            Expanded(child: body),
-            if (trailingAction != null) ...[
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: trailingAction!,
-              ),
-            ],
+            Align(alignment: Alignment.centerRight, child: trailingAction!),
           ],
-        ),
+        ],
       ),
+    );
+  }
+
+  Widget _header() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.poppins(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            height: 1.15,
+          ),
+        ),
+        if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            subtitle!,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: cream.withValues(alpha: 0.85),
+            ),
+          ),
+        ],
+        const SizedBox(height: 10),
+        const Divider(color: cream, thickness: 1),
+        const SizedBox(height: 10),
+        Text(
+          instruction,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: IConstructPanel.creamSoft,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Divider(color: cream, thickness: 1),
+        const SizedBox(height: 12),
+      ],
     );
   }
 }
 
-/// Lays [child] out at a usable minimum height, scrolling, when the panel is
-/// shorter than that.
+/// Scrolls the title off when the keyboard shrinks the panel, and keeps
+/// [body] in a bounded box so existing lists still lay out.
 ///
-/// With the keyboard up on a small phone the panel keeps under 150 points,
-/// less than the title and instructions alone. Squeezed, the column
-/// overflowed; laid out at its minimum inside a scroll view, it keeps its
-/// shape and the focused field is scrolled into view.
-///
-/// The scroll view is there at every height, with nothing to scroll when the
-/// panel is tall enough. Adding it only once the keyboard opened would
-/// rebuild the text field that opened it, dropping its focus and closing the
-/// keyboard again.
-class _ScrollWhenShort extends StatelessWidget {
-  const _ScrollWhenShort({required this.child});
+/// The scroll view is mounted at every height. Inserting it only after the
+/// keyboard opens would rebuild the focused field and dismiss the keyboard.
+class _StablePanelScroll extends StatelessWidget {
+  const _StablePanelScroll({
+    required this.viewport,
+    required this.header,
+    required this.body,
+  });
 
-  final Widget child;
+  final double viewport;
+  final Widget header;
+  final Widget body;
 
-  static const double minHeight = 360;
+  /// Room kept for the title block when deciding how tall the body is.
+  static const double _headerReserve = 168;
+
+  /// Smallest body box, so a field can still be scrolled into view when the
+  /// visible panel is shorter than the title.
+  static const double _bodyMin = 180;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final height = constraints.maxHeight < minHeight
-            ? minHeight
-            : constraints.maxHeight;
-        return SingleChildScrollView(
-          child: SizedBox(height: height, child: child),
-        );
-      },
+    final bodyHeight = math.max(_bodyMin, viewport - _headerReserve);
+    final extent = math.max(viewport, _headerReserve + bodyHeight);
+    return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: viewport),
+        child: SizedBox(
+          height: extent,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              header,
+              Expanded(child: body),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -158,29 +188,46 @@ class GlitchedPillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Minimum size, not a fixed one: the label grows with the screen and the
-    // phone's font setting, and a fixed 40px height cut it off inside the
-    // button, where no overflow warning is ever raised.
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: GlitchedFlowShell.cream,
-        foregroundColor: GlitchedFlowShell.navyCard,
-        disabledBackgroundColor: GlitchedFlowShell.cream.withValues(alpha: 0.4),
-        minimumSize: Size(width, 40),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        shape: const StadiumBorder(),
-        elevation: 6,
-        shadowColor: Colors.black.withAlpha(100),
-      ),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.poppins(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+    // phone's font setting, and a fixed height cut it off inside the button,
+    // where no overflow warning is ever raised. The width is a preference
+    // and never wider than the panel.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final minWidth = width.clamp(0.0, maxWidth).toDouble();
+        return Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton(
+            onPressed: onPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: GlitchedFlowShell.cream,
+              foregroundColor: GlitchedFlowShell.navyCard,
+              disabledBackgroundColor: GlitchedFlowShell.cream.withValues(
+                alpha: 0.4,
+              ),
+              minimumSize: Size(minWidth, 48),
+              maximumSize: Size(maxWidth, 96),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: const StadiumBorder(),
+              elevation: 6,
+              shadowColor: Colors.black.withAlpha(100),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

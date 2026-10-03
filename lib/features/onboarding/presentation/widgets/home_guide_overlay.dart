@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:iconstruct/core/theme/app_theme.dart';
+import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/features/onboarding/data/home_guide_steps.dart';
 
 /// Dims the home screen and walks through [steps], optionally cutting a
@@ -46,9 +47,7 @@ class HomeGuideOverlay extends StatelessWidget {
       child: Stack(
         children: [
           Positioned.fill(
-            child: CustomPaint(
-              painter: _SpotlightPainter(hole: highlight),
-            ),
+            child: CustomPaint(painter: _SpotlightPainter(hole: highlight)),
           ),
           Positioned.fill(
             child: GestureDetector(
@@ -63,7 +62,11 @@ class HomeGuideOverlay extends StatelessWidget {
               onPressed: onSkip,
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.cream,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: const Size(48, AppButtons.minHeight),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
               child: const Text(
                 'Skip',
@@ -164,30 +167,7 @@ class _GuideCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: onNext,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.navySoft,
-                  foregroundColor: AppColors.cream,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: Text(
-                  step.nextLabel,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
+            AppPrimaryButton(label: step.nextLabel, onPressed: onNext),
           ],
         ),
       ),
@@ -206,10 +186,7 @@ class _SpotlightPainter extends CustomPainter {
     final hole = this.hole;
     if (hole != null && hole.width > 0 && hole.height > 0) {
       overlay.addRRect(
-        RRect.fromRectAndRadius(
-          hole.inflate(6),
-          const Radius.circular(24),
-        ),
+        RRect.fromRectAndRadius(hole.inflate(6), const Radius.circular(24)),
       );
       overlay.fillType = PathFillType.evenOdd;
     }

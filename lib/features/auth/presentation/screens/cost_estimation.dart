@@ -1097,6 +1097,12 @@ class _AddedMaterialItemState extends State<_AddedMaterialItem> {
                             decimal: true,
                           ),
                           onChanged: widget.onChanged,
+                          scrollPadding: const EdgeInsets.fromLTRB(
+                            20,
+                            24,
+                            20,
+                            96,
+                          ),
                           textAlign: TextAlign.center,
                           style: GoogleFonts.poppins(
                             fontSize: 13,

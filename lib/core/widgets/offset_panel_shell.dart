@@ -5,6 +5,7 @@ import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/core/services/unread_notifications.dart';
 import 'package:iconstruct/features/notifications/screens/notifications_screen.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
+import 'package:iconstruct/core/widgets/keyboard_form.dart';
 import 'package:iconstruct/core/widgets/offset_pill_nav.dart';
 import 'package:iconstruct/core/widgets/user_avatar.dart';
 import 'package:iconstruct/features/auth/presentation/screens/profile_screen.dart';
@@ -68,7 +69,8 @@ class OffsetPanelShell extends StatelessWidget {
       builder: (context, keyboardInset) {
         final showNav = activeNav != null;
         final keyboardOpen = keyboardInset > 24;
-        final liftAboveNav = extent == OffsetPanelExtent.pinnedWithNav ||
+        final liftAboveNav =
+            extent == OffsetPanelExtent.pinnedWithNav ||
             extent == OffsetPanelExtent.centeredWithNav;
         final navOrSafe = showNav && liftAboveNav
             ? IConstructPanel.bottomInsetOf(context)
@@ -138,7 +140,8 @@ class OffsetPanelShell extends StatelessWidget {
 
   Widget _buildOffsetPanel(BuildContext context, {required double bottom}) {
     final centered = extent == OffsetPanelExtent.centeredWithNav;
-    final rawRadius = borderRadius ??
+    final rawRadius =
+        borderRadius ??
         (centered
             ? IConstructPanel.centeredRadiusOf(context)
             : extent == OffsetPanelExtent.fillBottom
@@ -154,8 +157,7 @@ class OffsetPanelShell extends StatelessWidget {
                 ? Radius.zero
                 : rawRadius.bottomLeft,
           );
-    final padding =
-        contentPadding ?? IConstructPanel.contentPaddingOf(context);
+    final padding = contentPadding ?? IConstructPanel.contentPaddingOf(context);
 
     Widget child = body;
     if (wrapPanel) {
@@ -174,7 +176,7 @@ class OffsetPanelShell extends StatelessWidget {
           ),
           child: Padding(
             padding: padding,
-            child: body,
+            child: RevealFocusedField(child: body),
           ),
         ),
       );
@@ -207,7 +209,7 @@ class OffsetPanelShell extends StatelessWidget {
           0,
           bottomPad,
         ),
-        child: body,
+        child: RevealFocusedField(child: body),
       ),
     );
   }
@@ -229,9 +231,7 @@ class OffsetPanelHeaders {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const ProfileScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
               );
             },
           ),
@@ -251,9 +251,7 @@ class OffsetPanelHeaders {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const ProfileScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
               );
             },
           ),

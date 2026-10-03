@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:iconstruct/core/state/onboarding_preferences.dart';
+import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_image.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/landing_screen.dart';
 
@@ -138,54 +139,54 @@ class _MainDisplayScreenState extends State<MainDisplayScreen>
             },
           ),
 
-          // bottom text + controls overlay
           Align(
-            alignment: Alignment.bottomLeft,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: AnimatedBuilder(
-                      animation: _textAnim,
-                      builder: (context, child) => FadeTransition(
-                        opacity: _fadeIn,
-                        child: SlideTransition(
-                          position: _slideUp,
-                          child: child,
+            alignment: Alignment.bottomCenter,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.62,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        AnimatedBuilder(
+                          animation: _textAnim,
+                          builder: (context, child) => FadeTransition(
+                            opacity: _fadeIn,
+                            child: SlideTransition(
+                              position: _slideUp,
+                              child: child,
+                            ),
+                          ),
+                          child: _SlideText(slide: _slides[_index]),
                         ),
-                      ),
-                      child: _SlideText(slide: _slides[_index]),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: List.generate(_slides.length, (i) {
+                            final active = i == _index;
+                            return Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              width: active ? 42 : 20,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: active
+                                    ? _accentBlue
+                                    : _dotGrey.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            );
+                          }),
+                        ),
+                        const SizedBox(height: 16),
+                        AppPrimaryButton(label: 'Next', onPressed: _handleNext),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  _NextButton(onPressed: _handleNext),
-                ],
-              ),
-            ),
-          ),
-
-          // indicators
-          Align(
-            alignment: Alignment.bottomLeft,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
-              child: Row(
-                children: List.generate(_slides.length, (i) {
-                  final active = i == _index;
-                  return Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    width: active ? 42 : 20,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: active
-                          ? _accentBlue
-                          : _dotGrey.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  );
-                }),
+                ),
               ),
             ),
           ),
@@ -294,53 +295,6 @@ class _SlideText extends StatelessWidget {
         const SizedBox(height: 10),
         Text(slide.subtitle, style: bodyStyle),
       ],
-    );
-  }
-}
-
-class _NextButton extends StatelessWidget {
-  final VoidCallback onPressed;
-  const _NextButton({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return _RoundIconButton(
-      icon: Icons.arrow_forward_rounded,
-      semanticLabel: 'Next',
-      onPressed: onPressed,
-    );
-  }
-}
-
-class _RoundIconButton extends StatelessWidget {
-  final IconData icon;
-  final String semanticLabel;
-  final VoidCallback onPressed;
-
-  const _RoundIconButton({
-    required this.icon,
-    required this.semanticLabel,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: semanticLabel,
-      child: SizedBox(
-        width: 52,
-        height: 52,
-        child: Material(
-          color: const Color(0xFFF2F2F2).withValues(alpha: 0.9),
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onPressed,
-            child: Center(child: Icon(icon, color: Colors.black87)),
-          ),
-        ),
-      ),
     );
   }
 }

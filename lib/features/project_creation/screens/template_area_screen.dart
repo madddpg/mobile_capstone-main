@@ -677,7 +677,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
-        scrollPadding: const EdgeInsets.only(bottom: 140),
+        scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
         decoration: InputDecoration(
           hintText: 'e.g. 18',
           hintStyle: GoogleFonts.poppins(
@@ -992,7 +992,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       controller: _portionLabelController,
       textCapitalization: TextCapitalization.sentences,
       onChanged: (_) => setState(() {}),
-      scrollPadding: const EdgeInsets.only(bottom: 160),
+      scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
       style: GoogleFonts.poppins(
         color: GlitchedFlowShell.darkBlue,
         fontSize: 15,
@@ -1061,7 +1061,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
       onChanged: (_) => setState(() {}),
-      scrollPadding: const EdgeInsets.only(bottom: 160),
+      scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
       style: GoogleFonts.poppins(
         color: GlitchedFlowShell.darkBlue,
         fontSize: dense ? 13 : 15,

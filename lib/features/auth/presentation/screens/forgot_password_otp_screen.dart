@@ -5,7 +5,9 @@ import 'package:iconstruct/features/auth/data/email_service.dart';
 import 'package:iconstruct/features/auth/data/otp_send_policy.dart';
 import 'package:iconstruct/features/auth/presentation/screens/reset_password_screen.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
+import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/keyboard_form.dart';
 
 class ForgotPasswordOtpScreen extends StatefulWidget {
   final String email;
@@ -67,9 +69,9 @@ class _ForgotPasswordOtpScreenState extends State<ForgotPasswordOtpScreen> {
   }
 
   String get _enteredOtp => _otpControllers.map((c) {
-        final digits = c.text.replaceAll(RegExp(r'\D'), '');
-        return digits.isEmpty ? '' : digits[digits.length - 1];
-      }).join();
+    final digits = c.text.replaceAll(RegExp(r'\D'), '');
+    return digits.isEmpty ? '' : digits[digits.length - 1];
+  }).join();
 
   void _onOtpChanged(int index, String value) {
     final sanitized = value.replaceAll(RegExp(r'\D'), '');
@@ -109,7 +111,8 @@ class _ForgotPasswordOtpScreenState extends State<ForgotPasswordOtpScreen> {
       showAppMessage(context, SnackBar(content: Text(e.message)));
     } catch (_) {
       if (!mounted) return;
-      showAppMessage(context, 
+      showAppMessage(
+        context,
         const SnackBar(content: Text('Failed to resend the code.')),
       );
     } finally {
@@ -197,215 +200,174 @@ class _ForgotPasswordOtpScreenState extends State<ForgotPasswordOtpScreen> {
                   ),
                 ),
                 Expanded(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Verify OTP',
-                            style: GoogleFonts.poppins(
-                              fontSize: 36,
-                              height: 1,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFFF1E7D6),
-                              shadows: const [
-                                Shadow(
-                                  color: Color(0x5C000000),
-                                  offset: Offset(0, 5),
-                                  blurRadius: 10,
-                                ),
-                              ],
-                            ),
+                  child: KeyboardForm(
+                    alignFieldsAboveAction: true,
+                    action: AppPrimaryButton(
+                      label: 'Enter',
+                      loading: _verifying,
+                      onPressed: _verifying ? null : _verify,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Verify OTP',
+                          style: GoogleFonts.poppins(
+                            fontSize: 36,
+                            height: 1,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFFF1E7D6),
+                            shadows: const [
+                              Shadow(
+                                color: Color(0x5C000000),
+                                offset: Offset(0, 5),
+                                blurRadius: 10,
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Receive a one-time password (OTP) via email to confirm your identity.',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              fontStyle: FontStyle.italic,
-                              color: const Color(0xFFEADFD0),
-                            ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Receive a one-time password (OTP) via email to confirm your identity.',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            fontStyle: FontStyle.italic,
+                            color: const Color(0xFFEADFD0),
                           ),
-                          const SizedBox(height: 36),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.fromLTRB(12, 20, 12, 20),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF2EBDC),
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x3F0E1B29),
-                                  blurRadius: 24,
-                                  offset: Offset(0, 12),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // scaleDown = no change on phones wide enough
-                                // for the 6 boxes; shrinks the whole row to fit
-                                // on narrow screens instead of overflowing.
-                                FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: List.generate(
-                                      6,
-                                      (i) => Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                        ),
-                                        child: _OtpBox(
-                                          controller: _otpControllers[i],
-                                          focusNode: _otpFocusNodes[i],
-                                          onChanged: (v) => _onOtpChanged(i, v),
-                                        ),
+                        ),
+                        const SizedBox(height: 36),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(12, 20, 12, 20),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF2EBDC),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x3F0E1B29),
+                                blurRadius: 24,
+                                offset: Offset(0, 12),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // scaleDown = no change on phones wide enough
+                              // for the 6 boxes; shrinks the whole row to fit
+                              // on narrow screens instead of overflowing.
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: List.generate(
+                                    6,
+                                    (i) => Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
+                                      child: _OtpBox(
+                                        controller: _otpControllers[i],
+                                        focusNode: _otpFocusNodes[i],
+                                        onChanged: (v) => _onOtpChanged(i, v),
                                       ),
                                     ),
                                   ),
                                 ),
-                                if (_errorMessage != null) ...[
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
+                              ),
+                              if (_errorMessage != null) ...[
+                                const SizedBox(height: 12),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF4D6),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFFE0A84A),
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF4D6),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: const Color(0xFFE0A84A),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.warning_amber_rounded,
+                                        size: 16,
+                                        color: AppColors.warning,
                                       ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.warning_amber_rounded,
-                                          size: 16,
-                                          color: AppColors.warning,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            _errorMessage!,
-                                            textAlign: TextAlign.left,
-                                            style: GoogleFonts.inter(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.warning,
-                                            ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          _errorMessage!,
+                                          textAlign: TextAlign.left,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.warning,
                                           ),
                                         ),
-                                      ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              Wrap(
+                                alignment: WrapAlignment.center,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 4,
+                                children: [
+                                  Text(
+                                    'Did not receive the code?',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      color: const Color(0xFF556273),
                                     ),
+                                  ),
+                                  TextButton(
+                                    onPressed: _canResend && !_resending
+                                        ? _resend
+                                        : null,
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: _resending
+                                        ? const SizedBox(
+                                            width: 14,
+                                            height: 14,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    Color(0xFF243749),
+                                                  ),
+                                            ),
+                                          )
+                                        : Text(
+                                            _canResend
+                                                ? 'Resend'
+                                                : 'Resend in ${_resendCountdown}s',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: const Color(0xFF243749),
+                                            ),
+                                          ),
                                   ),
                                 ],
-                                const SizedBox(height: 12),
-                                Wrap(
-                                  alignment: WrapAlignment.center,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  spacing: 4,
-                                  children: [
-                                    Text(
-                                      'Did not receive the code?',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 10,
-                                        color: const Color(0xFF556273),
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: _canResend && !_resending
-                                          ? _resend
-                                          : null,
-                                      style: TextButton.styleFrom(
-                                        padding: EdgeInsets.zero,
-                                        minimumSize: Size.zero,
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                      child: _resending
-                                          ? const SizedBox(
-                                              width: 14,
-                                              height: 14,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                      Color
-                                                    >(Color(0xFF243749)),
-                                              ),
-                                            )
-                                          : Text(
-                                              _canResend
-                                                  ? 'Resend'
-                                                  : 'Resend in ${_resendCountdown}s',
-                                              style: GoogleFonts.inter(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w700,
-                                                color: const Color(0xFF243749),
-                                              ),
-                                            ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                // Minimum height, not fixed: the label grows
-                                // with the text scale.
-                                ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    minWidth: double.infinity,
-                                    minHeight: 48,
-                                  ),
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF263646),
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: TextButton(
-                                      onPressed: _verifying ? null : _verify,
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                        ),
-                                      ),
-                                      child: _verifying
-                                          ? const SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation(
-                                                      Colors.white,
-                                                    ),
-                                              ),
-                                            )
-                                          : Text(
-                                              'Enter',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -445,6 +407,7 @@ class _OtpBox extends StatelessWidget {
         onChanged: onChanged,
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
+        scrollPadding: kFieldScrollPadding,
         maxLength: 1,
         style: GoogleFonts.poppins(
           fontSize: 20,

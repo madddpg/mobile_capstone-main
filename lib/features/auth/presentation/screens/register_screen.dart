@@ -5,7 +5,9 @@ import 'package:iconstruct/core/validation/password_policy.dart';
 import 'package:iconstruct/features/auth/data/email_service.dart';
 import 'package:iconstruct/features/auth/presentation/widgets/otp_dialog.dart';
 import 'package:iconstruct/features/auth/data/auth_login_error.dart';
+import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/keyboard_form.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -20,7 +22,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
   // Created on first use, so the screen can be built without Firebase.
   late final EmailService _emailService = EmailService();
 
@@ -93,7 +94,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -151,7 +151,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email.isEmpty ||
         password.isEmpty ||
         confirmPassword.isEmpty) {
-      showAppMessage(context, const SnackBar(content: Text('All fields are required.')));
+      showAppMessage(
+        context,
+        const SnackBar(content: Text('All fields are required.')),
+      );
       return;
     }
 
@@ -166,7 +169,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     if (!_acceptedTerms) {
-      showAppMessage(context, 
+      showAppMessage(
+        context,
         const SnackBar(
           content: Text('Please read and accept the Terms and Conditions.'),
         ),
@@ -211,10 +215,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      showAppMessage(context, 
-        SnackBar(
-          content: Text(stripAuthExceptionPrefix(e)),
-        ),
+      showAppMessage(
+        context,
+        SnackBar(content: Text(stripAuthExceptionPrefix(e))),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -261,9 +264,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 48),
 
                 Expanded(
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.only(bottom: 48),
+                  child: KeyboardForm(
+                    action: AppPrimaryButton(
+                      label: 'Register',
+                      loading: _loading,
+                      onPressed: _loading ? null : _handleRegister,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -435,47 +441,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           ],
                         ),
-
-                        const SizedBox(height: 18),
-
-                        // Minimum height, not fixed: the label grows with
-                        // the text scale.
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            minWidth: double.infinity,
-                            minHeight: 52,
-                          ),
-                          child: TextButton(
-                            style: TextButton.styleFrom(
-                              backgroundColor: _acceptedTerms
-                                  ? const Color(0xFF1E3248)
-                                  : const Color(0xFF1E3248).withValues(alpha: 0.45),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            onPressed: _loading ? null : _handleRegister,
-                            child: _loading
-                                ? const SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation(
-                                        Colors.white,
-                                      ),
-                                    ),
-                                  )
-                                : Text(
-                                    'Register',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -505,7 +470,10 @@ class _TermsAndConditionsDialog extends StatelessWidget {
         // the dialog's own margins did not fit on a 640-tall phone.
         child: SizedBox(
           width: double.infinity,
-          height: (MediaQuery.sizeOf(context).height * 0.75).clamp(320.0, 560.0),
+          height: (MediaQuery.sizeOf(context).height * 0.75).clamp(
+            320.0,
+            560.0,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -598,28 +566,9 @@ class _TermsAndConditionsDialog extends StatelessWidget {
 
               const SizedBox(height: 14),
 
-              ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minWidth: double.infinity,
-                  minHeight: 46,
-                ),
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  style: TextButton.styleFrom(
-                    backgroundColor: const Color(0xFF24384C),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    'I Agree',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
+              AppPrimaryButton(
+                label: 'I Agree',
+                onPressed: () => Navigator.of(context).pop(true),
               ),
             ],
           ),
@@ -658,6 +607,7 @@ class _RegisterField extends StatelessWidget {
       onChanged: onChanged,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
+      scrollPadding: kFieldScrollPadding,
       style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1E242B)),
       decoration: InputDecoration(
         hintText: label,

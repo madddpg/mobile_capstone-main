@@ -115,6 +115,7 @@ class _AttachmentConfirmSheetState extends State<_AttachmentConfirmSheet> {
                   const SizedBox(height: 14),
                   TextField(
                     controller: _captionController,
+                    scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 96),
                     minLines: 1,
                     maxLines: 4,
                     textCapitalization: TextCapitalization.sentences,

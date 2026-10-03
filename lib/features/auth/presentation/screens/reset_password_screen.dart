@@ -3,7 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/validation/password_policy.dart';
 import 'package:iconstruct/features/auth/data/email_service.dart';
 import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart';
+import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/keyboard_form.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   final String email;
@@ -84,7 +86,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       showAppMessage(context, SnackBar(content: Text(e.message)));
     } catch (_) {
       if (!mounted) return;
-      showAppMessage(context, 
+      showAppMessage(
+        context,
         const SnackBar(
           content: Text('Failed to reset password. Please try again.'),
         ),
@@ -97,6 +100,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -130,142 +134,95 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   ),
                 ),
                 Expanded(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Reset Password',
-                            style: GoogleFonts.poppins(
-                              fontSize: 34,
-                              height: 1.1,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFFF1E7D6),
-                              shadows: const [
-                                Shadow(
-                                  color: Color(0x5C000000),
-                                  offset: Offset(0, 5),
-                                  blurRadius: 10,
-                                ),
-                              ],
+                  child: KeyboardForm(
+                    alignFieldsAboveAction: true,
+                    action: AppPrimaryButton(
+                      label: 'Confirm',
+                      loading: _loading,
+                      onPressed: _loading ? null : _handleReset,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Reset Password',
+                          style: GoogleFonts.poppins(
+                            fontSize: 34,
+                            height: 1.1,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFFF1E7D6),
+                            shadows: const [
+                              Shadow(
+                                color: Color(0x5C000000),
+                                offset: Offset(0, 5),
+                                blurRadius: 10,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Create a new password securely.',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            fontStyle: FontStyle.italic,
+                            color: const Color(0xFFEADFD0),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          PasswordPolicy.hint,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: const Color(0xFFE3D7C3),
+                          ),
+                        ),
+                        const SizedBox(height: 36),
+                        _ResetField(
+                          label: 'Enter new password',
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          errorText: _passwordError,
+                          onChanged: _validatePassword,
+                          textInputAction: TextInputAction.next,
+                          trailing: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_off_rounded
+                                  : Icons.visibility_rounded,
+                              color: const Color(0xFF42566C),
+                              size: 22,
+                            ),
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Create a new password securely.',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              fontStyle: FontStyle.italic,
-                              color: const Color(0xFFEADFD0),
+                        ),
+                        const SizedBox(height: 16),
+                        _ResetField(
+                          label: 'Confirm new password',
+                          controller: _confirmController,
+                          obscureText: _obscureConfirm,
+                          errorText: _confirmError,
+                          onChanged: _validateConfirm,
+                          textInputAction: TextInputAction.done,
+                          trailing: IconButton(
+                            icon: Icon(
+                              _obscureConfirm
+                                  ? Icons.visibility_off_rounded
+                                  : Icons.visibility_rounded,
+                              color: const Color(0xFF42566C),
+                              size: 22,
+                            ),
+                            onPressed: () => setState(
+                              () => _obscureConfirm = !_obscureConfirm,
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          Text(
-                            PasswordPolicy.hint,
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              height: 1.4,
-                              color: const Color(0xFFE3D7C3),
-                            ),
-                          ),
-                          const SizedBox(height: 36),
-                          _ResetField(
-                            label: 'Enter new password',
-                            controller: _passwordController,
-                            obscureText: _obscurePassword,
-                            errorText: _passwordError,
-                            onChanged: _validatePassword,
-                            textInputAction: TextInputAction.next,
-                            trailing: IconButton(
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_off_rounded
-                                    : Icons.visibility_rounded,
-                                color: const Color(0xFF42566C),
-                                size: 22,
-                              ),
-                              onPressed: () => setState(
-                                () => _obscurePassword = !_obscurePassword,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          _ResetField(
-                            label: 'Confirm new password',
-                            controller: _confirmController,
-                            obscureText: _obscureConfirm,
-                            errorText: _confirmError,
-                            onChanged: _validateConfirm,
-                            textInputAction: TextInputAction.done,
-                            trailing: IconButton(
-                              icon: Icon(
-                                _obscureConfirm
-                                    ? Icons.visibility_off_rounded
-                                    : Icons.visibility_rounded,
-                                color: const Color(0xFF42566C),
-                                size: 22,
-                              ),
-                              onPressed: () => setState(
-                                () => _obscureConfirm = !_obscureConfirm,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 44),
-                          Center(
-                            // Minimum size, not a fixed one: a fixed height
-                            // cropped the label once text scaled up.
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(
-                                minWidth: 164,
-                                minHeight: 48,
-                              ),
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF26394D),
-                                  borderRadius: BorderRadius.circular(15),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Color(0x4F000000),
-                                      offset: Offset(0, 10),
-                                      blurRadius: 18,
-                                    ),
-                                  ],
-                                ),
-                                child: TextButton(
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                  ),
-                                  onPressed: _loading ? null : _handleReset,
-                                  child: _loading
-                                      ? const SizedBox(
-                                          height: 18,
-                                          width: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation(
-                                              Colors.white,
-                                            ),
-                                          ),
-                                        )
-                                      : Text(
-                                          'Confirm',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -304,6 +261,7 @@ class _ResetField extends StatelessWidget {
       obscureText: obscureText,
       onChanged: onChanged,
       textInputAction: textInputAction,
+      scrollPadding: kFieldScrollPadding,
       style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1E242B)),
       decoration: InputDecoration(
         hintText: label,

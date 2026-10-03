@@ -197,7 +197,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
             maxLength: _maxLength,
             textCapitalization: TextCapitalization.sentences,
             onChanged: (_) => setState(() {}),
-            scrollPadding: const EdgeInsets.only(bottom: 160),
+            scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
             style: GoogleFonts.poppins(
               color: GlitchedFlowShell.darkBlue,
               fontSize: 14,

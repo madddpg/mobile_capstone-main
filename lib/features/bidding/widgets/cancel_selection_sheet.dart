@@ -122,6 +122,7 @@ class _CancelSelectionSheetState extends State<_CancelSelectionSheet> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _noteController,
+                    scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 96),
                     minLines: 2,
                     maxLines: 4,
                     maxLength: 500,

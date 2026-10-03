@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/features/auth/data/email_service.dart';
@@ -6,7 +6,9 @@ import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart'
 import 'package:iconstruct/features/auth/data/otp_send_policy.dart';
 import 'package:iconstruct/features/auth/data/auth_login_error.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
+import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/keyboard_form.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   final String email;
@@ -74,9 +76,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   }
 
   String get _enteredOtp => _otpControllers.map((c) {
-        final digits = c.text.replaceAll(RegExp(r'\D'), '');
-        return digits.isEmpty ? '' : digits[digits.length - 1];
-      }).join();
+    final digits = c.text.replaceAll(RegExp(r'\D'), '');
+    return digits.isEmpty ? '' : digits[digits.length - 1];
+  }).join();
 
   void _onOtpChanged(int index, String value) {
     if (value.isNotEmpty && index < 5) {
@@ -107,10 +109,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       _startCountdown();
     } catch (e) {
       if (!mounted) return;
-      showAppMessage(context, 
-        SnackBar(
-          content: Text(stripAuthExceptionPrefix(e)),
-        ),
+      showAppMessage(
+        context,
+        SnackBar(content: Text(stripAuthExceptionPrefix(e))),
       );
     } finally {
       if (mounted) setState(() => _resendingEmail = false);
@@ -162,8 +163,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final height = MediaQuery.of(context).size.height;
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -174,10 +175,15 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
           ),
         ),
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: height - 24),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+            child: KeyboardForm(
+              alignFieldsAboveAction: true,
+              action: AppPrimaryButton(
+                label: 'Verify Email',
+                loading: _checkingVerification,
+                onPressed: _checkingVerification ? null : _checkVerification,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -290,6 +296,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                                     controller: _otpControllers[index],
                                     focusNode: _otpFocusNodes[index],
                                     keyboardType: TextInputType.number,
+                                    scrollPadding: kFieldScrollPadding,
                                     textAlign: TextAlign.center,
                                     maxLength: 1,
                                     style: GoogleFonts.inter(
@@ -303,11 +310,10 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                                       fillColor: const Color(0xFFF5F7FA),
                                       contentPadding:
                                           const EdgeInsets.symmetric(
-                                        vertical: 14,
-                                      ),
+                                            vertical: 14,
+                                          ),
                                       border: OutlineInputBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(12),
                                         borderSide: BorderSide.none,
                                       ),
                                     ),
@@ -342,43 +348,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                             ],
                           ),
                         ],
-                        const SizedBox(height: 32),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: ElevatedButton(
-                            onPressed: _checkingVerification
-                                ? null
-                                : _checkVerification,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF24384C),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: _checkingVerification
-                                ? const SizedBox(
-                                    height: 24,
-                                    width: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
-                                      ),
-                                    ),
-                                  )
-                                : Text(
-                                    'Verify Email',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 8),
                         // Wraps onto two lines on a narrow phone rather than
                         // running off the card.
                         Wrap(
