@@ -13,6 +13,7 @@ import 'package:iconstruct/core/widgets/offset_pill_nav.dart';
 import 'package:iconstruct/features/auth/presentation/screens/saved_projects.dart';
 import 'package:iconstruct/features/bidding/screens/posted_project_details_screen.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 
 /// Hammer / Bidding tab. Opens the latest posted estimate display, or a
 /// prompt to create one — not a new material plan.
@@ -172,7 +173,7 @@ class _BiddingEmptyView extends StatelessWidget {
                     shape: const CircleBorder(),
                     child: InkWell(
                       customBorder: const CircleBorder(),
-                      onTap: () => Navigator.pop(context),
+                      onTap: () => AppNav.back(context),
                       child: const SizedBox(
                         width: 44,
                         height: 44,

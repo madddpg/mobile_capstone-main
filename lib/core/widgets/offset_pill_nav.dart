@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/core/services/unread_notifications.dart';
 import 'package:iconstruct/core/utils/hammer_nav.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
-import 'package:iconstruct/features/auth/presentation/screens/main_home_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/saved_projects.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
 import 'package:iconstruct/features/chat/screens/chat_inbox_screen.dart';
@@ -75,15 +75,7 @@ class OffsetPillNav extends StatelessWidget {
                       )
                     : _NavIcon(
                         icon: Icons.home_rounded,
-                        onTap: () {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const MainHomeScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        },
+                        onTap: () => AppNav.openHomeTab(context),
                       ),
               ),
               const SizedBox(width: 10),
@@ -115,14 +107,10 @@ class OffsetPillNav extends StatelessWidget {
                     return _NavIcon(
                       icon: Icons.chat_bubble_rounded,
                       badgeCount: unreadChats,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ChatInboxScreen(),
-                          ),
-                        );
-                      },
+                      onTap: () => AppNav.openTab(
+                        context,
+                        (_) => const ChatInboxScreen(),
+                      ),
                     );
                   },
                 ),
@@ -136,15 +124,10 @@ class OffsetPillNav extends StatelessWidget {
                       )
                     : _NavIcon(
                         icon: Icons.folder_rounded,
-                        onTap: () {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SavedProjectsScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        },
+                        onTap: () => AppNav.openTab(
+                          context,
+                          (_) => const SavedProjectsScreen(),
+                        ),
                       ),
               ),
             ],

@@ -7,6 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import 'package:iconstruct/core/firebase/firestore_error.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/core/state/onboarding_preferences.dart';
 import 'package:iconstruct/core/state/user_state/user_provider.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
@@ -14,7 +16,6 @@ import 'package:iconstruct/core/widgets/user_avatar.dart';
 import 'package:iconstruct/features/auth/presentation/screens/change_password_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/edit_profile_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart';
-import 'package:iconstruct/features/auth/presentation/screens/main_home_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/terms_conditions_screen.dart';
 import 'package:iconstruct/features/chat/screens/chat_inbox_screen.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
@@ -35,6 +36,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _logout(BuildContext context) async {
+    // Profile can sit over an estimate in progress, and signing out drops it.
+    if (!await ProgressGuard.confirmExit(context)) return;
     await FirebaseAuth.instance.signOut();
 
     if (!context.mounted) return;
@@ -233,7 +236,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     shape: const CircleBorder(),
                                     child: InkWell(
                                       customBorder: const CircleBorder(),
-                                      onTap: () => Navigator.pop(context),
+                                      onTap: () => AppNav.back(context),
                                       child: const SizedBox(
                                         width: 38,
                                         height: 38,
@@ -428,16 +431,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: () async {
                               final uid =
                                   FirebaseAuth.instance.currentUser?.uid ?? '';
+                              if (!await ProgressGuard.confirmExit(context)) {
+                                return;
+                              }
                               await OnboardingPreferences.clearHomeGuide(uid);
                               if (!context.mounted) return;
-                              Navigator.of(context).pushAndRemoveUntil(
-                                MaterialPageRoute(
-                                  builder: (_) => const MainHomeScreen(
-                                    forceHomeGuide: true,
-                                  ),
-                                ),
-                                (route) => false,
-                              );
+                              AppNav.goHome(context, forceHomeGuide: true);
                             },
                           ),
                           const SizedBox(height: 10),

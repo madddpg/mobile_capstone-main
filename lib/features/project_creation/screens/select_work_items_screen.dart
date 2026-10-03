@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
@@ -61,7 +62,27 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
   late final Set<String> _selected = widget.recommended?.keys.toSet() ??
       widget.catalogue.startingSelection(widget.types);
 
+  /// What the list opened with, to tell whether the builder changed it.
+  late final Set<String> _opened =
+      widget.recommended?.keys.toSet() ??
+      widget.catalogue.startingSelection(widget.types);
+
   bool get _fromAi => widget.recommended != null;
+
+  LeaveWarning? _backWarning() {
+    final changed =
+        _selected.length != _opened.length || !_selected.containsAll(_opened);
+    if (!changed) return null;
+    return const LeaveWarning(
+      title: 'Undo your work picks?',
+      message:
+          'Going back resets the work you ticked and unticked on this '
+          'list. Next time it opens with the starting picks again.',
+      keeps: 'Everything you chose on the earlier steps is kept.',
+      confirmLabel: 'Go back',
+      cancelLabel: 'Keep my picks',
+    );
+  }
 
   WorkCatalogue get _catalogue => widget.catalogue;
 
@@ -133,6 +154,8 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
               'tick more. The materials come from what you tick.'
           : 'Pick a package or tick each piece of work. The materials list is '
               'built from what you tick, and shops are told what you left out.',
+      onBack: _backWarning,
+      onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
         label: 'Continue',
         width: 150,

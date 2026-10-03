@@ -6,6 +6,7 @@ import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
 import 'package:iconstruct/features/project_creation/data/project_status_service.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 
 /// Shown in place of an estimate that could not be opened.
 ///
@@ -228,7 +229,7 @@ class _EstimateUnavailableViewState extends State<EstimateUnavailableView> {
           left: 12,
           child: IconButton(
             tooltip: 'Back',
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => AppNav.back(context),
             icon: const Icon(
               Icons.arrow_back_ios_new,
               color: Colors.white,

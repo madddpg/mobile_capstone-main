@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/features/project_creation/screens/select_renovation_type_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -241,6 +242,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 right: -50,
                 bottom: 20,
                 child: _buildSubmitButton(enabled: canSubmit),
+              ),
+              Positioned(
+                top: 14,
+                left: 20,
+                child: Semantics(
+                  button: true,
+                  label: 'Back',
+                  child: Material(
+                    color: const Color(0xFFEDE4D4),
+                    shape: const CircleBorder(),
+                    elevation: 2,
+                    shadowColor: Colors.black26,
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => AppNav.back(context),
+                      child: const SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Icon(
+                          Icons.arrow_back_ios_new,
+                          color: Color(0xFF2C3E50),
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

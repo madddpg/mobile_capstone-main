@@ -107,8 +107,23 @@ class _MainDisplayScreenState extends State<MainDisplayScreen>
     }
   }
 
+  void _handleBack() {
+    if (_index > 0) _goTo(_index - 1);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Back steps through the slides before it closes the app.
+    return PopScope<Object?>(
+      canPop: _index == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBack();
+      },
+      child: _buildSlides(context),
+    );
+  }
+
+  Widget _buildSlides(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
@@ -174,6 +189,22 @@ class _MainDisplayScreenState extends State<MainDisplayScreen>
               ),
             ),
           ),
+
+          if (_index > 0)
+            Positioned(
+              top: 0,
+              left: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 0, 0),
+                  child: _RoundIconButton(
+                    icon: Icons.arrow_back_rounded,
+                    semanticLabel: 'Previous slide',
+                    onPressed: _handleBack,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -273,17 +304,40 @@ class _NextButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 52,
-      height: 52,
-      child: Material(
-        color: const Color(0xFFF2F2F2).withValues(alpha: 0.9),
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onPressed,
-          child: const Center(
-            child: Icon(Icons.arrow_forward_rounded, color: Colors.black87),
+    return _RoundIconButton(
+      icon: Icons.arrow_forward_rounded,
+      semanticLabel: 'Next',
+      onPressed: onPressed,
+    );
+  }
+}
+
+class _RoundIconButton extends StatelessWidget {
+  final IconData icon;
+  final String semanticLabel;
+  final VoidCallback onPressed;
+
+  const _RoundIconButton({
+    required this.icon,
+    required this.semanticLabel,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: SizedBox(
+        width: 52,
+        height: 52,
+        child: Material(
+          color: const Color(0xFFF2F2F2).withValues(alpha: 0.9),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onPressed,
+            child: Center(child: Icon(icon, color: Colors.black87)),
           ),
         ),
       ),

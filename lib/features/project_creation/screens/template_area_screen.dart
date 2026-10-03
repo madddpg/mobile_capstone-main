@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/features/auth/presentation/screens/cost_estimation.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
@@ -258,6 +259,48 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     _outlets = devices.outlets;
     _switches = devices.switches;
     _lights = devices.lights;
+    _openedWith = _entrySignature();
+  }
+
+  /// Everything the builder can enter here, as one string, so leaving can
+  /// tell whether anything was typed or switched since the screen opened.
+  late final String _openedWith;
+
+  String _entrySignature() => [
+    _areaController.text,
+    _lengthController.text,
+    _widthController.text,
+    _heightController.text,
+    _counterController.text,
+    _portionLabelController.text,
+    _totalLengthController.text,
+    _totalWidthController.text,
+    _floorAreaController.text,
+    for (final run in _wallRuns) run.text,
+    for (final row in [..._doors, ..._windows])
+      '${row.count}:${row.widthController?.text}:${row.heightController?.text}',
+    _isPortion,
+    _isIrregular,
+    _wallTiles.name,
+    _removeOldTiles,
+    _paintCeiling,
+    _outlets,
+    _switches,
+    _lights,
+  ].join('|');
+
+  LeaveWarning? _backWarning() {
+    if (_entrySignature() == _openedWith) return null;
+    return const LeaveWarning(
+      title: 'Discard your measurements?',
+      message:
+          'Going back clears the measurements and site details you '
+          'entered on this screen. Quantities are sized from them, so you '
+          'would need to enter them again.',
+      keeps: 'Your ticked work list is kept.',
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+    );
   }
 
   @override
@@ -550,6 +593,8 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
               : _needsFunctionalCounts
                   ? 'Measure the room, then say how many devices go in it. Wire, conduit and boxes are sized from the device counts.'
                   : 'Measure the room. Quantities are sized from the fixtures the job replaces.',
+      onBack: _backWarning,
+      onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
         label: 'Estimate Qty',
         width: 168,

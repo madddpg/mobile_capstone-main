@@ -10,6 +10,7 @@ import 'package:iconstruct/features/bidding/screens/project_bids_screen.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
 import 'package:iconstruct/features/project_creation/data/project_status_service.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
 
 class ProjectTrackingScreen extends StatelessWidget {
@@ -47,7 +48,7 @@ class ProjectTrackingScreen extends StatelessWidget {
                         Icons.arrow_back_ios_new,
                         color: Colors.white,
                       ),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => AppNav.back(context),
                     ),
                     Expanded(
                       child: Text(

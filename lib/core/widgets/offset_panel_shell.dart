@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/core/services/unread_notifications.dart';
 import 'package:iconstruct/features/notifications/screens/notifications_screen.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
@@ -221,7 +222,7 @@ class OffsetPanelHeaders {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          _BackButton(onTap: () => Navigator.pop(context)),
+          const OffsetBackButton(),
           const Spacer(),
           UserAvatar(
             size: 36,
@@ -322,34 +323,42 @@ class OffsetPanelHeaders {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: _BackButton(onTap: () => Navigator.pop(context)),
+        child: const OffsetBackButton(),
       ),
     );
   }
 }
 
-class _BackButton extends StatelessWidget {
-  final VoidCallback onTap;
+/// Round navy back button used in the offset screens' headers.
+///
+/// Defaults to [AppNav.back], which respects the screen's progress guard
+/// and never leaves a root screen with nowhere to go.
+class OffsetBackButton extends StatelessWidget {
+  final VoidCallback? onTap;
 
-  const _BackButton({required this.onTap});
+  const OffsetBackButton({super.key, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: IConstructPanel.darkBlue,
-      shape: const CircleBorder(),
-      elevation: 2,
-      shadowColor: Colors.black26,
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: const SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(
-            Icons.arrow_back_ios_new,
-            color: Colors.white,
-            size: 20,
+    return Semantics(
+      button: true,
+      label: 'Back',
+      child: Material(
+        color: IConstructPanel.darkBlue,
+        shape: const CircleBorder(),
+        elevation: 2,
+        shadowColor: Colors.black26,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap ?? () => AppNav.back(context),
+          child: const SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(
+              Icons.arrow_back_ios_new,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
         ),
       ),
