@@ -298,3 +298,36 @@ class _SlideText extends StatelessWidget {
     );
   }
 }
+
+class _RoundIconButton extends StatelessWidget {
+  final IconData icon;
+  final String semanticLabel;
+  final VoidCallback onPressed;
+
+  const _RoundIconButton({
+    required this.icon,
+    required this.semanticLabel,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: SizedBox(
+        width: 52,
+        height: 52,
+        child: Material(
+          color: const Color(0xFFF2F2F2).withValues(alpha: 0.9),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onPressed,
+            child: Center(child: Icon(icon, color: Colors.black87)),
+          ),
+        ),
+      ),
+    );
+  }
+}
