@@ -232,7 +232,7 @@ class _BiddingEmptyView extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Post a finished material estimate so hardware shops can send quotations. This tab shows that display — it does not start a new plan.',
+                          'Post an estimate so shops can send quotations.',
                           style: GoogleFonts.poppins(
                             color: const Color(0xFFE0D7C9),
                             fontSize: 14,

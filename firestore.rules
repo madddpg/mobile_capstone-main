@@ -106,8 +106,11 @@ service cloud.firestore {
         function ratedOwnCompletedProject() {
           let postId = request.resource.data.postId;
           let post = get(/databases/$(database)/documents/projectPosts/$(postId)).data;
-          return post.userId == request.auth.uid
-            && post.selectedShopId == shopId;
+          let shopUid = get(/databases/$(database)/documents/shops/$(shopId)).data.get('uid', shopId);
+          let owner = post.get('userId', post.get('builderId', ''));
+          let selected = post.get('selectedShopId', '');
+          return owner == request.auth.uid
+            && (selected == shopId || selected == shopUid);
         }
 
         // Ratings are public to signed-in users; that is the point of them.

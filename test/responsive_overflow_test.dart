@@ -229,7 +229,7 @@ final _onePixelPng = Uint8List.fromList(const [
 class _FakeRatingService implements ShopRatingService {
   @override
   Future<List<({String postId, String title})>> ratableProjects(
-    String shopId,
+    Iterable<String> shopIds,
   ) async =>
       const [
         (postId: 'post-1', title: 'Dela Cruz ground-floor bathroom, Calamba'),

@@ -589,12 +589,12 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       title: job == null ? 'Project\nArea & Scope' : 'Site\nDetails',
       subtitle: widget.template.name,
       instruction: job == null
-          ? 'Select scope & total area (sqm). Quantities auto-estimate per Philippine DPWH national standards.'
+          ? 'Enter the total area in square meters.'
           : _finishes
-              ? 'Measure the room first. Floor, wall and paint quantities are each sized from what you enter here.'
+              ? 'Enter the room size. Quantities use these measurements.'
               : _needsFunctionalCounts
-                  ? 'Measure the room, then say how many devices go in it. Wire, conduit and boxes are sized from the device counts.'
-                  : 'Measure the room. Quantities are sized from the fixtures the job replaces.',
+                  ? 'Enter the room size and how many devices you need.'
+                  : 'Enter the room size.',
       onBack: _backWarning,
       onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(

@@ -167,9 +167,8 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
       title: 'Describe\nYour Project',
       subtitle: '${widget.types.label} · ${widget.projectName}',
       instruction: _isAi
-          ? 'Tell us what you want done, in your own words. The AI recommends materials from it.'
-          : 'Tell the shops what you want done. Anything you say about tiles, '
-              'ceiling paint or removing old tiles is set on the next step.',
+          ? 'Describe the work. The AI suggests materials.'
+          : 'Tell the shops what you want done.',
       onBack: _backWarning,
       onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
@@ -181,6 +180,27 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
         padding: const EdgeInsets.only(right: 4, bottom: 24),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: [
+          if (_isAi) ...[
+            OutlinedButton.icon(
+              onPressed: _openChat,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: GlitchedFlowShell.cream,
+                side: BorderSide(color: GlitchedFlowShell.cream.withAlpha(140)),
+                minimumSize: const Size.fromHeight(44),
+                shape: const StadiumBorder(),
+              ),
+              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+              label: Text(
+                'Skip and chat with the AI instead',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Text(
             _isAi ? 'What do you want done? *' : 'What do you want done? (optional)',
             style: GoogleFonts.poppins(
@@ -222,46 +242,9 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Mention the rooms or areas, what is wrong now, and what you want '
-            'instead. Prices and labour are not covered here.',
+            'Prices and labour are not covered here.',
             style: hintStyle,
           ),
-          if (_isAi) ...[
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: Divider(color: GlitchedFlowShell.cream.withAlpha(60)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('or', style: hintStyle),
-                ),
-                Expanded(
-                  child: Divider(color: GlitchedFlowShell.cream.withAlpha(60)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _openChat,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: GlitchedFlowShell.cream,
-                side: BorderSide(color: GlitchedFlowShell.cream.withAlpha(140)),
-                minimumSize: const Size.fromHeight(44),
-                shape: const StadiumBorder(),
-              ),
-              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-              label: Text(
-                'Skip and chat with the AI instead',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );

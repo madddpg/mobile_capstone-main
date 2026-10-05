@@ -274,7 +274,6 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 .collection('projectPosts')
                 .doc(widget.postId)
                 .collection('quotations')
-                .orderBy('estimatedTotal', descending: false)
                 .snapshots(),
             builder: (context, snapshot) {
           if (!snapshot.hasData) {
@@ -314,7 +313,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Hardware shops will appear here once they submit bids for your posted estimate. Only you see these quotes.',
+                      'Shops appear here after they send a quotation.',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
                         fontSize: 15,
@@ -335,7 +334,10 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                   doc.data() as Map<String, dynamic>,
                 ),
               )
-              .toList();
+              .toList()
+            ..sort(
+              (a, b) => a.estimatedTotal.compareTo(b.estimatedTotal),
+            );
           final comparison = BidComparison.fromQuotes(quotes);
           final advice = canvassAdvice(bom, quotes);
           final summary = [

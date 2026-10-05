@@ -214,8 +214,7 @@ class ChatAttachmentService {
   static String uploadFailureMessage(String code) {
     return switch (code) {
       'unauthorized' || 'permission-denied' =>
-        'The app is not allowed to upload attachments yet. Storage rules need '
-            'to be deployed: run firebase deploy --only storage.',
+        'This photo or file could not be sent. Try again in a moment.',
       'unauthenticated' =>
         'You have been signed out. Sign in again and resend.',
       'object-not-found' || 'bucket-not-found' || 'project-not-found' =>

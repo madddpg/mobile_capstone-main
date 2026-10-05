@@ -83,25 +83,37 @@ class ShopRatingService {
   /// order the shop has not confirmed yet, or backed out of, is not business
   /// done.
   Future<List<({String postId, String title})>> ratableProjects(
-    String shopId,
+    Iterable<String> shopIds,
   ) async {
     final uid = _uid;
-    if (uid == null || shopId.trim().isEmpty) return const [];
+    final ids = shopIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet();
+    if (uid == null || ids.isEmpty) return const [];
 
     try {
-      final snap = await _db
-          .collection('projectPosts')
-          .where('userId', isEqualTo: uid)
-          .where('selectedShopId', isEqualTo: shopId)
-          .get();
+      final snaps = await Future.wait(
+        ids.map(
+          (shopId) => _db
+              .collection('projectPosts')
+              .where('userId', isEqualTo: uid)
+              .where('selectedShopId', isEqualTo: shopId)
+              .get(),
+        ),
+      );
+      final byId = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+      for (final snap in snaps) {
+        for (final doc in snap.docs) {
+          byId[doc.id] = doc;
+        }
+      }
+      final snapDocs = byId.values.toList();
 
       final confirmed = await Future.wait(
-        snap.docs.map((d) => _shopConfirmed(d.id, d.data())),
+        snapDocs.map((d) => _shopConfirmed(d.id, d.data())),
       );
 
       final rows = [
-        for (var i = 0; i < snap.docs.length; i++)
-          if (confirmed[i]) snap.docs[i],
+        for (var i = 0; i < snapDocs.length; i++)
+          if (confirmed[i]) snapDocs[i],
       ].map((d) {
         final data = d.data();
         final title = (data['projectName'] ?? data['projectTitle'] ?? '')

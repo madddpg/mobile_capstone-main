@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
@@ -24,7 +25,7 @@ Future<bool> showRateShopSheet(
 }) async {
   final service = ratingService ?? ShopRatingService();
 
-  final projects = await service.ratableProjects(shop.uid);
+  final projects = await service.ratableProjects(shop.shopIds);
   if (!context.mounted) return false;
 
   if (projects.isEmpty) {
@@ -40,7 +41,7 @@ Future<bool> showRateShopSheet(
     return false;
   }
 
-  final existing = await service.myRating(shop.uid);
+  final existing = await service.myRating(shop.documentId);
   if (!context.mounted) return false;
 
   final saved = await showModalBottomSheet<bool>(
@@ -117,7 +118,7 @@ class _RateShopSheetState extends State<_RateShopSheet> {
 
     try {
       await widget.service.submit(
-        shopId: widget.shop.uid,
+        shopId: widget.shop.documentId,
         draft: ShopRatingDraft(
           stars: _stars,
           postId: _postId,
@@ -133,11 +134,14 @@ class _RateShopSheetState extends State<_RateShopSheet> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
+      final denied = e is FirebaseException && e.code == 'permission-denied';
       showAppMessage(
         context,
         SnackBar(
           content: Text(
-            'That rating did not save. ${e.toString().replaceFirst(RegExp(r'^\w+: '), '')}',
+            denied
+                ? "You don't have permission to rate this shop."
+                : 'That rating did not save. Please try again.',
           ),
         ),
       );

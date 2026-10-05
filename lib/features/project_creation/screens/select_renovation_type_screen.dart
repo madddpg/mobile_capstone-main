@@ -82,7 +82,7 @@ class _SelectRenovationTypeScreenState
       title: 'Type of\nRenovation',
       subtitle: _type,
       instruction:
-          'How much of the space, and what kind of work? Tick every kind the job includes — they decide which materials the template and the AI start from.',
+          'Tick every kind of work this job includes.',
       onBack: () => const LeaveWarning.exitEstimate(),
       onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(

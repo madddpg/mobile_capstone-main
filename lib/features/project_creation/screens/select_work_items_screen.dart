@@ -150,10 +150,8 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
       title: _fromAi ? 'Recommended\nWork' : 'What Work\nIs Included?',
       subtitle: widget.projectName,
       instruction: _fromAi
-          ? 'Ticked from your description. Untick anything you do not want or '
-              'tick more. The materials come from what you tick.'
-          : 'Pick a package or tick each piece of work. The materials list is '
-              'built from what you tick, and shops are told what you left out.',
+          ? 'Untick anything you do not want.'
+          : 'Tick the work. Shops are told what you leave out.',
       onBack: _backWarning,
       onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(

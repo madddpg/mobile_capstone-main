@@ -46,6 +46,8 @@ void main() {
     test('the uid field wins over the document id, when they disagree', () {
       final shop = RankedShop.fromMap('doc-id', const {'uid': 'auth-uid'});
       expect(shop.uid, 'auth-uid');
+      expect(shop.documentId, 'doc-id');
+      expect(shop.shopIds, ['doc-id', 'auth-uid']);
     });
   });
 

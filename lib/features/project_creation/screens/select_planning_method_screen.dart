@@ -62,9 +62,7 @@ class SelectPlanningMethodScreen extends StatelessWidget {
       title: 'Choose Planning\nMethod',
       subtitle: displayName,
       instruction:
-          'Template = the standard materials for a ${types.label.toLowerCase()} '
-          '${projectName.toLowerCase()}.\nAI Planner = materials recommended '
-          'from what you describe.',
+          'Use a template, or describe the work for the AI.',
       onBack: () => const LeaveWarning.exitEstimate(),
       onExit: () => const LeaveWarning.exitEstimate(),
       // The two tiles share the panel height when there is room. When there
@@ -80,8 +78,7 @@ class SelectPlanningMethodScreen extends StatelessWidget {
                   Expanded(
                     child: _MethodTile(
                       title: 'Plan with AI Planner',
-                      subtitle:
-                          'Describe what you want and get recommended materials, or chat with the AI consultant.',
+                      subtitle: 'Describe the work, or chat with the AI.',
                       icon: Icons.auto_awesome,
                       accent: const Color(0xFFC4B5FD),
                       onTap: () => _open(context, PlanningMethod.ai),
@@ -91,8 +88,7 @@ class SelectPlanningMethodScreen extends StatelessWidget {
                   Expanded(
                     child: _MethodTile(
                       title: 'Use Renovation Template',
-                      subtitle:
-                          'Start from the materials for your project and renovation type, then edit quantities or remove items.',
+                      subtitle: 'Start from the usual materials for this job.',
                       icon: Icons.grid_view_rounded,
                       accent: const Color(0xFF6EE7B7),
                       onTap: () => _open(context, PlanningMethod.template),

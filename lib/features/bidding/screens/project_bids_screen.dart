@@ -357,9 +357,7 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                         _SectionLabel('Price per material'),
                         const SizedBox(height: 6),
                         Text(
-                          'Every shop on the same row. A material a shop '
-                          'cannot supply shows as Unavailable, never filled in '
-                          'from another bid.',
+                          'A missing material shows as Unavailable.',
                           style: GoogleFonts.poppins(
                             color: AppColors.cream.withValues(alpha: 0.7),
                             fontSize: 12,

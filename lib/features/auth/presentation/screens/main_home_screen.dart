@@ -369,16 +369,14 @@ class _MainCard extends StatelessWidget {
           _ActionTile(
             icon: Icons.play_circle_outline_rounded,
             title: 'Continue Last Estimate',
-            subtitle:
-                'Resume your most recent unfinished material plan or open its quotations.',
+            subtitle: 'Open your latest estimate.',
             onTap: onContinueLastEstimate,
           ),
           const SizedBox(height: 12),
           _ActionTile(
             icon: Icons.home_repair_service_outlined,
             title: 'Start New Estimate',
-            subtitle:
-                'Name an estimate, plan materials with AI or a template, then get ready to canvass shops.',
+            subtitle: 'Plan materials, then canvass shops.',
             onTap: onStartNewRenovation,
             key: startEstimateKey,
           ),
@@ -386,16 +384,14 @@ class _MainCard extends StatelessWidget {
           _ActionTile(
             icon: Icons.folder_open_outlined,
             title: 'My Projects',
-            subtitle:
-                'Browse and edit all your saved material estimates, downloads, and drafts.',
+            subtitle: 'Your saved estimates.',
             onTap: onSavedProjects,
           ),
           const SizedBox(height: 12),
           _ActionTile(
             icon: Icons.campaign_outlined,
             title: 'Post for Bidding',
-            subtitle:
-                'Choose an estimate that is ready and request private quotations from hardware shops.',
+            subtitle: 'Request quotations from shops.',
             onTap: onPostProject,
             key: postBiddingKey,
           ),
@@ -403,8 +399,7 @@ class _MainCard extends StatelessWidget {
           _ActionTile(
             icon: Icons.timeline_outlined,
             title: 'Canvass Tracking',
-            subtitle:
-                'Follow each estimate from planning through bids received to supplier selected.',
+            subtitle: 'Follow bids until you pick a shop.',
             onTap: onViewQuotations,
             key: canvassKey,
           ),

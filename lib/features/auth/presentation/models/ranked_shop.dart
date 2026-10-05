@@ -7,6 +7,10 @@ import 'package:iconstruct/features/auth/presentation/models/shop_rating.dart';
 /// builder app only reads them: shops describe themselves, the app never
 /// edits a shop profile.
 class RankedShop {
+  /// Firestore document id under `shops`. Ratings are stored on this document.
+  final String documentId;
+
+  /// Auth uid when the shop document stores one. Falls back to [documentId].
   final String uid;
   final String shopName;
   final String address;
@@ -37,6 +41,7 @@ class RankedShop {
   final ShopRating rating;
 
   RankedShop({
+    String? documentId,
     required this.uid,
     required this.shopName,
     required this.address,
@@ -51,7 +56,15 @@ class RankedShop {
     this.storefrontAbout = '',
     this.phone = '',
     this.rating = ShopRating.none,
-  });
+  }) : documentId = (documentId == null || documentId.trim().isEmpty)
+            ? uid
+            : documentId.trim();
+
+  /// Ids that may be stored as `selectedShopId` on a posted estimate.
+  List<String> get shopIds {
+    final ids = <String>{documentId.trim(), uid.trim()}..remove('');
+    return ids.toList();
+  }
 
   /// Whether there is enough here to be worth opening a profile for.
   bool get hasStorefront =>
@@ -86,6 +99,7 @@ class RankedShop {
   /// home screen, and the shops that quoted an estimate.
   factory RankedShop.fromMap(String documentId, Map<String, dynamic> data) {
     return RankedShop(
+      documentId: documentId,
       uid: asString(data['uid'], fallback: documentId),
       rating: ShopRating.fromShopData(data),
       suppliedCategories: RankedShop.readList(data['suppliedCategories']),

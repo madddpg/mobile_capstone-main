@@ -248,17 +248,27 @@ class PostedProjectDetailsScreen extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  quoteCount == 0
-                                      ? "0 bids"
-                                      : (quoteCount == 1
-                                            ? "1 bids"
-                                            : "$quoteCount bids"), // Match Mockup exactly ("1 bids")
-                                  style: GoogleFonts.poppins(
-                                    color: creamBg,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w400,
-                                  ),
+                                StreamBuilder<QuerySnapshot>(
+                                  stream: FirebaseFirestore.instance
+                                      .collection('projectPosts')
+                                      .doc(postId)
+                                      .collection('quotations')
+                                      .snapshots(),
+                                  builder: (context, quoteSnap) {
+                                    final live = quoteSnap.data?.docs.length;
+                                    final count = live ?? quoteCount;
+                                    final label = count == 1
+                                        ? '1 bids'
+                                        : '$count bids';
+                                    return Text(
+                                      label,
+                                      style: GoogleFonts.poppins(
+                                        color: creamBg,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                             ),
