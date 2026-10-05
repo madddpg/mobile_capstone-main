@@ -248,7 +248,10 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
     if (_alreadyPosted) return null;
     final now = _signature();
     if (widget.existingProject != null) {
-      if (now == _savedAs) return null;
+      if (now == _savedAs) return const LeaveWarning.exitEstimate(
+        message:
+            'Your saved estimate stays in Files. Leaving now closes this review.',
+      );
       return const LeaveWarning(
         title: 'Leave without saving?',
         message:
@@ -261,7 +264,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         cancelLabel: 'Stay',
       );
     }
-    if (now == _openedWith) return null;
+    if (now == _openedWith) return const LeaveWarning.exitEstimate();
     return const LeaveWarning(
       title: 'Leave the review?',
       message:
@@ -288,7 +291,12 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
             'to it later.',
       );
     }
-    if (_signature() == saved) return null;
+    if (_signature() == saved) {
+      return const LeaveWarning.exitEstimate(
+        message:
+            'Your saved estimate stays in Files. Leaving now closes this review.',
+      );
+    }
     return const LeaveWarning(
       title: 'Leave without saving?',
       message:

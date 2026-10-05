@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
@@ -82,6 +83,8 @@ class _SelectRenovationTypeScreenState
       subtitle: _type,
       instruction:
           'How much of the space, and what kind of work? Tick every kind the job includes — they decide which materials the template and the AI start from.',
+      onBack: () => const LeaveWarning.exitEstimate(),
+      onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
         label: 'Continue',
         width: 150,

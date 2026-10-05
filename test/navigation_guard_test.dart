@@ -19,6 +19,7 @@ import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/screens/describe_project_screen.dart';
+import 'package:iconstruct/features/project_creation/screens/select_renovation_type_screen.dart';
 
 const _warning = LeaveWarning(
   title: 'Lose it?',
@@ -240,7 +241,7 @@ void main() {
       child: _launcher(screen),
     );
 
-    testWidgets('describe: back without a description does not ask', (
+    testWidgets('describe: back without a description still warns', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -256,8 +257,34 @@ void main() {
 
       await tester.tap(find.byType(OffsetBackButton));
       await tester.pumpAndSettle();
+      expect(find.text('Leave this estimate?'), findsOneWidget);
+
+      await tester.tap(find.text('Keep planning'));
+      await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
-      expect(find.text('open'), findsOneWidget);
+      expect(find.text('Describe\nYour Project'), findsOneWidget);
+    });
+
+    testWidgets('type of renovation: back warns before leaving the estimate', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        app(
+          () => const SelectRenovationTypeScreen(
+            renovationType: 'Bathroom Renovation',
+          ),
+        ),
+      );
+      await _open(tester);
+
+      await tester.tap(find.byType(OffsetBackButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Leave this estimate?'), findsOneWidget);
+      expect(find.text('Keep planning'), findsOneWidget);
+
+      await tester.tap(find.text('Keep planning'));
+      await tester.pumpAndSettle();
+      expect(find.text('Type of\nRenovation'), findsOneWidget);
     });
 
     testWidgets('describe: back with a description warns it will be cleared', (

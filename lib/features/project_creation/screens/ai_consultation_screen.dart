@@ -678,7 +678,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   LeaveWarning? _backWarning() {
     final sent = _messages.where((m) => m.isUser).length;
     final added = _confirmedWork.length;
-    if (sent == 0 && added == 0) return null;
+    if (sent == 0 && added == 0) return const LeaveWarning.exitEstimate();
     final addedNote = added == 0
         ? ''
         : ' and the $added work item${added == 1 ? '' : 's'} you added from it';

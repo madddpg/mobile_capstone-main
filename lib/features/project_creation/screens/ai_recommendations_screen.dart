@@ -137,6 +137,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
       instruction:
           'The AI picks the work your description calls for from this '
           'project\'s checklist. You can change any of it next.',
+      onBack: () => const LeaveWarning.exitEstimate(),
       onExit: () => const LeaveWarning.exitEstimate(),
       body: _loading ? _buildLoading() : _buildError(_error ?? ''),
     );

@@ -277,7 +277,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   /// What going back to the measurements would undo, or null when the list
   /// is still exactly as it was built.
   LeaveWarning? _backWarning() {
-    if (!_edited) return null;
+    if (!_edited) return const LeaveWarning.exitEstimate();
     String count(int n, String one, String many) => '$n ${n == 1 ? one : many}';
     final parts = [
       if (_typedQty.isNotEmpty)

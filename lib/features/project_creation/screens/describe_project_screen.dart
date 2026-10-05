@@ -143,7 +143,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
   }
 
   LeaveWarning? _backWarning() {
-    if (_description.isEmpty) return null;
+    if (_description.isEmpty) return const LeaveWarning.exitEstimate();
     return const LeaveWarning(
       title: 'Clear your description?',
       message:

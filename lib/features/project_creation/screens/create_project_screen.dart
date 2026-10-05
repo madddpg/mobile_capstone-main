@@ -69,9 +69,8 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
       subtitle: '${widget.types.label} · ${widget.renovationType}',
       instruction:
           'Next, choose how to plan materials: the AI Planner or a template.',
-      onExit: () => _nameController.text.trim().isEmpty
-          ? null
-          : const LeaveWarning.exitEstimate(),
+      onBack: () => const LeaveWarning.exitEstimate(),
+      onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
         label: 'Continue',
         onPressed: _continue,

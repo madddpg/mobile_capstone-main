@@ -65,6 +65,7 @@ class SelectPlanningMethodScreen extends StatelessWidget {
           'Template = the standard materials for a ${types.label.toLowerCase()} '
           '${projectName.toLowerCase()}.\nAI Planner = materials recommended '
           'from what you describe.',
+      onBack: () => const LeaveWarning.exitEstimate(),
       onExit: () => const LeaveWarning.exitEstimate(),
       // The two tiles share the panel height when there is room. When there
       // is not, as on a small phone with large text, they keep their natural

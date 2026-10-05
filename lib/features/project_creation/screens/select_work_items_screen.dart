@@ -72,7 +72,7 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
   LeaveWarning? _backWarning() {
     final changed =
         _selected.length != _opened.length || !_selected.containsAll(_opened);
-    if (!changed) return null;
+    if (!changed) return const LeaveWarning.exitEstimate();
     return const LeaveWarning(
       title: 'Undo your work picks?',
       message:

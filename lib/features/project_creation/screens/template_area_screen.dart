@@ -290,7 +290,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   ].join('|');
 
   LeaveWarning? _backWarning() {
-    if (_entrySignature() == _openedWith) return null;
+    if (_entrySignature() == _openedWith) {
+      return const LeaveWarning.exitEstimate();
+    }
     return const LeaveWarning(
       title: 'Discard your measurements?',
       message:
