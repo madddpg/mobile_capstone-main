@@ -676,7 +676,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         style: GoogleFonts.poppins(
           color: GlitchedFlowShell.darkBlue,
-          fontSize: 16,
+          fontSize: 18,
           fontWeight: FontWeight.w600,
         ),
         scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
@@ -684,17 +684,29 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           hintText: 'e.g. 18',
           hintStyle: GoogleFonts.poppins(
             color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.4),
+            fontSize: 16,
           ),
           suffixText: 'sqm',
           filled: true,
           fillColor: GlitchedFlowShell.cream,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(24),
             borderSide: BorderSide.none,
           ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: const BorderSide(
+              color: GlitchedFlowShell.darkBlue,
+              width: 1.4,
+            ),
+          ),
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
+            horizontal: 18,
+            vertical: 18,
           ),
         ),
         validator: (value) {
@@ -867,12 +879,12 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           Expanded(
             child: _metresField(_lengthController, 'Length', 'e.g. 3.0'),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
             child: _metresField(_widthController, 'Width', 'e.g. 2.5'),
           ),
           if (job.hasWalls) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Expanded(
               child: _metresField(_heightController, 'Height', 'e.g. 2.7'),
             ),
@@ -1066,32 +1078,43 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
       style: GoogleFonts.poppins(
         color: GlitchedFlowShell.darkBlue,
-        fontSize: dense ? 13 : 15,
+        fontSize: dense ? 15 : 18,
         fontWeight: FontWeight.w600,
       ),
       decoration: InputDecoration(
         labelText: label,
         labelStyle: GoogleFonts.poppins(
           color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.7),
-          fontSize: 12,
+          fontSize: dense ? 12 : 13,
         ),
         floatingLabelBehavior: FloatingLabelBehavior.always,
         hintText: hint,
         hintStyle: GoogleFonts.poppins(
           color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.35),
-          fontSize: dense ? 12 : 13,
+          fontSize: dense ? 13 : 15,
         ),
         suffixText: 'm',
-        isDense: true,
+        isDense: dense,
         filled: true,
         fillColor: GlitchedFlowShell.cream,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(dense ? 18 : 24),
           borderSide: BorderSide.none,
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(dense ? 18 : 24),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(dense ? 18 : 24),
+          borderSide: const BorderSide(
+            color: GlitchedFlowShell.darkBlue,
+            width: 1.4,
+          ),
+        ),
         contentPadding: EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: dense ? 8 : 12,
+          horizontal: dense ? 12 : 16,
+          vertical: dense ? 14 : 18,
         ),
       ),
     );
