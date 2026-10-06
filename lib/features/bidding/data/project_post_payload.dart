@@ -6,6 +6,83 @@
 /// the contract in one place, away from the screen, is what makes it testable.
 library;
 
+/// The quantity a hardware shop should be asked for on one material line.
+///
+/// The text the builder typed is the quantity, including after they clear a
+/// line to 0 and type a new number. A stored 0 must not win over that later
+/// number. An explicit 0, or text that is not a number, stays 0 so the post
+/// can be refused. When there is no text field (a saved line being read back),
+/// the stored number is used.
+double postedLineQuantity({
+  required double stored,
+  String? typedText,
+}) {
+  if (typedText != null) {
+    final typed = double.tryParse(typedText.trim());
+    if (typed != null && typed.isFinite && typed > 0) return typed;
+    return 0;
+  }
+  if (stored.isFinite && stored > 0) return stored;
+  return 0;
+}
+
+double _asDouble(dynamic raw) {
+  if (raw is num) return raw.toDouble();
+  return double.tryParse('${raw ?? ''}'.trim()) ?? 0;
+}
+
+/// One material line as it was saved on an estimate.
+class SavedMaterialLine {
+  final String name;
+  final double quantity;
+  final String unit;
+  final String? size;
+  final String category;
+
+  const SavedMaterialLine({
+    required this.name,
+    required this.quantity,
+    required this.unit,
+    this.size,
+    this.category = 'Material',
+  });
+}
+
+/// Structured rows from a saved estimate. Plain-string leftovers are not
+/// included; those never had a quantity.
+List<SavedMaterialLine> savedMaterialLines(List<dynamic> raw) {
+  final lines = <SavedMaterialLine>[];
+  for (final item in raw) {
+    if (item is! Map) continue;
+    final map = Map<String, dynamic>.from(item);
+    final name = (map['name'] ?? '').toString().trim();
+    if (name.isEmpty) continue;
+    final sizeText = map['size']?.toString().trim() ?? '';
+    final category = (map['category'] ?? '').toString().trim();
+    lines.add(
+      SavedMaterialLine(
+        name: name,
+        quantity: postedLineQuantity(stored: _asDouble(map['quantity'])),
+        unit: (map['unit'] ?? '').toString().trim(),
+        size: sizeText.isEmpty || sizeText == 'null' ? null : sizeText,
+        category: category.isEmpty ? 'Material' : category,
+      ),
+    );
+  }
+  return lines;
+}
+
+/// Names saved before lines carried a quantity.
+List<String> legacyMaterialNames(List<dynamic> raw) {
+  final names = <String>[];
+  for (final item in raw) {
+    if (item is Map) continue;
+    final name = item.toString().trim();
+    if (name.isNotEmpty) names.add(name);
+  }
+  return names;
+}
+
 /// The builder's name as a shop sees it in chat and on the board.
 ///
 /// Falls back to the part of the email before the @ rather than to "Unknown":

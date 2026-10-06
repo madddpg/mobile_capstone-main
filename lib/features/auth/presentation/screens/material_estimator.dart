@@ -148,11 +148,32 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
             postId: widget.existingProject!.postId,
           ));
 
-  /// A structured line (tile/plumbing) that would be sent to shops with a
-  /// non-positive quantity — shows as a blank row on the quotation request.
+  /// Lines this screen created from a saved estimate. Their controllers are
+  /// ours to dispose; lines handed in by the materials screen are not.
+  final List<AddedPlumbingSelection> _restoredLines = [];
+
+  /// A line that would be sent to shops with a non-positive quantity — shows
+  /// as a blank row on the quotation request.
+  ///
+  /// The number in the text field wins over a stored 0, so a line cleared and
+  /// then typed back to a positive quantity is not treated as 0.
   bool get _hasZeroQtyLine =>
-      _localTiles.any((t) => !(t.quantity > 0)) ||
-      _localPlumbing.any((p) => !(p.quantity > 0));
+      _localTiles.any(
+        (t) =>
+            postedLineQuantity(
+              stored: t.quantity,
+              typedText: t.qtyController.text,
+            ) <=
+            0,
+      ) ||
+      _localPlumbing.any(
+        (p) =>
+            postedLineQuantity(
+              stored: p.quantity,
+              typedText: p.qtyController.text,
+            ) <=
+            0,
+      );
 
   bool get _detailsLocked => widget.lockEstimateDetails || _alreadyPosted;
 
@@ -202,11 +223,28 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         _selectedBudget = 'Mid Budget';
       }
 
-      _localMaterials = List<String>.from(
-        widget.existingProject!.materials
-            .map((m) => m is Map ? (m['name'] ?? '').toString() : m.toString())
-            .where((s) => s.isNotEmpty),
-      );
+      // A reopened estimate used to keep only the material names, so every
+      // line was posted with quantity 0 — including one the builder had
+      // cleared and then typed back to a positive number. Structured rows
+      // keep that number. Name-only leftovers never had one.
+      if (_localPlumbing.isEmpty && _localTiles.isEmpty) {
+        final saved = savedMaterialLines(widget.existingProject!.materials);
+        _restoredLines.addAll([
+          for (final line in saved)
+            AddedPlumbingSelection(
+              categoryTitle: line.category,
+              kind: '',
+              materialName: line.name,
+              size: line.size,
+              unit: line.unit.isEmpty ? 'Qty.' : line.unit,
+              quantity: line.quantity,
+            ),
+        ]);
+        _localPlumbing = List.of(_restoredLines);
+        _localMaterials = legacyMaterialNames(
+          widget.existingProject!.materials,
+        );
+      }
     } else {
       _projectType = widget.projectName;
       if (widget.customProjectName != null &&
@@ -310,6 +348,9 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
   @override
   void dispose() {
+    for (final line in _restoredLines) {
+      line.qtyController.dispose();
+    }
     _projectNameController.dispose();
     _projectTypeController.dispose();
     _projectAreaController.dispose();
@@ -1010,7 +1051,10 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
       ..._localTiles.map(
         (t) => {
           'name': t.tileTypeName,
-          'quantity': t.quantity,
+          'quantity': postedLineQuantity(
+            stored: t.quantity,
+            typedText: t.qtyController.text,
+          ),
           'unit': 'Qty.',
           'size': t.tileSizeName,
           'category': 'Tiles',
@@ -1019,7 +1063,10 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
       ..._localPlumbing.map(
         (p) => {
           'name': p.materialName,
-          'quantity': p.quantity,
+          'quantity': postedLineQuantity(
+            stored: p.quantity,
+            typedText: p.qtyController.text,
+          ),
           'unit': p.unit,
           'size': p.size,
           'category': p.categoryTitle,
@@ -1398,7 +1445,10 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
       category: 'Tiles',
       kind: tile.tileSizeGroup,
       size: tile.tileSizeName,
-      quantity: tile.quantity,
+      quantity: postedLineQuantity(
+        stored: tile.quantity,
+        typedText: tile.qtyController.text,
+      ),
       projectArea: _projectArea,
       onRemove: _alreadyPosted
           ? null
@@ -1411,7 +1461,10 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
                     name: tile.tileTypeName,
                     category: 'Tiles',
                     size: tile.tileSizeName,
-                    quantity: tile.quantity,
+                    quantity: postedLineQuantity(
+                      stored: tile.quantity,
+                      typedText: tile.qtyController.text,
+                    ),
                     unit: 'pcs',
                   ),
                 );
@@ -1427,7 +1480,10 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
       kind: plumbing.kind,
       size: plumbing.size,
       length: plumbing.length,
-      quantity: plumbing.quantity,
+      quantity: postedLineQuantity(
+        stored: plumbing.quantity,
+        typedText: plumbing.qtyController.text,
+      ),
       projectArea: _projectArea,
       onRemove: _alreadyPosted
           ? null
@@ -1441,7 +1497,10 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
                     category: plumbing.categoryTitle,
                     size: plumbing.size,
                     unit: plumbing.unit,
-                    quantity: plumbing.quantity,
+                    quantity: postedLineQuantity(
+                      stored: plumbing.quantity,
+                      typedText: plumbing.qtyController.text,
+                    ),
                   ),
                 );
               });

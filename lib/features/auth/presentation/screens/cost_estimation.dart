@@ -6,6 +6,7 @@ import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 
 import 'package:iconstruct/features/auth/presentation/screens/material_estimator.dart';
+import 'package:iconstruct/features/bidding/data/project_post_payload.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/bom_sections.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
@@ -403,9 +404,35 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   /// True only when there is at least one line and every line has a finite,
   /// strictly-positive quantity — a BOM with a `0` line would go to shops as a
   /// blank "—" row.
+  ///
+  /// The text in the box is the quantity. A line cleared to 0 and then typed
+  /// back to a positive number is that later number, not the 0.
   bool get _allQuantitiesValid =>
       _selectedProducts.isNotEmpty &&
-      _selectedProducts.every((s) => s.quantity.isFinite && s.quantity > 0);
+      _selectedProducts.every(
+        (s) =>
+            postedLineQuantity(
+              stored: s.quantity,
+              typedText: s.qtyController.text,
+            ) >
+            0,
+      );
+
+  /// Writes the number in each box onto the line, so the review screen and the
+  /// post cannot keep an earlier 0 after the builder has typed something else.
+  void _commitTypedQuantities() {
+    for (var i = 0; i < _selectedProducts.length; i++) {
+      final selected = _selectedProducts[i];
+      final qty = postedLineQuantity(
+        stored: selected.quantity,
+        typedText: selected.qtyController.text,
+      );
+      selected.quantity = qty;
+      if (i < _templateItems.length) {
+        _templateItems[i] = _templateItems[i].copyWith(defaultQuantity: qty);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -628,19 +655,20 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                                     });
                                   },
                             onChanged: (val) {
-                              final parsed = double.tryParse(val.trim());
-                              final clean = (parsed != null &&
-                                      parsed.isFinite &&
-                                      parsed >= 0)
-                                  ? parsed
-                                  : 0.0;
+                              final clean = postedLineQuantity(
+                                stored: selected.quantity,
+                                typedText: val,
+                              );
                               setState(() {
                                 _edited = true;
                                 _typedQty.add(selected);
                                 selected.quantity = clean;
-                                _templateItems[index] = item.copyWith(
-                                  defaultQuantity: clean,
-                                );
+                                if (index < _templateItems.length) {
+                                  _templateItems[index] =
+                                      _templateItems[index].copyWith(
+                                    defaultQuantity: clean,
+                                  );
+                                }
                               });
                             },
                             onRemove: () {
@@ -714,6 +742,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   }
 
   void _goToEstimator() {
+    _commitTypedQuantities();
     if (_selectedProducts.isEmpty) {
       showAppMessage(context,
         const SnackBar(
