@@ -129,27 +129,34 @@ void main() {
     },
   );
 
-  testWidgets('login keeps the password field and Login above the keyboard', (
+  testWidgets('login centers a compact button instead of a full-width bar', (
     tester,
   ) async {
-    await _setPhone(tester);
+    await _setPhone(tester, keyboard: false);
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => ResponsiveFrame(child: child!),
         home: const LoginScreen(),
       ),
     );
-
-    await tester.tap(find.byType(EditableText).last);
     await tester.pump();
-    _openKeyboard(tester);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
 
-    _expectFieldAndButtonAboveKeyboard(
-      tester,
-      button: find.widgetWithText(ElevatedButton, 'Login'),
-    );
+    final title = tester.getRect(find.text('Login').first);
+    final button = tester.getRect(find.widgetWithText(TextButton, 'Login'));
+    final password = tester.getRect(find.byType(EditableText).last);
+
+    // The pre-keyboard layout centers the form and uses a short Login
+    // button, so the title is not stuck under a tall empty header and the
+    // button is not a full-width bar at the bottom edge.
+    expect(button.width, greaterThanOrEqualTo(164));
+    expect(button.width, lessThan(_phone.width * 0.6));
+    expect(title.top, greaterThan(120));
+    expect(button.bottom, lessThan(_phone.height - 80));
+    expect(button.top, greaterThan(password.bottom));
+    expect(find.text('Forgot Password?'), findsOneWidget);
+    expect(find.text("Welcome back—let's build smarter."), findsOneWidget);
+    expect(find.byType(ElevatedButton), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('landing and intro use the same full-width action buttons', (
@@ -191,6 +198,9 @@ void main() {
         ),
       ),
     );
+    await tester.pump();
+    await _shoot(tester, 'login-restored');
+
     await tester.tap(find.byType(EditableText).last);
     await tester.pump();
     _openKeyboard(tester);
