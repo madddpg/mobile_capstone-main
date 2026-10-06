@@ -463,7 +463,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
         Text(
           widget.template?.id == 'ai_consultation_bom'
               ? 'Your AI material list — quantities scaled from area & scope.\nEdit a quantity or remove an item you don\'t need.'
-              : 'Reference package — quantities scaled from area.\nEdit qty, remove items, or drag a type onto its matching material only.',
+              : 'Reference package — quantities scaled from area.\nEdit a quantity or remove an item you don\'t need.',
           style: GoogleFonts.poppins(
             fontSize: 12,
             color: const Color(0xFFE0D7C9),
@@ -486,7 +486,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
           const SizedBox(height: 12),
         ] else if (hasRows && areaLabel != null) ...[
           Text(
-            'Quantities auto-estimated for $areaLabel. Drag a type onto its own material only.',
+            'Quantities auto-estimated for $areaLabel.',
             style: GoogleFonts.poppins(
               fontSize: 11,
               color: const Color(0xFF8FB2D4),

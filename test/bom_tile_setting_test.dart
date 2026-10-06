@@ -90,8 +90,10 @@ void main() {
     final items = _cosmeticBathroom();
     final wall = items.indexWhere(
         (i) => classifyMaterial(i) == MaterialKind.wallTile);
-    final subway =
-        items[wall].alternatives.firstWhere((a) => a.size == '75x300');
+    const subway = MaterialAlternative(
+      name: 'Subway Wall Tiles',
+      size: '75x300',
+    );
     items[wall] = BomQuantityEstimator.applyAlternative(
       item: items[wall],
       alternative: subway,

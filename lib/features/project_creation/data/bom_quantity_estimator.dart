@@ -63,10 +63,10 @@ class BomQuantityEstimator {
       final scaledQty = estimateQuantity(
           item: item, areaSqm: area, takeoff: takeoff, counts: counts);
       items.add(
-        ensureSwappable(
-          item.copyWith(
-            defaultQuantity: scaledQty,
-          ),
+        item.copyWith(
+          defaultQuantity: scaledQty,
+          isSwappable: false,
+          alternatives: const [],
         ),
       );
     }
@@ -1333,9 +1333,6 @@ class BomQuantityEstimator {
     required double areaSqm,
     required List<String> materialNames,
     RenovationScope? scope,
-    // AI BOMs are exactly what the user chose in consultation — don't offer
-    // "Premium/Economy" swap alternatives on the review screen.
-    bool allowSwaps = false,
   }) {
     final unscaled = consultationTemplate(
       projectType: projectType,
@@ -1347,9 +1344,7 @@ class BomQuantityEstimator {
         scope ?? inferScope(projectType, unscaled.items.map((i) => i.name));
 
     final scaled = scaleTemplate(
-      template: allowSwaps
-          ? unscaled.copyWithItems(unscaled.items.map(ensureSwappable).toList())
-          : unscaled,
+      template: unscaled,
       areaSqm: areaSqm,
       scope: resolvedScope,
     );
@@ -1360,9 +1355,9 @@ class BomQuantityEstimator {
       scope: resolvedScope,
       name: unscaled.name,
       description: unscaled.description,
-      // scaleTemplate re-runs ensureSwappable internally; strip the fabricated
-      // alternatives back off when the caller wants a fixed list.
-      items: allowSwaps ? scaled : fixedList(scaled),
+      // The review screen keeps the type already chosen. Type chips are not
+      // attached, even when an older caller asked for swaps.
+      items: fixedList(scaled),
     );
   }
 

@@ -33,42 +33,10 @@ void main() {
   ];
 
   group('BOM type chips', () {
-    test('only offer the same kind of material as the row', () {
+    test('a scaled list keeps the template type and offers no other types', () {
       for (final (label, item) in rows) {
-        final kind = classifyMaterial(item);
-        for (final alt in item.alternatives) {
-          expect(
-            classifyMaterialParts(
-              name: alt.name,
-              category: item.category,
-              unit: item.unit,
-            ),
-            kind,
-            reason: '$label: "${item.name}" offers "${alt.name}"',
-          );
-        }
-      }
-    });
-
-    test('never offer made-up Premium or Economy variants', () {
-      for (final (label, item) in rows) {
-        for (final alt in item.alternatives) {
-          expect(
-            alt.name,
-            isNot(anyOf(startsWith('Premium '), startsWith('Economy '))),
-            reason: '$label: ${item.name}',
-          );
-        }
-      }
-    });
-
-    test('a row is swappable exactly when it has chips', () {
-      for (final (label, item) in rows) {
-        expect(
-          item.isSwappable,
-          item.alternatives.isNotEmpty,
-          reason: '$label: ${item.name}',
-        );
+        expect(item.alternatives, isEmpty, reason: '$label: ${item.name}');
+        expect(item.isSwappable, isFalse, reason: '$label: ${item.name}');
       }
     });
 
@@ -110,16 +78,13 @@ void main() {
     });
 
     test('is stable when applied again', () {
-      for (final (label, item) in rows) {
-        expect(
-          BomQuantityEstimator.ensureSwappable(item)
-              .alternatives
-              .map((a) => a.name)
-              .toList(),
-          item.alternatives.map((a) => a.name).toList(),
-          reason: '$label: ${item.name}',
-        );
-      }
+      final item = _item('Ceramic Floor Tiles', 'Floor Surface', 'pcs');
+      final once = BomQuantityEstimator.ensureSwappable(item);
+      final twice = BomQuantityEstimator.ensureSwappable(once);
+      expect(
+        twice.alternatives.map((a) => a.name).toList(),
+        once.alternatives.map((a) => a.name).toList(),
+      );
     });
   });
 
@@ -151,7 +116,10 @@ void main() {
                 'Floor Renovation', RenovationScope.cosmetic),
         areaSqm: area,
       ).firstWhere((i) => classifyMaterial(i) == MaterialKind.floorTile);
-      final nonSlip = floor.alternatives.firstWhere((a) => a.size == '300x300');
+      const nonSlip = MaterialAlternative(
+        name: 'Non-Slip Floor Tiles',
+        size: '300x300',
+      );
 
       final swapped = BomQuantityEstimator.applyAlternative(
         item: floor,

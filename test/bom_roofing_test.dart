@@ -91,10 +91,10 @@ void main() {
       expect(_formula(items, paint), contains('23.0 sq.m roof'));
     });
 
-    test('roof paint offers roof paints, not interior paint', () {
-      final names = _named(items, 'roof paint').alternatives.map((a) => a.name);
-      expect(names, isNotEmpty);
-      expect(names.every((n) => n.contains('Roof Paint')), isTrue);
+    test('roof paint keeps the template type and offers no other types', () {
+      final paint = _named(items, 'roof paint');
+      expect(paint.alternatives, isEmpty);
+      expect(paint.isSwappable, isFalse);
     });
   });
 
