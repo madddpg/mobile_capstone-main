@@ -6,12 +6,36 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/firebase/firestore_error.dart';
 import 'package:iconstruct/features/auth/presentation/screens/material_estimator.dart';
 import 'package:iconstruct/core/models/project_model.dart';
+import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
 import 'package:iconstruct/features/bidding/screens/project_bids_screen.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
 import 'package:iconstruct/features/project_creation/data/project_status_service.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
+
+/// True when the posted estimate still has a material the selected shop
+/// did not price. No selected quotation counts as unquoted when the estimate
+/// lists materials. A line the shop priced is quoted, even if the builder
+/// did not take it.
+bool _selectedQuoteLeavesGaps(
+  Map<String, dynamic>? post,
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> quotes,
+) {
+  if (post == null) return false;
+  final bom = parseQuotedLines({'materials': post['materials']});
+  if (bom.isEmpty) return false;
+
+  final selectedId = (post['selectedQuotationId'] ?? '').toString().trim();
+  if (selectedId.isEmpty) return true;
+
+  for (final doc in quotes) {
+    if (doc.id != selectedId) continue;
+    return unquotedBomItems(bom, BidQuote.fromMap(doc.id, doc.data()))
+        .isNotEmpty;
+  }
+  return true;
+}
 
 class ProjectTrackingScreen extends StatelessWidget {
   const ProjectTrackingScreen({super.key});
@@ -213,25 +237,54 @@ class _TrackingCard extends StatelessWidget {
           .snapshots(),
       builder: (context, snapshot) {
         final post = snapshot.data?.data();
-        final storedStage = ProjectLifecycle.stageIndex(project.status);
-        var stage = storedStage;
-        var bidCount = 0;
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('projectPosts')
+              .doc(postId)
+              .collection('quotations')
+              .snapshots(),
+          builder: (context, quoteSnap) {
+            final storedStage = ProjectLifecycle.stageIndex(project.status);
+            var stage = storedStage;
+            final quotesReady = quoteSnap.hasData && !quoteSnap.hasError;
+            final quotes = quoteSnap.data?.docs ??
+                <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+            final bidCount = quotesReady ? quotes.length : 0;
 
-        if (post != null) {
-          final rawCount = post['quotationCount'];
-          bidCount = rawCount is num
-              ? rawCount.toInt()
-              : int.tryParse('${rawCount ?? 0}') ?? 0;
+            if (post != null) {
+              final derived = ProjectLifecycle.stageFromPost(post);
+              if (derived > storedStage &&
+                  storedStage < ProjectLifecycle.stageCompleted) {
+                stage = derived;
+                _scheduleSync(post);
+              }
+            }
 
-          final derived = ProjectLifecycle.stageFromPost(post);
-          if (derived > storedStage &&
-              storedStage < ProjectLifecycle.stageCompleted) {
-            stage = derived;
-            _scheduleSync(post);
-          }
-        }
+            final selectedId = (post?['selectedQuotationId'] ?? '')
+                .toString()
+                .trim();
+            final hasUnquoted = quotesReady &&
+                _selectedQuoteLeavesGaps(post, quotes);
+            final status = ProjectLifecycle.statusForStage(stage);
+            final showComplete = quotesReady &&
+                bidCount > 0 &&
+                selectedId.isNotEmpty &&
+                ProjectLifecycle.canMarkComplete(status);
+            final showReopen = quotesReady &&
+                stage == ProjectLifecycle.stageCompleted &&
+                hasUnquoted;
 
-        return _card(context, stage: stage, bidCount: bidCount, post: post);
+            return _card(
+              context,
+              stage: stage,
+              bidCount: bidCount,
+              post: post,
+              showComplete: showComplete,
+              showReopen: showReopen,
+              hasUnquoted: hasUnquoted,
+            );
+          },
+        );
       },
     );
   }
@@ -252,9 +305,11 @@ class _TrackingCard extends StatelessWidget {
     required int stage,
     int bidCount = 0,
     Map<String, dynamic>? post,
+    bool showComplete = false,
+    bool showReopen = false,
+    bool hasUnquoted = false,
   }) {
     final display = ProjectLifecycle.stageLabels[stage];
-    final status = ProjectLifecycle.statusForStage(stage);
 
     return Material(
       color: Colors.white,
@@ -379,14 +434,17 @@ class _TrackingCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (ProjectLifecycle.canMarkComplete(status)) ...[
+              if (showComplete) ...[
                 const SizedBox(height: 12),
                 _CompleteAction(
                   label: 'Mark planning complete',
                   icon: Icons.task_alt_rounded,
-                  onPressed: () => _confirmComplete(context),
+                  onPressed: () => _confirmComplete(
+                    context,
+                    hasUnquoted: hasUnquoted,
+                  ),
                 ),
-              ] else if (stage == ProjectLifecycle.stageCompleted) ...[
+              ] else if (showReopen) ...[
                 const SizedBox(height: 12),
                 _CompleteAction(
                   label: 'Reopen canvassing',
@@ -402,7 +460,10 @@ class _TrackingCard extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmComplete(BuildContext context) async {
+  Future<void> _confirmComplete(
+    BuildContext context, {
+    required bool hasUnquoted,
+  }) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -411,9 +472,12 @@ class _TrackingCard extends StatelessWidget {
           style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
         ),
         content: Text(
-          'Materials are planned and a supplier is selected, so this planning '
-          'and canvassing cycle is done. You can reopen it later to canvass '
-          'again.',
+          hasUnquoted
+              ? 'Materials are planned and a supplier is selected, so this '
+                    'planning and canvassing cycle is done. Materials the shop '
+                    'left unquoted can still be canvassed.'
+              : 'Materials are planned and a supplier is selected, so this '
+                    'planning and canvassing cycle is done.',
           style: GoogleFonts.poppins(fontSize: 13),
         ),
         actions: [

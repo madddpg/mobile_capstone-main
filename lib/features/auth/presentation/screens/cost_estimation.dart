@@ -82,7 +82,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   final List<AddedPlumbingSelection> _selectedProducts =
       <AddedPlumbingSelection>[];
 
-  /// Parallel template line items (supports type swap / alternatives).
+  /// Parallel template line items. Each line keeps the type the template chose.
   List<RenovationTemplateItem> _templateItems = [];
 
   /// Lines the builder took out, newest first, kept whole so any of them can
@@ -138,12 +138,12 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   }
 
   void _seedFromTemplate(RenovationTemplate template) {
-    // An AI BOM is exactly what the builder confirmed in consultation, and
-    // buildConsultationTemplate strips its chips on purpose. Running it through
-    // ensureSwappable here would add them straight back.
-    final items = template.id == 'ai_consultation_bom'
-        ? List.of(template.items)
-        : template.items.map(BomQuantityEstimator.ensureSwappable).toList();
+    // Keep the type the template already chose. Available-type chips are not
+    // attached to this list.
+    final items = [
+      for (final item in template.items)
+        item.copyWith(isSwappable: false, alternatives: const []),
+    ];
     // A measured room's list reads the way the job is walked: floor, walls,
     // tile setting, then what goes in the room.
     _templateItems = widget.takeoff == null ? items : sortBySection(items);
@@ -162,7 +162,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   AddedPlumbingSelection _selectionForItem(RenovationTemplateItem item) {
     final sel = AddedPlumbingSelection(
       categoryTitle: item.category,
-      kind: 'Tap / drop to change type',
+      kind: '',
       materialName: item.name,
       size: item.size,
       unit: item.unit,
@@ -174,43 +174,6 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
 
   static String _formatQty(double q) =>
       q == q.roundToDouble() ? q.toInt().toString() : q.toStringAsFixed(1);
-
-  /// Swap one line to an alternative type/size. Only this row is rebuilt — every
-  /// other row keeps its (possibly hand-edited) quantity and controller — and
-  /// the swapped row's quantity is recomputed for its new size instead of
-  /// carrying the previous size's piece count.
-  Future<void> _swapTemplateItem(
-    int index,
-    MaterialAlternative alternative,
-  ) async {
-    if (index < 0 || index >= _templateItems.length) return;
-    final swapped = BomQuantityEstimator.applyAlternative(
-      item: _templateItems[index],
-      alternative: alternative,
-      areaSqm: widget.projectAreaSqm ?? 1.0,
-      takeoff: widget.takeoff,
-    );
-
-    final proceed = await _confirmRecalculation(
-      change: 'Switching to ${alternative.name}',
-      index: index,
-      replacement: swapped,
-    );
-    if (!proceed || !mounted) return;
-    if (index >= _templateItems.length) return;
-
-    setState(() {
-      _edited = true;
-      _swaps++;
-      _templateItems[index] = swapped;
-      _typedQty.remove(_selectedProducts[index]);
-      _selectedProducts[index].qtyController.dispose();
-      _selectedProducts[index] = _selectionForItem(swapped);
-      if (BomQuantityEstimator.affectsTileSetting(swapped)) {
-        _resyncTileSetting();
-      }
-    });
-  }
 
   /// Lines whose typed quantity would be replaced if row [index] became
   /// [replacement], each saying what was typed and what it becomes.
@@ -283,7 +246,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
       if (_typedQty.isNotEmpty)
         count(_typedQty.length, 'quantity you typed', 'quantities you typed'),
       if (_swaps > 0)
-        count(_swaps, 'type or size change', 'type or size changes'),
+        count(_swaps, 'size change', 'size changes'),
       if (_excludedItems.isNotEmpty)
         count(_excludedItems.length, 'removed item', 'removed items'),
     ];
@@ -599,82 +562,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                   children: [
                     if (_startsSection(index))
                       _SectionLabel(bomSectionOf(item).label),
-                    if (item.alternatives.isNotEmpty) ...[
-                      Text(
-                        'Available types',
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFFE0D7C9),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        height: 36,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: item.alternatives.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(width: 8),
-                          itemBuilder: (context, altIndex) {
-                            final alt = item.alternatives[altIndex];
-                            return Draggable<_SlotAlternative>(
-                              data: _SlotAlternative(
-                                slotIndex: index,
-                                alternative: alt,
-                              ),
-                              feedback: Material(
-                                color: Colors.transparent,
-                                child: _AltChip(
-                                  label: alt.name,
-                                  dragging: true,
-                                ),
-                              ),
-                              childWhenDragging: Opacity(
-                                opacity: 0.35,
-                                child: _AltChip(label: alt.name),
-                              ),
-                              child: GestureDetector(
-                                onTap: () => _swapTemplateItem(index, alt),
-                                child: _AltChip(
-                                  label: alt.name,
-                                  selected: alt.name == item.name,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                    DragTarget<_SlotAlternative>(
-                      onWillAcceptWithDetails: (details) =>
-                          details.data.slotIndex == index &&
-                          (item.isSwappable || item.alternatives.isNotEmpty),
-                      onAcceptWithDetails: (details) {
-                        _swapTemplateItem(index, details.data.alternative);
-                      },
-                      builder: (context, candidate, rejected) {
-                        final hovering = candidate.isNotEmpty;
-                        return Container(
-                          decoration: BoxDecoration(
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(16),
-                              bottomLeft: Radius.circular(16),
-                            ),
-                            border: hovering
-                                ? Border.all(
-                                    color: const Color(0xFF6EE7B7),
-                                    width: 2,
-                                  )
-                                : rejected.isNotEmpty
-                                    ? Border.all(
-                                        color: const Color(0xFFFF8A80),
-                                        width: 1.5,
-                                      )
-                                    : null,
-                          ),
-                          child: _AddedMaterialItem(
+                    _AddedMaterialItem(
                             title: selected.materialName,
                             category: item.category,
                             subtitle: [
@@ -777,9 +665,6 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                                 }
                               });
                             },
-                          ),
-                        );
-                      },
                     ),
                     const SizedBox(height: 12),
                     const Divider(
@@ -903,54 +788,6 @@ class _SectionLabel extends StatelessWidget {
             letterSpacing: 1.1,
             color: const Color(0xFFFFC98A),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SlotAlternative {
-  final int slotIndex;
-  final MaterialAlternative alternative;
-
-  const _SlotAlternative({
-    required this.slotIndex,
-    required this.alternative,
-  });
-}
-
-class _AltChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final bool dragging;
-
-  const _AltChip({
-    required this.label,
-    this.selected = false,
-    this.dragging = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: dragging || selected
-            ? const Color(0xFFEDE4D4)
-            : const Color(0xFFEDE4D4).withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF648DB6).withValues(alpha: 0.7),
-        ),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: dragging || selected
-              ? const Color(0xFF1E3042)
-              : const Color(0xFFEDE4D4),
         ),
       ),
     );

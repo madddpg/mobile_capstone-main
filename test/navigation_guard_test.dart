@@ -350,57 +350,5 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('open'), findsOneWidget);
     });
-
-    testWidgets('swapping a type asks before replacing a typed quantity', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(1080, 4000);
-      tester.view.devicePixelRatio = 2;
-      addTearDown(tester.view.reset);
-
-      final bathroom = RenovationTemplatesCatalog.forProject(
-        'Bathroom Renovation',
-        RenovationScope.cosmetic,
-      );
-      final bom = bathroom.copyWithItems(
-        BomQuantityEstimator.scaleTemplate(
-          template: bathroom,
-          areaSqm: 12,
-          scope: RenovationScope.cosmetic,
-        ),
-      );
-      final rows = bom.items.map(BomQuantityEstimator.ensureSwappable).toList();
-      final index = rows.indexWhere(
-        (item) => item.alternatives.any((alt) => alt.name != item.name),
-      );
-      expect(index, isNonNegative, reason: 'the bathroom BOM has a swap');
-      final row = rows[index];
-      final alternative = row.alternatives.firstWhere(
-        (alt) => alt.name != row.name,
-      );
-
-      await tester.pumpWidget(
-        app(
-          () => CostEstimationScreen(
-            projectName: 'Bathroom Renovation',
-            template: bom,
-            projectAreaSqm: 12,
-          ),
-        ),
-      );
-      await _open(tester);
-
-      await tester.enterText(find.byType(TextField).at(index), '77');
-      await tester.pump();
-      await tester.tap(find.text(alternative.name).first);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Recalculate quantities you typed?'), findsOneWidget);
-      expect(find.textContaining('${row.name} (you typed 77)'), findsOneWidget);
-
-      await tester.tap(find.text('Keep my quantities'));
-      await tester.pumpAndSettle();
-      expect(find.text('77'), findsOneWidget);
-    });
   });
 }
