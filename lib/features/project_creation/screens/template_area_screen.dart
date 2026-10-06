@@ -1002,38 +1002,39 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   }
 
   Widget _portionLabelField() {
-    return TextField(
-      controller: _portionLabelController,
-      textCapitalization: TextCapitalization.sentences,
-      onChanged: (_) => setState(() {}),
-      scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
-      style: GoogleFonts.poppins(
-        color: GlitchedFlowShell.darkBlue,
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-      ),
-      decoration: InputDecoration(
-        labelText: 'What is this part called?',
-        labelStyle: GoogleFonts.poppins(
-          color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.7),
-          fontSize: 12,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _fieldLabel('What is this part called?'),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _portionLabelController,
+          textCapitalization: TextCapitalization.sentences,
+          onChanged: (_) => setState(() {}),
+          scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+          style: GoogleFonts.poppins(
+            color: GlitchedFlowShell.darkBlue,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            hintText: 'shower area, accent wall',
+            hintStyle: GoogleFonts.poppins(
+              color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.45),
+              fontSize: 13,
+            ),
+            isDense: true,
+            filled: true,
+            fillColor: GlitchedFlowShell.cream,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
         ),
-        floatingLabelBehavior: FloatingLabelBehavior.always,
-        hintText: 'e.g. shower area, accent wall',
-        hintStyle: GoogleFonts.poppins(
-          color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.35),
-          fontSize: 13,
-        ),
-        isDense: true,
-        filled: true,
-        fillColor: GlitchedFlowShell.cream,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      ),
+      ],
     );
   }
 
@@ -1064,59 +1065,78 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     );
   }
 
+  /// A field name drawn on the dark panel, above the cream box. A floating
+  /// label sat on that dark panel in dark type, so Length and Width disappeared.
+  Widget _fieldLabel(String text, {bool dense = false}) {
+    return Text(
+      text,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: GoogleFonts.poppins(
+        color: GlitchedFlowShell.cream,
+        fontSize: dense ? 13 : 14,
+        fontWeight: FontWeight.w700,
+        height: 1.15,
+      ),
+    );
+  }
+
   Widget _metresField(
     TextEditingController controller,
     String label,
     String hint, {
     bool dense = false,
   }) {
-    return TextField(
-      controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-      onChanged: (_) => setState(() {}),
-      scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
-      style: GoogleFonts.poppins(
-        color: GlitchedFlowShell.darkBlue,
-        fontSize: dense ? 15 : 18,
-        fontWeight: FontWeight.w600,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.poppins(
-          color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.7),
-          fontSize: dense ? 12 : 13,
-        ),
-        floatingLabelBehavior: FloatingLabelBehavior.always,
-        hintText: hint,
-        hintStyle: GoogleFonts.poppins(
-          color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.35),
-          fontSize: dense ? 13 : 15,
-        ),
-        suffixText: 'm',
-        isDense: dense,
-        filled: true,
-        fillColor: GlitchedFlowShell.cream,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(dense ? 18 : 24),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(dense ? 18 : 24),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(dense ? 18 : 24),
-          borderSide: const BorderSide(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _fieldLabel(label, dense: dense),
+        SizedBox(height: dense ? 4 : 6),
+        TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+          ],
+          onChanged: (_) => setState(() {}),
+          scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+          style: GoogleFonts.poppins(
             color: GlitchedFlowShell.darkBlue,
-            width: 1.4,
+            fontSize: dense ? 15 : 18,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            hintText: hint.replaceFirst(RegExp(r'^e\.g\.\s*'), ''),
+            hintStyle: GoogleFonts.poppins(
+              color: GlitchedFlowShell.darkBlue.withValues(alpha: 0.45),
+              fontSize: dense ? 13 : 15,
+            ),
+            suffixText: 'm',
+            isDense: dense,
+            filled: true,
+            fillColor: GlitchedFlowShell.cream,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(dense ? 18 : 24),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(dense ? 18 : 24),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(dense ? 18 : 24),
+              borderSide: const BorderSide(
+                color: GlitchedFlowShell.darkBlue,
+                width: 1.4,
+              ),
+            ),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: dense ? 12 : 16,
+              vertical: dense ? 14 : 18,
+            ),
           ),
         ),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: dense ? 12 : 16,
-          vertical: dense ? 14 : 18,
-        ),
-      ),
+      ],
     );
   }
 
