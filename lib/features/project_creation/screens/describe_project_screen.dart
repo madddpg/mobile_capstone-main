@@ -126,6 +126,25 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
     );
   }
 
+  void _skipToChecklist() {
+    FocusScope.of(context).unfocus();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SelectWorkItemsScreen(
+          catalogue:
+              RenovationTemplatesCatalog.workCatalogueFor(widget.projectName),
+          projectName: widget.projectName,
+          customProjectName: widget.customProjectName,
+          projectNotes: _description.isEmpty ? null : _description,
+          coverage: widget.coverage,
+          types: widget.types,
+          hints: parseSiteHints(_description),
+        ),
+      ),
+    );
+  }
+
   void _openChat() {
     FocusScope.of(context).unfocus();
     Navigator.push(
@@ -155,6 +174,31 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
     );
   }
 
+  Widget _aiPathButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: GlitchedFlowShell.cream,
+        side: BorderSide(color: GlitchedFlowShell.cream.withAlpha(140)),
+        minimumSize: const Size.fromHeight(44),
+        shape: const StadiumBorder(),
+      ),
+      icon: Icon(icon, size: 18),
+      label: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hintStyle = GoogleFonts.poppins(
@@ -168,7 +212,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
       subtitle: '${widget.types.label} · ${widget.projectName}',
       instruction: _isAi
           ? 'Describe the work. The AI suggests materials.'
-          : 'Tell the shops what you want done.',
+          : 'Add a note for the shops.',
       onBack: _backWarning,
       onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
@@ -181,28 +225,21 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: [
           if (_isAi) ...[
-            OutlinedButton.icon(
+            _aiPathButton(
+              label: 'Skip',
+              icon: Icons.skip_next_rounded,
+              onPressed: _skipToChecklist,
+            ),
+            const SizedBox(height: 8),
+            _aiPathButton(
+              label: 'Chat with the AI instead',
+              icon: Icons.chat_bubble_outline_rounded,
               onPressed: _openChat,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: GlitchedFlowShell.cream,
-                side: BorderSide(color: GlitchedFlowShell.cream.withAlpha(140)),
-                minimumSize: const Size.fromHeight(44),
-                shape: const StadiumBorder(),
-              ),
-              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-              label: Text(
-                'Skip and chat with the AI instead',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ),
             const SizedBox(height: 16),
           ],
           Text(
-            _isAi ? 'What do you want done? *' : 'What do you want done? (optional)',
+            _isAi ? 'Describe the work *' : 'Describe the work (optional)',
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w600,
