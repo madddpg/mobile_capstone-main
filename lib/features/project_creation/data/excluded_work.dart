@@ -8,6 +8,8 @@
 /// else.
 library;
 
+import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
+
 /// One line the builder took out of the estimate.
 ///
 /// Holds what a reader needs to recognise the material, including the quantity
@@ -30,11 +32,11 @@ class ExcludedWork {
     this.quantity = 0,
   });
 
-  /// Quantity without a trailing `.0`, or a dash when it never had one.
+  /// The quantity exactly, without a trailing `.0`, or a dash when it never
+  /// had one.
   String get quantityLabel {
     if (quantity <= 0) return '—';
-    if (quantity == quantity.roundToDouble()) return quantity.toStringAsFixed(0);
-    return quantity.toStringAsFixed(2);
+    return PhRenovationRates.qtyText(quantity);
   }
 
   /// The line as one phrase: "Floor Tile 600x600 — 96 pcs".

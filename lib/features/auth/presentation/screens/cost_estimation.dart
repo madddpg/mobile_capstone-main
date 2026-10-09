@@ -12,6 +12,7 @@ import 'package:iconstruct/features/project_creation/data/bom_sections.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/functional_counts.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
+import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
@@ -102,6 +103,11 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   /// Whether the builder changed the list at all since it was built.
   bool _edited = false;
 
+  /// The device counts the wiring is sized from. Starts as entered on the
+  /// measuring step and follows any outlet, switch or light count typed here,
+  /// so the wire, conduit and boxes and their formulas stay in step with it.
+  late FunctionalCounts? _counts = widget.counts;
+
   /// Work of the job's kinds the builder left unticked, named as work: "Tile
   /// the walls" tells a shop more than a missing wall-tile line does. These
   /// cannot be put back here; the work is chosen on the checklist.
@@ -173,8 +179,10 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
     return sel;
   }
 
-  static String _formatQty(double q) =>
-      q == q.roundToDouble() ? q.toInt().toString() : q.toStringAsFixed(1);
+  /// The quantity box shows the computed figure exactly. It used to show one
+  /// decimal, and the box is what gets saved and posted, so 0.25 cu.m of
+  /// sand reached the shops as 0.3 and 0.08 as 0.1.
+  static String _formatQty(double q) => PhRenovationRates.numText(q);
 
   /// Lines whose typed quantity would be replaced if row [index] became
   /// [replacement], each saying what was typed and what it becomes.
@@ -291,6 +299,26 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
         selection.quantity = next.defaultQuantity;
         selection.qtyController.text = _formatQty(next.defaultQuantity);
       }
+    }
+  }
+
+  /// Re-sizes the wire, conduit, couplings and boxes from [_counts] after an
+  /// outlet, switch or light count was typed, so 4 outlets get the 13 m of
+  /// outlet wire the formula says, not the 10 m sized for 3. A line whose
+  /// quantity the builder typed keeps it. Call inside setState.
+  void _resyncWiring() {
+    final counts = _counts;
+    if (counts == null) return;
+    final settled =
+        BomQuantityEstimator.requantifyWiring(_templateItems, counts);
+    for (var i = 0; i < settled.length; i++) {
+      final next = settled[i];
+      if (identical(next, _templateItems[i])) continue;
+      final selection = _selectedProducts[i];
+      if (_typedQty.contains(selection)) continue;
+      _templateItems[i] = next;
+      selection.quantity = next.defaultQuantity;
+      selection.qtyController.text = _formatQty(next.defaultQuantity);
     }
   }
 
@@ -423,9 +451,13 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   void _commitTypedQuantities() {
     for (var i = 0; i < _selectedProducts.length; i++) {
       final selected = _selectedProducts[i];
+      // Only a line the builder typed is read back from its box; a computed
+      // line keeps its exact computed quantity.
       final qty = postedLineQuantity(
         stored: selected.quantity,
-        typedText: selected.qtyController.text,
+        typedText: _typedQty.contains(selected)
+            ? selected.qtyController.text
+            : null,
       );
       selected.quantity = qty;
       if (i < _templateItems.length) {
@@ -470,7 +502,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   Widget _buildBomHeader(BuildContext context, String titleText) {
     final hasRows = _templateItems.isNotEmpty && _selectedProducts.isNotEmpty;
     final areaLabel = widget.projectAreaSqm != null
-        ? '${widget.projectAreaSqm!.toStringAsFixed(1)} sqm'
+        ? '${PhRenovationRates.areaText(widget.projectAreaSqm!)} sqm'
         : null;
 
     return Column(
@@ -608,7 +640,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                               currentQty: selected.quantity,
                               bom: _templateItems,
                               takeoff: widget.takeoff,
-                              counts: widget.counts,
+                              counts: _counts,
                             ),
                             onSizeChanged: item.availableSizes.isEmpty
                                 ? null
@@ -619,7 +651,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                                       newSize: newSize,
                                       areaSqm: widget.projectAreaSqm ?? 1.0,
                                       takeoff: widget.takeoff,
-                                      counts: widget.counts,
+                                      counts: _counts,
                                     );
                                     final proceed = await _confirmRecalculation(
                                       change: 'Changing the size to $newSize',
@@ -668,6 +700,18 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                                       _templateItems[index].copyWith(
                                     defaultQuantity: clean,
                                   );
+                                  final counts = _counts;
+                                  final next = counts == null
+                                      ? null
+                                      : BomQuantityEstimator.countsAfterEdit(
+                                          _templateItems[index],
+                                          clean,
+                                          counts,
+                                        );
+                                  if (next != null) {
+                                    _counts = next;
+                                    _resyncWiring();
+                                  }
                                 }
                               });
                             },
@@ -789,7 +833,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   /// the post shows what the quantities were actually sized from.
   Map<String, dynamic>? _siteDetailsMap() {
     final details = widget.takeoff?.details.toMap();
-    final counts = widget.counts;
+    final counts = _counts;
     if (details == null && counts == null) return null;
     return {
       ...?details,

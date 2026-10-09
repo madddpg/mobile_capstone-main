@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:iconstruct/features/project_creation/data/bom_export.dart';
+import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
 
 /// Renders a bill of materials as a canvass sheet a builder can hand to a
 /// hardware shop — as a PDF, as images for chat apps, or straight to a printer.
@@ -672,8 +673,6 @@ class BomExportService {
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
-  static String _trimDouble(double value) {
-    if (value == value.roundToDouble()) return value.toStringAsFixed(0);
-    return value.toStringAsFixed(2);
-  }
+  /// The area as measured: 4.3475 sq.m used to print as 4.35.
+  static String _trimDouble(double value) => PhRenovationRates.numText(value);
 }

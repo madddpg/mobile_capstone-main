@@ -6,8 +6,8 @@ import 'package:iconstruct/core/firebase/firestore_error.dart';
 import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/user_avatar.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
-import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/core/widgets/keyboard_form.dart';
+import 'package:iconstruct/features/auth/presentation/widgets/account_form_shell.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final String firstName;
@@ -88,192 +88,69 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const creamBg = Color(0xFFEDE4D4);
-    const darkBlue = Color(0xFF2C3E50);
-
-    return Scaffold(
-      backgroundColor: darkBlue,
-      body: Stack(
+    return AccountFormShell(
+      title: 'Edit Profile',
+      hero: Column(
         children: [
-          // Background Panel
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 250,
-            bottom: 0,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: creamBg,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(50),
-                  topRight: Radius.circular(50),
-                ),
-              ),
+          const Center(child: UserAvatar(size: 100, hasBorder: true)),
+          const SizedBox(height: 12),
+          Text(
+            'Hardware shops see this name on your posted projects and in '
+            'chat.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              height: 1.4,
+              color: AccountFormShell.cream.withAlpha(200),
             ),
           ),
-
-          Positioned.fill(
-            child: SafeArea(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Header Area
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () => AppNav.back(context),
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: creamBg.withAlpha(50),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.arrow_back_ios_new,
-                              color: creamBg,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Text(
-                            'Edit Profile',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                              color: creamBg,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(28, 0, 28, 16),
-                      child: KeyboardForm(
-                        alignFieldsAboveAction: true,
-                        action: AppPrimaryButton(
-                          label: 'Save Changes',
-                          loading: _isLoading,
-                          onPressed: _isLoading ? null : _saveProfile,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Avatar Thumbnail Preview
-                            Center(
-                              child: Stack(
-                                alignment: Alignment.bottomRight,
-                                children: [
-                                  const UserAvatar(size: 100, hasBorder: true),
-                                  Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF648DB6),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.edit_rounded,
-                                      color: creamBg,
-                                      size: 16,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 48),
-
-                            _buildInputLabel('First Name:'),
-                            _buildTextField(
-                              'e.g., John',
-                              controller: _fNameController,
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            _buildInputLabel('Last Name:'),
-                            _buildTextField(
-                              'e.g., Doe',
-                              controller: _lNameController,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        ],
+      ),
+      form: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AccountFormShell.fieldLabel('First Name:'),
+          _buildTextField(
+            'e.g., Juan',
+            controller: _fNameController,
+            action: TextInputAction.next,
+          ),
+          const SizedBox(height: 20),
+          AccountFormShell.fieldLabel('Last Name:'),
+          _buildTextField(
+            'e.g., Dela Cruz',
+            controller: _lNameController,
+            action: TextInputAction.done,
+            onSubmitted: (_) => _isLoading ? null : _saveProfile(),
+          ),
+          const SizedBox(height: 32),
+          AppPrimaryButton(
+            label: 'Save Changes',
+            loading: _isLoading,
+            onPressed: _isLoading ? null : _saveProfile,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildInputLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: const Color(0xFF2C3E50).withAlpha(200),
-        ),
+  Widget _buildTextField(
+    String hintText, {
+    required TextEditingController controller,
+    required TextInputAction action,
+    ValueChanged<String>? onSubmitted,
+  }) {
+    return TextField(
+      controller: controller,
+      textCapitalization: TextCapitalization.words,
+      textInputAction: action,
+      onSubmitted: onSubmitted,
+      scrollPadding: kFieldScrollPadding,
+      style: GoogleFonts.poppins(
+        color: AccountFormShell.darkBlue,
+        fontSize: 15,
       ),
-    );
-  }
-
-  Widget _buildTextField(String hintText, {TextEditingController? controller}) {
-    return Container(
-      // Minimum height, not fixed: the typed text grows with the text scale.
-      constraints: const BoxConstraints(minHeight: 52),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(10),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: controller,
-        style: GoogleFonts.poppins(
-          color: const Color(0xFF2C3E50),
-          fontSize: 15,
-        ),
-        scrollPadding: kFieldScrollPadding,
-        decoration: InputDecoration(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-          border: InputBorder.none,
-          hintText: hintText,
-          hintStyle: GoogleFonts.poppins(
-            color: Colors.grey.shade400,
-            fontSize: 14,
-          ),
-        ),
-      ),
+      decoration: AccountFormShell.fieldDecoration(hint: hintText),
     );
   }
 }

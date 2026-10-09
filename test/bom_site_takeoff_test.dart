@@ -56,7 +56,7 @@ void main() {
 
     test('tiles the floor it measured and the walls less their openings', () {
       expect(_one(items, MaterialKind.floorTile).defaultQuantity,
-          PhRenovationRates.calculateFloorTilePieces(3.0, '300x300'));
+          PhRenovationRates.calculateFloorTilePieces(3.0, '600x600'));
       expect(_one(items, MaterialKind.wallTile).defaultQuantity,
           PhRenovationRates.calculateWallTilePieces(14.97, '300x600'));
     });
@@ -66,7 +66,7 @@ void main() {
           PhRenovationRates.calculateTileAdhesiveBags(3.0 + 14.97));
       expect(
         _one(items, MaterialKind.tileGrout).defaultQuantity,
-        PhRenovationRates.groutPacksForKg(3.0 * 0.25 + 14.97 * 0.18),
+        PhRenovationRates.groutPacksForKg(3.0 * 0.18 + 14.97 * 0.18),
       );
     });
 
@@ -95,9 +95,9 @@ void main() {
 
       expect(formula(MaterialKind.floorTile), startsWith('Floor: 2.00 × 1.50 m'));
       expect(formula(MaterialKind.wallTile),
-          contains('less 1.8 sq.m of doors and windows'));
+          contains('less 1.83 sq.m of doors and windows'));
       expect(formula(MaterialKind.tileAdhesive),
-          contains('Tiled area: 3.0 sq.m floor + 15.0 sq.m wall'));
+          contains('Tiled area: 3.0 sq.m floor + 14.97 sq.m wall'));
       expect(formula(MaterialKind.paintTopcoat), startsWith('Paint: '));
       expect(formula(MaterialKind.waterproofing), startsWith('Waterproofing: '));
     });
@@ -225,7 +225,7 @@ void main() {
         takeoff: takeoff);
     expect(
       _one(settled, MaterialKind.tileGrout).defaultQuantity,
-      PhRenovationRates.groutPacksForKg(3.0 * 0.25 + 14.97 * 0.30),
+      PhRenovationRates.groutPacksForKg(3.0 * 0.18 + 14.97 * 0.30),
     );
   });
 
@@ -238,7 +238,7 @@ void main() {
     expect(_one(items, MaterialKind.chbBlock).defaultQuantity,
         PhRenovationRates.calculateChbPieces(14.97));
     expect(BomQuantityEstimator.structuralNoteFor(takeoff),
-        contains('measured 15.0 sq.m of wall'));
+        contains('measured 14.97 sq.m of wall'));
   });
 
   test('without a measured room nothing changes', () {
@@ -250,6 +250,6 @@ void main() {
     expect(_one(withNull, MaterialKind.wallTile).defaultQuantity,
         PhRenovationRates.calculateWallTilePieces(44, '300x600'));
     expect(_one(withNull, MaterialKind.floorTile).defaultQuantity,
-        PhRenovationRates.calculateFloorTilePieces(20, '300x300'));
+        PhRenovationRates.calculateFloorTilePieces(20, '600x600'));
   });
 }

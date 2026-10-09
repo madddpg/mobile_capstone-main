@@ -493,7 +493,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
                 _buildGuideCard(
                   title: '1. Measure the room',
                   body:
-                      'Floor tiles are sized from length × width. Wall tiles and paint are sized from the walls, which are the room\'s perimeter × ceiling height, less its doors and windows. Roofing, electrical and plumbing use a single area.',
+                      'Floor tiles are sized from length × width. Wall tiles and paint are sized from the walls, which are the room\'s perimeter × ceiling height, less its doors and windows. A roof is sized from the floor area under it.',
                   icon: Icons.straighten_rounded,
                 ),
                 const SizedBox(height: 10),
@@ -507,14 +507,14 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
                 _buildGuideCard(
                   title: '3. Type of Renovation',
                   body:
-                      '• Cosmetic: tiles, paint, fixtures and the screed under new tiles.\n• Structural: CHB walls, slab, rebar and forms. Footings, columns, beams and underpinning come from the engineer\'s plan.\n• Functional: pipes, fittings, wiring and devices, sized from the room\'s floor area.',
+                      '• Cosmetic: tiles, paint, fixtures and the screed under new tiles.\n• Structural: CHB walls, slab, rebar and forms. Footings, columns, beams and underpinning come from the engineer\'s plan.\n• Functional: wire, conduit and boxes are sized from the outlets, switches and lights you enter. Pipes and fittings are set counts for the fixtures.',
                   icon: Icons.tune_outlined,
                 ),
                 const SizedBox(height: 10),
                 _buildGuideCard(
-                  title: '4. Sizes & waste',
+                  title: '4. Waste & rounding',
                   body:
-                      'Change a material\'s size in the BOM review and its piece count, grout and adhesive update. Tiles carry 8% cutting waste; spacers, tape and roller sets are added where the job needs them.',
+                      'Tiles carry 8% cutting waste. Every quantity is rounded up, never down: to a whole bag, piece or length, or to 0.01 for sand, gravel and tie wire. Open View Formula on any line to check the working by hand.',
                   icon: Icons.aspect_ratio_outlined,
                 ),
               ],
@@ -687,6 +687,23 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
             fontSize: 16,
           ),
           suffixText: 'sqm',
+          // Says which dimensions make the area, the same way the room
+          // fields name theirs. Replaced by the error when there is one.
+          helperText: 'Length × width, in meters. A 6 m × 3 m area is 18 sqm.',
+          helperMaxLines: 2,
+          helperStyle: GoogleFonts.poppins(
+            fontSize: 11,
+            color: const Color(0xFF8FB2D4),
+            height: 1.3,
+          ),
+          errorMaxLines: 3,
+          // The theme's dark red is hard to read on this navy panel.
+          errorStyle: GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFFFFB4A8),
+            height: 1.3,
+          ),
           filled: true,
           fillColor: GlitchedFlowShell.cream,
           border: OutlineInputBorder(
@@ -711,11 +728,15 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         ),
         validator: (value) {
           final parsed = double.tryParse(value?.trim() ?? '');
+          // Each message names the unit and the dimensions, as the room-size
+          // messages do ("Enter a room length between 0.5 and 30 m.").
           if (parsed == null || !parsed.isFinite || parsed <= 0) {
-            return 'Enter a valid area greater than 0';
+            return 'Enter a valid area greater than 0 sqm '
+                '(length × width, in meters).';
           }
           if (parsed > 100000) {
-            return 'That area looks too large — check the value';
+            return 'That area looks too large — check the value. '
+                'Enter 100,000 sqm or less.';
           }
           return null;
         },

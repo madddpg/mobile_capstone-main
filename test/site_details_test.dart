@@ -126,7 +126,7 @@ void main() {
     test('each figure explains itself', () {
       final t = SiteTakeoff.from(bathroom());
       expect(t.floorLine, 'Floor: 2.00 × 1.50 m = 3.0 sq.m');
-      expect(t.wallTileLine, contains('less 1.8 sq.m of doors and windows'));
+      expect(t.wallTileLine, contains('less 1.83 sq.m of doors and windows'));
       expect(t.paintLine, 'Paint: 0.0 sq.m of wall + 3.0 sq.m of ceiling = 3.0 sq.m');
       expect(t.summary, startsWith('Floor 3.0 sq.m'));
     });

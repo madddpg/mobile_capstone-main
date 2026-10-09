@@ -15,11 +15,30 @@ import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/core/state/user_state/user_provider.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/auth/presentation/screens/cost_estimation.dart';
+import 'package:iconstruct/features/project_creation/data/ai_material_consultant_service.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
+import 'package:iconstruct/features/project_creation/screens/ai_recommendations_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/describe_project_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/select_renovation_type_screen.dart';
+import 'package:iconstruct/features/project_creation/screens/select_work_items_screen.dart';
+
+/// An AI that cannot be reached, as with no internet.
+class _UnreachableAi extends AiMaterialConsultantService {
+  @override
+  Future<AiWorkRecommendResult> recommendWork({
+    required String projectType,
+    required String scope,
+    required String description,
+    required WorkCatalogue catalogue,
+  }) async =>
+      const AiWorkRecommendResult(
+        success: false,
+        errorMessage: '${AiMaterialConsultantService.unreachableMessage} '
+            '${AiMaterialConsultantService.buildMyBomHint}',
+      );
+}
 
 const _warning = LeaveWarning(
   title: 'Lose it?',
@@ -309,6 +328,93 @@ void main() {
       await tester.tap(find.text('Keep editing'));
       await tester.pumpAndSettle();
       expect(find.text('Retile the floor'), findsOneWidget);
+    });
+
+    // AI Work Recommendation, run 2: "If the user types a description but
+    // presses the back button, a warning dialog asks 'Clear your
+    // description?'". The screens after Recommend used to answer back with
+    // "Leave this estimate?", saying the choices made so far would be
+    // cleared, though back only returned to the description.
+    testWidgets('AI describe: back with a description asks to clear it', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        app(
+          () => const DescribeProjectScreen(
+            projectName: 'Bathroom Renovation',
+            scope: RenovationScope.cosmetic,
+            method: PlanningMethod.ai,
+          ),
+        ),
+      );
+      await _open(tester);
+      await tester.enterText(
+          find.byType(TextField), 'Retile the floor and fix the toilet');
+
+      // The header back button and Android's system back alike.
+      await tester.tap(find.byType(OffsetBackButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Clear your description?'), findsOneWidget);
+      await tester.tap(find.text('Keep editing'));
+      await tester.pumpAndSettle();
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Clear your description?'), findsOneWidget);
+      expect(find.text('Leave this estimate?'), findsNothing);
+    });
+
+    testWidgets('Recommended Work: back returns to the description at once', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        app(
+          () => AiRecommendationsScreen(
+            projectName: 'Bathroom Renovation',
+            scope: RenovationScope.cosmetic,
+            description: 'Retile the floor and fix the toilet',
+            service: _UnreachableAi(),
+          ),
+        ),
+      );
+      await _open(tester);
+      expect(find.text('Build my BOM'), findsOneWidget);
+
+      await tester.tap(find.byType(OffsetBackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('open'), findsOneWidget);
+    });
+
+    testWidgets('the AI\'s picks: back is free until the builder changes them',
+        (tester) async {
+      await tester.pumpWidget(
+        app(
+          () => SelectWorkItemsScreen(
+            catalogue: RenovationTemplatesCatalog.workCatalogueFor(
+                'Bathroom Renovation'),
+            projectName: 'Bathroom Renovation',
+            types: RenovationTypes.only(RenovationScope.cosmetic),
+            recommended: const {'retile_floor': 'Tiles are cracked'},
+          ),
+        ),
+      );
+      await _open(tester);
+
+      await tester.tap(find.byType(OffsetBackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('open'), findsOneWidget);
+
+      // Once a pick is changed, back says what it undoes.
+      await _open(tester);
+      await tester.ensureVisible(find.text('Retile the floor'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Retile the floor'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(OffsetBackButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Undo your work picks?'), findsOneWidget);
     });
 
     testWidgets('BOM review has a back button, and warns after an edit', (

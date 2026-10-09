@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:iconstruct/features/project_creation/data/functional_counts.dart';
 import 'package:iconstruct/features/project_creation/data/material_kind.dart';
 import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
@@ -80,6 +82,12 @@ class BomQuantityEstimator {
     // Add Master Foreman Auxiliary Consumables if not present (skip for AI consultation templates)
     if (!isConsultation) {
       _addForemanAuxiliaries(items);
+      // The spacer line is added above at one pack; size it from the tiled
+      // face, as the adhesive and grout are.
+      final settled = requantifyTileSetting(items, area, takeoff: takeoff);
+      items
+        ..clear()
+        ..addAll(settled);
     }
 
     return items;
@@ -95,7 +103,12 @@ class BomQuantityEstimator {
   /// Adhesive and grout used to be sized from the floor area alone. A 20 sq.m
   /// bathroom also carries about 44 sq.m of wall tile, so the BOM asked for
   /// 5 bags of adhesive against roughly 64 sq.m of tiling.
-  static ({double floorSqm, double wallSqm, double groutKg})? tileSettingBasis(
+  static ({
+    double floorSqm,
+    double wallSqm,
+    double groutKg,
+    List<({String surface, double sqm, String size})> groutParts,
+  })? tileSettingBasis(
     List<RenovationTemplateItem> items,
     double areaSqm, {
     SiteTakeoff? takeoff,
@@ -104,7 +117,7 @@ class BomQuantityEstimator {
     RenovationTemplateItem? floor;
     RenovationTemplateItem? measuredWall;
     var wallSqm = 0.0;
-    var groutKg = 0.0;
+    final parts = <({String surface, double sqm, String size})>[];
 
     for (final item in items) {
       switch (classifyMaterial(item)) {
@@ -119,7 +132,7 @@ class BomQuantityEstimator {
         case MaterialKind.wallTile:
           final sqm = _wallTileArea(item, area);
           wallSqm += sqm;
-          groutKg += sqm * PhRenovationRates.groutKgPerSqm(item.size ?? '');
+          parts.add((surface: 'wall', sqm: sqm, size: item.size ?? ''));
         default:
           break;
       }
@@ -127,16 +140,38 @@ class BomQuantityEstimator {
 
     if (takeoff != null && measuredWall != null) {
       wallSqm = takeoff.wallTileSqm;
-      groutKg +=
-          wallSqm * PhRenovationRates.groutKgPerSqm(measuredWall.size ?? '');
+      parts.add(
+          (surface: 'wall', sqm: wallSqm, size: measuredWall.size ?? ''));
     }
 
     if (floor == null && wallSqm == 0) return null;
     final floorSqm = floor == null ? 0.0 : area;
     if (floor != null) {
-      groutKg += floorSqm * PhRenovationRates.groutKgPerSqm(floor.size ?? '');
+      parts.insert(0, (surface: 'floor', sqm: floorSqm, size: floor.size ?? ''));
     }
-    return (floorSqm: floorSqm, wallSqm: wallSqm, groutKg: groutKg);
+    final groutKg = parts.fold(
+        0.0,
+        (sum, p) =>
+            sum + p.sqm * PhRenovationRates.groutKgPerSqm(p.size));
+    return (
+      floorSqm: floorSqm,
+      wallSqm: wallSqm,
+      groutKg: groutKg,
+      groutParts: parts,
+    );
+  }
+
+  /// Tile spacers per sq.m of tile, before the 8% allowance: one pack per
+  /// 10 sq.m of tiled face.
+  static const double spacerPacksPerSqm = 0.10;
+
+  static bool _isTileSpacer(RenovationTemplateItem item) =>
+      item.name.toLowerCase().contains('spacer');
+
+  /// Spacer packs for [tiledSqm] of tile, plus 8%, at least one pack.
+  static double spacerPacks(double tiledSqm, [double? perSqm]) {
+    final rate = perSqm != null && perSqm > 0 ? perSqm : spacerPacksPerSqm;
+    return math.max(1.0, PhRenovationRates.roundUp(tiledSqm * rate * 1.08));
   }
 
   /// Re-sizes the adhesive and grout lines from the tiles currently in
@@ -150,8 +185,8 @@ class BomQuantityEstimator {
     final basis = tileSettingBasis(items, areaSqm, takeoff: takeoff);
     if (basis == null) return List.of(items);
 
-    final bags = PhRenovationRates.calculateTileAdhesiveBags(
-        basis.floorSqm + basis.wallSqm);
+    final tiledSqm = basis.floorSqm + basis.wallSqm;
+    final bags = PhRenovationRates.calculateTileAdhesiveBags(tiledSqm);
     final packs = PhRenovationRates.groutPacksForKg(basis.groutKg);
     return [
       for (final item in items)
@@ -160,6 +195,10 @@ class BomQuantityEstimator {
             item.copyWith(defaultQuantity: bags, unit: 'bags'),
           MaterialKind.tileGrout =>
             item.copyWith(defaultQuantity: packs, unit: 'packs'),
+          // Spacers sit in every joint, wall as well as floor. They used to
+          // stay at the one pack they were added with, whatever the area.
+          _ when _isTileSpacer(item) => item.copyWith(
+              defaultQuantity: spacerPacks(tiledSqm, item.qtyPerSqm)),
           _ => item,
         },
     ];
@@ -438,13 +477,13 @@ class BomQuantityEstimator {
   /// Skirting runs round the room less its doorways, plus 5% for mitred
   /// corners and cut ends.
   static double _skirtingQuantity(SiteTakeoff takeoff) {
-    final lm = (takeoff.skirtingM * 1.05).ceilToDouble();
+    final lm = PhRenovationRates.roundUp(takeoff.skirtingM * 1.05);
     return lm < 1 ? 1.0 : lm;
   }
 
   /// Counter top at a standard 0.60 m depth, plus 8% for cutting.
   static double _countertopQuantity(SiteTakeoff takeoff) {
-    final sqm = (takeoff.countertopSqm * 1.08).ceilToDouble();
+    final sqm = PhRenovationRates.roundUp(takeoff.countertopSqm * 1.08);
     return sqm < 1 ? 1.0 : sqm;
   }
 
@@ -522,86 +561,147 @@ class BomQuantityEstimator {
     RenovationTemplateItem item,
     FunctionalCounts counts,
   ) {
+    // The name tests below are loose ("coupling"), so a PPR coupling in a
+    // combined plumbing and wiring job must not be sized as conduit.
+    if (classifyMaterial(item) != MaterialKind.electrical) return null;
     if (_isOutletDevice(item)) return counts.outlets.toDouble();
     if (_isLightSwitchDevice(item)) return counts.switches.toDouble();
     if (_isCeilingLightDevice(item)) return counts.lights.toDouble();
     if (_isUtilityBoxDevice(item)) return counts.deviceCount.toDouble();
     if (_isOutletCircuitWire(item)) {
       final m = _outletCircuitRunM(counts);
-      return m <= 0 ? 0.0 : (m * 1.08).ceilToDouble();
+      return m <= 0 ? 0.0 : PhRenovationRates.roundUp(m * 1.08);
     }
     if (_isLightingCircuitWire(item)) {
       final m = _lightingCircuitRunM(counts);
-      return m <= 0 ? 0.0 : (m * 1.08).ceilToDouble();
+      return m <= 0 ? 0.0 : PhRenovationRates.roundUp(m * 1.08);
     }
     if (_isApplianceCircuitWire(item)) {
-      return (kApplianceCircuitRunM * 1.08).ceilToDouble();
+      return PhRenovationRates.roundUp(kApplianceCircuitRunM * 1.08);
     }
     if (_isElectricalConduit(item) || _isConduitCoupling(item)) {
       final totalRunM = _outletCircuitRunM(counts) + _lightingCircuitRunM(counts);
-      return totalRunM <= 0 ? 0.0 : (totalRunM / 3.0).ceilToDouble();
+      return totalRunM <= 0 ? 0.0 : PhRenovationRates.roundUp(totalRunM / 3.0);
     }
     return null;
   }
 
   /// [_functionalWiringQuantity]'s formula string, for the "View Formula"
-  /// panel. `null` for the same lines that function leaves unmatched.
+  /// panel, worked out to [qty]. `null` for the lines that function leaves
+  /// unmatched.
   static String? _functionalWiringFormula(
     RenovationTemplateItem item,
     FunctionalCounts counts,
-    double currentQty,
+    double qty,
   ) {
     String devicePlural(int n, String noun) => '$n $noun${n == 1 ? '' : 's'}';
+    String n(double v) => PhRenovationRates.numText(v);
+    final unit = item.unit;
 
+    if (classifyMaterial(item) != MaterialKind.electrical) return null;
     if (_isOutletDevice(item)) {
       return '${devicePlural(counts.outlets, 'outlet')} requested = '
-          '${_fmtQty(currentQty)} ${item.unit}\n'
+          '${n(qty)} $unit\n'
           '(Quantity: set by the builder, not scaled from the room)';
     }
     if (_isLightSwitchDevice(item)) {
       return '${devicePlural(counts.switches, 'switch')} requested = '
-          '${_fmtQty(currentQty)} ${item.unit}\n'
+          '${n(qty)} $unit\n'
           '(Quantity: set by the builder, not scaled from the room)';
     }
     if (_isCeilingLightDevice(item)) {
       return '${devicePlural(counts.lights, 'light')} requested = '
-          '${_fmtQty(currentQty)} ${item.unit}\n'
+          '${n(qty)} $unit\n'
           '(Quantity: set by the builder, not scaled from the room)';
     }
     if (_isUtilityBoxDevice(item)) {
       return '${devicePlural(counts.outlets, 'outlet')} + '
           '${devicePlural(counts.switches, 'switch')} + '
           '${devicePlural(counts.lights, 'light')} = '
-          '${_fmtQty(currentQty)} ${item.unit}\n'
+          '${n(qty)} $unit\n'
           '(Quantity: one utility box per device)';
     }
     if (_isOutletCircuitWire(item)) {
+      final run = _outletCircuitRunM(counts);
       return '${devicePlural(counts.outlets, 'outlet')} × $kOutletRunM m per run '
-          '× 1.08 waste = ${_fmtQty(currentQty)} ${item.unit}\n'
+          '= ${n(run)} m × 1.08 waste '
+          '${PhRenovationRates.resultText(run * 1.08, qty, unit)}\n'
           '(Quantity: app assumption of an average outlet run off the circuit '
           'loop, plus 8% waste — a wiring diagram may call for more or less)';
     }
     if (_isLightingCircuitWire(item)) {
       final devices = counts.switches + counts.lights;
+      final run = _lightingCircuitRunM(counts);
       return '${devicePlural(devices, 'switch or light')} × $kLightingRunM m per '
-          'run × 1.08 waste = ${_fmtQty(currentQty)} ${item.unit}\n'
+          'run = ${n(run)} m × 1.08 waste '
+          '${PhRenovationRates.resultText(run * 1.08, qty, unit)}\n'
           '(Quantity: app assumption of an average lighting-circuit run, plus '
           '8% waste)';
     }
     if (_isApplianceCircuitWire(item)) {
-      return '1 dedicated circuit × $kApplianceCircuitRunM m × 1.08 waste = '
-          '${_fmtQty(currentQty)} ${item.unit}\n'
+      return '1 dedicated circuit × $kApplianceCircuitRunM m × 1.08 waste '
+          '${PhRenovationRates.resultText(kApplianceCircuitRunM * 1.08, qty, unit)}\n'
           '(Quantity: app assumption of one run from the panel to the '
           'appliance location)';
     }
     if (_isElectricalConduit(item) || _isConduitCoupling(item)) {
-      final totalRunM = _outletCircuitRunM(counts) + _lightingCircuitRunM(counts);
-      return '${totalRunM.toStringAsFixed(1)} m of circuit wire ÷ 3 m length = '
-          '${_fmtQty(currentQty)} ${item.unit}\n'
-          '(Quantity: outlet and lighting circuit runs share one raceway)';
+      final outletRun = _outletCircuitRunM(counts);
+      final lightingRun = _lightingCircuitRunM(counts);
+      final totalRunM = outletRun + lightingRun;
+      final per = _isConduitCoupling(item)
+          ? 'one coupling per 3 m conduit length'
+          : 'conduit in 3 m lengths';
+      return '${n(outletRun)} m outlet run + ${n(lightingRun)} m lighting run '
+          '= ${n(totalRunM)} m of circuit run ÷ 3 m per length '
+          '${PhRenovationRates.resultText(totalRunM / 3.0, qty, unit)}\n'
+          '(Quantity: outlet and lighting runs share one raceway, $per; the '
+          'run is measured before the 8% wire allowance)';
     }
     return null;
   }
+
+  static bool _isDeviceLine(RenovationTemplateItem item) =>
+      classifyMaterial(item) == MaterialKind.electrical &&
+      (_isOutletDevice(item) ||
+          _isLightSwitchDevice(item) ||
+          _isCeilingLightDevice(item));
+
+  /// The device counts once the builder types [quantity] on [item] in the
+  /// review, or `null` when [item] is not an outlet, switch or light line.
+  static FunctionalCounts? countsAfterEdit(
+    RenovationTemplateItem item,
+    double quantity,
+    FunctionalCounts counts,
+  ) {
+    if (!_isDeviceLine(item)) return null;
+    final n = quantity.isFinite ? quantity.round().clamp(0, 999) : 0;
+    if (_isOutletDevice(item)) return counts.copyWith(outlets: n);
+    if (_isLightSwitchDevice(item)) return counts.copyWith(switches: n);
+    return counts.copyWith(lights: n);
+  }
+
+  /// Re-sizes the wire, conduit, couplings and utility boxes that [counts]
+  /// drive, after a device count changed in the review.
+  ///
+  /// Typing 4 on the outlet line used to leave the outlet wire at the 10 m it
+  /// had for 3 outlets, so the list no longer matched its own formula. The
+  /// device lines keep the quantity typed on them, a line that would drop to
+  /// nothing keeps its quantity, and every other line is returned as it is.
+  static List<RenovationTemplateItem> requantifyWiring(
+    List<RenovationTemplateItem> items,
+    FunctionalCounts counts,
+  ) =>
+      [
+        for (final item in items)
+          if (_isDeviceLine(item))
+            item
+          else
+            switch (_functionalWiringQuantity(item, counts)) {
+              final qty? when qty > 0 && qty != item.defaultQuantity =>
+                item.copyWith(defaultQuantity: qty),
+              _ => item,
+            },
+      ];
 
   /// Generic fixed-count / rate-based scaling for items with no dedicated
   /// DPWH formula (fixtures, tools, linear goods, area goods).
@@ -611,7 +711,7 @@ class BomQuantityEstimator {
     }
     final raw = item.qtyPerSqm! * area;
     final withWaste = raw * 1.08;
-    return withWaste < 1 ? 1.0 : withWaste.ceilToDouble();
+    return withWaste < 1 ? 1.0 : PhRenovationRates.roundUp(withWaste);
   }
 
   /// Shown with a structural BOM. What can be sized from a room is listed;
@@ -626,8 +726,8 @@ class BomQuantityEstimator {
   static String structuralNoteFor(SiteTakeoff? takeoff) {
     if (takeoff == null || takeoff.netWallSqm <= 0) return structuralNote;
     return 'Structural quantities use the measured '
-        '${takeoff.floorSqm.toStringAsFixed(1)} sq.m of floor for a 100 mm slab '
-        'and the measured ${takeoff.netWallSqm.toStringAsFixed(1)} sq.m of wall, '
+        '${PhRenovationRates.areaText(takeoff.floorSqm)} sq.m of floor for a 100 mm slab '
+        'and the measured ${PhRenovationRates.areaText(takeoff.netWallSqm)} sq.m of wall, '
         'less doors and windows, for 4" CHB. Footings, columns, beams, roof '
         'framing and underpinning are not included; take those from a plan '
         'signed by a licensed civil engineer.';
@@ -766,15 +866,45 @@ class BomQuantityEstimator {
     );
   }
 
-  static String _tiledAreaLine(
-          ({double floorSqm, double wallSqm, double groutKg}) tiled) =>
-      'Tiled area: ${tiled.floorSqm.toStringAsFixed(1)} sq.m floor + '
-      '${tiled.wallSqm.toStringAsFixed(1)} sq.m wall';
+  static String _tiledAreaLine(double floorSqm, double wallSqm) =>
+      'Tiled area: ${PhRenovationRates.areaText(floorSqm)} sq.m floor + '
+      '${PhRenovationRates.areaText(wallSqm)} sq.m wall = '
+      '${PhRenovationRates.areaText(floorSqm + wallSqm)} sq.m';
+
+  /// The quantity [item]'s measurements give, worked out exactly as the list
+  /// was built. Adhesive, grout and spacers come from the tiles in [bom].
+  static double computedQuantity({
+    required RenovationTemplateItem item,
+    required double areaSqm,
+    List<RenovationTemplateItem> bom = const [],
+    SiteTakeoff? takeoff,
+    FunctionalCounts? counts,
+  }) {
+    final basis = tileSettingBasis(bom, areaSqm, takeoff: takeoff);
+    switch (classifyMaterial(item)) {
+      case MaterialKind.tileAdhesive when basis != null:
+        return PhRenovationRates.calculateTileAdhesiveBags(
+            basis.floorSqm + basis.wallSqm);
+      case MaterialKind.tileGrout when basis != null:
+        return PhRenovationRates.groutPacksForKg(basis.groutKg);
+      default:
+        if (basis != null && _isTileSpacer(item)) {
+          return spacerPacks(basis.floorSqm + basis.wallSqm, item.qtyPerSqm);
+        }
+        return estimateQuantity(
+            item: item, areaSqm: areaSqm, takeoff: takeoff, counts: counts);
+    }
+  }
 
   /// Returns formula transparency string for displaying on material cards.
   ///
-  /// [bom] is the whole list the line sits in. Adhesive and grout are sized
-  /// from the tiles in it, so their formula needs it to show the real basis.
+  /// The working always arrives at the quantity the measurements give, so
+  /// every figure in it can be checked by hand. When the builder typed a
+  /// different quantity, that is said underneath rather than written in as
+  /// the result of a sum that does not produce it.
+  ///
+  /// [bom] is the whole list the line sits in. Adhesive, grout and spacers
+  /// are sized from the tiles in it, so their formula needs it.
   static String getFormulaString({
     required RenovationTemplateItem item,
     required double areaSqm,
@@ -783,10 +913,46 @@ class BomQuantityEstimator {
     SiteTakeoff? takeoff,
     FunctionalCounts? counts,
   }) {
+    final qty = computedQuantity(
+        item: item,
+        areaSqm: areaSqm,
+        bom: bom,
+        takeoff: takeoff,
+        counts: counts);
+    final formula = _formulaFor(
+        item: item,
+        areaSqm: areaSqm,
+        qty: qty,
+        bom: bom,
+        takeoff: takeoff,
+        counts: counts);
+    final same = (PhRenovationRates.clean(currentQty) -
+                PhRenovationRates.clean(qty))
+            .abs() <
+        1e-9;
+    if (same) return formula;
+    return '$formula\nYou changed this line to ${_fmtQty(currentQty)} '
+        '${item.unit}. The working above is the quantity the measurements '
+        'give.';
+  }
+
+  static String _formulaFor({
+    required RenovationTemplateItem item,
+    required double areaSqm,
+    required double qty,
+    required List<RenovationTemplateItem> bom,
+    SiteTakeoff? takeoff,
+    FunctionalCounts? counts,
+  }) {
     final area = _baseArea(areaSqm, takeoff);
     final sizeKey = item.size ?? '';
+    final slabKey = sizeKey.isEmpty ? '100mm' : sizeKey;
     final wallArea = _newWallArea(area, takeoff);
     final paintArea = _paintArea(area, takeoff, item);
+    String n(double v) => PhRenovationRates.numText(v);
+    String sqm(double v) => PhRenovationRates.areaText(v);
+    String result(double raw) =>
+        PhRenovationRates.resultText(raw, qty, item.unit);
 
     // A measured room states its measurement first, so the builder can check
     // the room before checking the rate.
@@ -804,138 +970,150 @@ class BomQuantityEstimator {
         return measured(
           takeoff?.wallTileLine,
           PhRenovationRates.wallTileFormulaString(
-              _wallTileArea(item, area, takeoff), sizeKey, currentQty),
+              _wallTileArea(item, area, takeoff), sizeKey, qty),
         );
       case MaterialKind.floorTile:
         return measured(
           floorLine,
-          PhRenovationRates.floorTileFormulaString(area, sizeKey, currentQty),
+          PhRenovationRates.floorTileFormulaString(area, sizeKey, qty),
         );
       case MaterialKind.tileAdhesive:
-        final adhesiveBasis = tileSettingBasis(bom, area, takeoff: takeoff);
-        if (adhesiveBasis == null) {
-          return PhRenovationRates.tileAdhesiveFormulaString(area, currentQty);
+        final basis = tileSettingBasis(bom, area, takeoff: takeoff);
+        if (basis == null) {
+          return PhRenovationRates.tileAdhesiveFormulaString(area, qty);
         }
-        return '${_tiledAreaLine(adhesiveBasis)}\n'
-            '${PhRenovationRates.tileAdhesiveFormulaString(adhesiveBasis.floorSqm + adhesiveBasis.wallSqm, currentQty)}';
+        return '${_tiledAreaLine(basis.floorSqm, basis.wallSqm)}\n'
+            '${PhRenovationRates.tileAdhesiveFormulaString(basis.floorSqm + basis.wallSqm, qty)}';
       case MaterialKind.tileGrout:
-        final groutBasis = tileSettingBasis(bom, area, takeoff: takeoff);
-        if (groutBasis == null) {
-          return PhRenovationRates.tileGroutFormulaString(
-              area, sizeKey, currentQty);
+        final basis = tileSettingBasis(bom, area, takeoff: takeoff);
+        if (basis == null) {
+          return PhRenovationRates.tileGroutFormulaString(area, sizeKey, qty);
         }
-        return '${_tiledAreaLine(groutBasis)}\n'
-            '${(groutBasis.floorSqm + groutBasis.wallSqm).toStringAsFixed(1)} sq.m × grout joint factor by tile face = '
-            '${groutBasis.groutKg.toStringAsFixed(1)} kg → ${_fmtQty(currentQty)} packs (2kg pack)\n'
-            '(Material spec: DPWH Vol. III Item 1018 | Quantity: joint volume from tile size, manufacturer coverage)';
+        final parts = [
+          for (final p in basis.groutParts)
+            PhRenovationRates.groutPartText(p.sqm, p.size, surface: p.surface),
+        ].join(' + ');
+        return '$parts ${PhRenovationRates.groutPacksText(basis.groutKg, qty)}\n'
+            '(Material spec: DPWH Vol. III Item 1018 | Quantity: grout by tile face, 0.12 to 0.30 kg per sq.m; manufacturer coverage)';
       case MaterialKind.paintPrimer:
-        return measured(paintLine,
-            '${paintArea.toStringAsFixed(1)} sq.m x 0.04 gal/sq.m (1 sealing coat) = ${currentQty.toInt()} gal (4L)\n(Material spec: DPWH Vol. III Item 1032 Painting, Varnishing and Other Related Works | Quantity: manufacturer spreading rate, 1 sealing coat)');
+        return measured(
+            paintLine, PhRenovationRates.primerFormulaString(paintArea, qty));
       case MaterialKind.paintTopcoat:
-        return measured(paintLine,
-            '${paintArea.toStringAsFixed(1)} sq.m x 0.06 gal/sq.m (2 finish coats) = ${currentQty.toInt()} gal (4L)\n(Material spec: DPWH Vol. III Item 1032 Painting, Varnishing and Other Related Works | Quantity: manufacturer spreading rate, 2 finish coats; primer counted separately)');
+        return measured(
+            paintLine, PhRenovationRates.topcoatFormulaString(paintArea, qty));
       case MaterialKind.skimCoat:
-        return measured(paintLine,
-            PhRenovationRates.skimCoatFormulaString(paintArea, currentQty));
+        return measured(
+            paintLine, PhRenovationRates.skimCoatFormulaString(paintArea, qty));
       case MaterialKind.structuralCement:
         return measured(
           floorLine,
-          PhRenovationRates.structuralCementFormulaString(
-              area, sizeKey.isEmpty ? '100mm' : sizeKey, currentQty),
+          PhRenovationRates.structuralCementFormulaString(area, slabKey, qty),
         );
       case MaterialKind.waterproofing
           when takeoff != null &&
               takeoff.waterproofingSqm > 0 &&
               (item.qtyPerSqm ?? 0) > 0:
+        final rate = item.qtyPerSqm!;
         return '${takeoff.waterproofingLine}\n'
-            '${takeoff.waterproofingSqm.toStringAsFixed(1)} sq.m × ${item.qtyPerSqm} ${item.unit}/sq.m × 1.08 = ${_fmtQty(currentQty)} ${item.unit}\n'
+            '${sqm(takeoff.waterproofingSqm)} sq.m × ${n(rate)} ${item.unit}/sq.m × 1.08 '
+            '${result(takeoff.waterproofingSqm * rate * 1.08)}\n'
             '(Quantity: manufacturer coverage for two coats plus 8% allowance | see docs/material-data-sources.md)';
       case MaterialKind.areaGoods
           when takeoff != null &&
               _isCountertop(item) &&
               takeoff.countertopSqm > 0:
         return '${takeoff.countertopLine}\n'
-            '${takeoff.countertopSqm.toStringAsFixed(2)} sq.m × 1.08 cutting allowance = ${_fmtQty(currentQty)} ${item.unit}\n'
-            '(Quantity: standard 0.60 m counter depth plus 8% allowance)';
-      case MaterialKind.areaGoods
-          when takeoff != null &&
-              (isFloorFinishGoods(item) || _isUnderlayment(item)) &&
-              (item.qtyPerSqm ?? 0) > 0:
-        return '${takeoff.floorLine}\n'
-            '${area.toStringAsFixed(1)} sq.m × ${item.qtyPerSqm} × 1.08 cutting allowance = ${_fmtQty(currentQty)} ${item.unit}\n'
-            '(Quantity: laid area plus 8% cutting waste, Fajardo)';
+            '${sqm(takeoff.countertopSqm)} sq.m × 1.08 cutting allowance '
+            '${result(takeoff.countertopSqm * 1.08)}\n'
+            '(Quantity: standard 0.60 m counter depth plus 8% allowance, ordered in whole sq.m)';
       case MaterialKind.genericConsumable
           when takeoff != null && _isSkirting(item) && takeoff.skirtingM > 0:
         return '${takeoff.skirtingLine}\n'
-            '${takeoff.skirtingM.toStringAsFixed(2)} m × 1.05 cutting allowance = ${_fmtQty(currentQty)} ${item.unit}\n'
+            '${n(takeoff.skirtingM)} m × 1.05 cutting allowance '
+            '${result(takeoff.skirtingM * 1.05)}\n'
             '(Quantity: room perimeter less doorways plus 5% for mitred corners)';
       case MaterialKind.roofingSheet when _roofingPart(item) != null:
         return switch (_roofingPart(item)) {
-          'roofTile' =>
-            PhRenovationRates.roofTileFormulaString(area, currentQty),
-          'sheet' => PhRenovationRates.ribTypeFormulaString(area, currentQty),
-          _ => PhRenovationRates.ridgeFormulaString(area, currentQty, item.unit),
+          'roofTile' => PhRenovationRates.roofTileFormulaString(area, qty),
+          'sheet' => PhRenovationRates.ribTypeFormulaString(area, qty),
+          _ => PhRenovationRates.ridgeFormulaString(area, qty, item.unit),
         };
       case MaterialKind.roofSealant:
-        return PhRenovationRates.roofSealantFormulaString(area, currentQty);
+        return PhRenovationRates.roofSealantFormulaString(area, qty);
       case MaterialKind.genericConsumable when _isTekscrew(item):
-        return PhRenovationRates.tekscrewFormulaString(area, currentQty);
+        return PhRenovationRates.tekscrewFormulaString(area, qty);
       case MaterialKind.cementBedding when _isRidgeBedding(item):
-        return PhRenovationRates.ridgeCementFormulaString(area, currentQty);
+        return PhRenovationRates.ridgeCementFormulaString(area, qty);
       case MaterialKind.cementBedding:
         return measured(floorLine,
-            PhRenovationRates.beddingCementFormulaString(area, currentQty));
+            PhRenovationRates.beddingCementFormulaString(area, qty));
       case MaterialKind.chbMortar:
         return measured(
           wallLine,
-          PhRenovationRates.chbCementFormulaString(
-              wallArea, sizeKey, currentQty),
+          PhRenovationRates.chbCementFormulaString(wallArea, sizeKey, qty),
         );
       case MaterialKind.washedSand:
         if (_isSlabSand(item)) {
-          final slab = PhRenovationRates.slabThicknesses.firstWhere(
-            (t) => t.value == sizeKey,
-            orElse: () => PhRenovationRates.slabThicknesses[0],
-          );
-          final volume = area * slab.thicknessM;
-          return '${floorLine == null ? '' : '$floorLine\n'}Volume: ${area.toStringAsFixed(1)} sq.m × ${slab.thicknessM}m = ${volume.toStringAsFixed(2)} m³ × 0.50 m³ sand/m³ = ${_fmtQty(currentQty)} cu.m washed sand\n(Material spec: DPWH Vol. III Item 900 Reinforced Concrete | Quantity: Class A 1:2:4 mix, 9.0 bags + 0.50 m3 sand + 1.00 m3 gravel per m3, Fajardo)';
+          return measured(floorLine,
+              PhRenovationRates.slabSandFormulaString(area, slabKey, qty));
         }
         if (_isMasonrySand(item)) {
-          return '${wallLine == null ? '' : '$wallLine\n'}${wallArea.toStringAsFixed(1)} sq.m wall × 0.076 cu.m/sq.m (Mortar + 2-Side Plaster) = ${_fmtQty(currentQty)} cu.m washed sand\n(Material spec: DPWH Vol. III Item 1046 Masonry Works and Item 1027 Cement Plaster Finish | Quantity: Class B 1:3 mortar + 16 mm two-face plaster, Fajardo)';
+          return measured(wallLine,
+              PhRenovationRates.chbSandFormulaString(wallArea, sizeKey, qty));
         }
-        return measured(floorLine,
-            PhRenovationRates.beddingSandFormulaString(area, currentQty));
+        return measured(
+            floorLine, PhRenovationRates.beddingSandFormulaString(area, qty));
       case MaterialKind.gravel:
-        final slab = PhRenovationRates.slabThicknesses.firstWhere(
-          (t) => t.value == sizeKey,
-          orElse: () => PhRenovationRates.slabThicknesses[0],
-        );
-        final volume = area * slab.thicknessM;
-        return '${floorLine == null ? '' : '$floorLine\n'}Volume: ${area.toStringAsFixed(1)} sq.m × ${slab.thicknessM}m = ${volume.toStringAsFixed(2)} m³ × 1.00 m³ gravel/m³ = ${_fmtQty(currentQty)} cu.m crushed gravel\n(Material spec: DPWH Vol. III Item 900 Reinforced Concrete | Quantity: Class A 1:2:4 mix, 1.00 m3 gravel per m3 concrete, Fajardo)';
+        return measured(floorLine,
+            PhRenovationRates.slabGravelFormulaString(area, slabKey, qty));
       case MaterialKind.tieWire:
-        return '${wallLine == null ? '' : '$wallLine\n'}${wallArea.toStringAsFixed(1)} sq.m wall × 0.025 kg/sq.m = ${_fmtQty(currentQty)} kg #16 G.I. tie wire\n(Material spec: DPWH Vol. III Item 902 Reinforcing Steel | Quantity: tie wire for CHB wall reinforcement, Fajardo)';
+        return measured(
+            wallLine, PhRenovationRates.tieWireFormulaString(wallArea, qty));
       case MaterialKind.chbBlock:
         return measured(
-            wallLine, PhRenovationRates.chbFormulaString(wallArea, currentQty));
+            wallLine, PhRenovationRates.chbFormulaString(wallArea, qty));
       case MaterialKind.rebar:
         return measured(
           wallLine,
-          PhRenovationRates.rebarFormulaString(
-              wallArea, sizeKey, currentQty.toInt()),
+          PhRenovationRates.rebarFormulaString(wallArea, sizeKey, qty.toInt()),
         );
       default:
         if (counts != null) {
-          final wiring = _functionalWiringFormula(item, counts, currentQty);
+          final wiring = _functionalWiringFormula(item, counts, qty);
           if (wiring != null) return wiring;
         }
-        final drainage = _roofDrainageFormula(item, area, currentQty);
+        final drainage = _roofDrainageFormula(item, area, qty);
         if (drainage != null) return drainage;
-        return '${area.toStringAsFixed(1)} sq.m x standard rate = ${_fmtQty(currentQty)} ${item.unit}\n(Quantity: Max Fajardo, Simplified Construction Estimate | see docs/material-data-sources.md)';
+        if (_isTileSpacer(item)) {
+          final basis = tileSettingBasis(bom, area, takeoff: takeoff);
+          if (basis != null) {
+            final tiled = basis.floorSqm + basis.wallSqm;
+            final rate = (item.qtyPerSqm ?? 0) > 0
+                ? item.qtyPerSqm!
+                : spacerPacksPerSqm;
+            return '${_tiledAreaLine(basis.floorSqm, basis.wallSqm)}\n'
+                '${sqm(tiled)} sq.m × ${n(rate)} packs/sq.m × 1.08 '
+                '${result(tiled * rate * 1.08)}\n'
+                '(Quantity: one pack per 10 sq.m of tiled face plus 8%, at least one pack)';
+          }
+        }
+        final rate = item.qtyPerSqm;
+        if (rate != null && rate > 0) {
+          return measured(
+            floorLine,
+            '${sqm(area)} sq.m × ${n(rate)} ${item.unit}/sq.m × 1.08 '
+            '${result(area * rate * 1.08)}\n'
+            '(Quantity: template rate per sq.m of floor plus 8% allowance, at least 1 | see docs/material-data-sources.md)',
+          );
+        }
+        return 'Fixed allowance: ${_fmtQty(qty)} ${item.unit} for this job, '
+            'not sized from the measurements\n'
+            '(Quantity: app allowance for one job of this kind; change it if '
+            'your job needs more or less)';
     }
   }
 
-  static String _fmtQty(double q) =>
-      q == q.roundToDouble() ? q.toInt().toString() : q.toStringAsFixed(2);
+  static String _fmtQty(double q) => PhRenovationRates.numText(q);
 
   static const Set<String> _linearUnits = {'ln.m', 'lm', 'l.m', 'm', 'linear m'};
 
@@ -1190,7 +1368,7 @@ class BomQuantityEstimator {
     category: 'Floor Surface',
     unit: 'pcs',
     defaultQuantity: 1,
-    size: '300x300',
+    size: '600x600',
     notes: 'Non-slip for a wet floor',
   );
 

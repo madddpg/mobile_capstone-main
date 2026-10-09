@@ -250,6 +250,14 @@ const _rewireRoom = WorkItem(
   materials: _T._roomWiring,
 );
 
+const _roomApplianceCircuit = WorkItem(
+  id: 'appliance_circuit',
+  label: 'Add a heavy-appliance circuit',
+  detail: 'A dedicated 30 A circuit from the panel, for an air-conditioner',
+  scope: RenovationScope.functional,
+  materials: _T._airconCircuit,
+);
+
 // ── Catalogues ───────────────────────────────────────────────────────────
 
 /// Bathroom: the most kinds of work of any project.
@@ -525,6 +533,7 @@ const WorkCatalogue _roomWork = WorkCatalogue(
     _buildRoomWalls,
     _castSlab,
     _rewireRoom,
+    _roomApplianceCircuit,
   ],
   packages: [
     WorkPackage(
@@ -542,10 +551,12 @@ const WorkCatalogue _roomWork = WorkCatalogue(
       label: 'Repaint only',
       itemIds: ['skim_coat', 'repaint'],
     ),
+    // A rewire includes the heavy-appliance circuit, which the builder can
+    // untick for a room with no air-conditioner.
     WorkPackage(
       id: 'rewire',
       label: 'Rewire',
-      itemIds: ['rewire'],
+      itemIds: ['rewire', 'appliance_circuit'],
     ),
     WorkPackage(
       id: 'build_new',

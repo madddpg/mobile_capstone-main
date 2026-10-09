@@ -136,7 +136,10 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
       subtitle: '${widget.types.label} · ${widget.projectName}',
       instruction:
           'Change any pick before you continue.',
-      onBack: () => const LeaveWarning.exitEstimate(),
+      // Back returns to the description, which is still there, so there is
+      // nothing to warn about. This used to ask "Leave this estimate?" and
+      // say the choices made so far would be cleared, which they were not.
+      onBack: () => null,
       onExit: () => const LeaveWarning.exitEstimate(),
       body: _loading ? _buildLoading() : _buildError(_error ?? ''),
     );
@@ -187,8 +190,9 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
         const SizedBox(height: 12),
         // The checklist needs no model and no network beyond Firestore, so it
         // is the way through when the AI is busy — not a consolation prize.
+        // Named as the message names it, and as the chat names it.
         _outlined(
-          'Pick the work from the checklist instead',
+          'Build my BOM',
           Icons.checklist_rounded,
           _openChecklist,
         ),

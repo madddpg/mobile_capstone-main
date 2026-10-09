@@ -533,7 +533,7 @@ class RenovationTemplatesCatalog {
           _primer,
           _paint,
         ],
-      RenovationScope.functional => _roomWiring,
+      RenovationScope.functional => const [..._roomWiring, ..._airconCircuit],
     };
   }
 
@@ -547,12 +547,15 @@ class RenovationTemplatesCatalog {
     size: '600x600',
   );
 
+  // 600 × 600 like every other floor tile, so the documented default (600 ×
+  // 600 floor, 300 × 600 wall) holds in wet rooms too. It was 300 × 300,
+  // which no computation sheet written from that default reproduced.
   static const _nonSlipFloorTile = RenovationTemplateItem(
     name: 'Non-Slip Floor Tiles',
     category: 'Floor Surface',
     unit: 'pcs',
     defaultQuantity: 1,
-    size: '300x300',
+    size: '600x600',
     notes: 'Non-slip for a wet floor',
   );
 
@@ -1234,6 +1237,27 @@ class RenovationTemplatesCatalog {
       category: 'Wiring',
       unit: 'rolls',
       defaultQuantity: 2,
+    ),
+  ];
+
+  /// A dry room's heavy-appliance circuit, for the air-conditioner a living
+  /// room or bedroom usually gets. The same 5.5 mm² wire as the kitchen's
+  /// range circuit, so it is sized the same way: one fixed run from the panel.
+  static const _airconCircuit = [
+    RenovationTemplateItem(
+      name: 'THHN Stranded Wire 5.5 mm² (#10)',
+      category: 'Wiring',
+      unit: 'm',
+      defaultQuantity: 1,
+      qtyPerSqm: 1.5,
+      notes: 'Dedicated heavy-appliance circuit, such as an air-conditioner',
+    ),
+    RenovationTemplateItem(
+      name: 'Circuit Breaker 30 A (Plug-in)',
+      category: 'Wiring Devices',
+      unit: 'pcs',
+      defaultQuantity: 1,
+      notes: 'Heavy-appliance circuit',
     ),
   ];
 

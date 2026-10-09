@@ -217,9 +217,8 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     if (!result.success) {
       final reason = (result.errorMessage ?? '').trim();
       await _addBotMessage(
-        "${reason.isEmpty ? 'iConstruct AI is unavailable right now.' : reason} "
-        "You can still tap “Build my BOM” and pick the work from the "
-        "checklist yourself — quantities are estimated for you.",
+        '${reason.isEmpty ? AiMaterialConsultantService.unreachableMessage : reason} '
+        '${AiMaterialConsultantService.buildMyBomHint}',
       );
       return;
     }

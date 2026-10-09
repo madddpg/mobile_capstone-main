@@ -72,7 +72,11 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
   LeaveWarning? _backWarning() {
     final changed =
         _selected.length != _opened.length || !_selected.containsAll(_opened);
-    if (!changed) return const LeaveWarning.exitEstimate();
+    // Back from the AI's picks returns to the description, which is still
+    // there, and the picks come back at once on Recommend. Nothing is lost,
+    // so it no longer asks "Leave this estimate?", whose message said the
+    // choices so far would be cleared.
+    if (!changed) return _fromAi ? null : const LeaveWarning.exitEstimate();
     return const LeaveWarning(
       title: 'Undo your work picks?',
       message:

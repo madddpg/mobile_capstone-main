@@ -224,6 +224,21 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                                     color: Color(0xFF2C3E50),
                                   ),
                                 ),
+                                SizedBox(height: 12),
+                                Text(
+                                  'Plan the materials for your home renovation, '
+                                  'send the list to hardware shops around '
+                                  'CALABARZON, and compare their quotations '
+                                  'before you spend anything.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 13,
+                                    height: 1.45,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF4A5D70),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -291,7 +306,11 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                   ),
 
                   const SizedBox(height: 28),
+                  const _HowItWorksSection(),
+                  const SizedBox(height: 28),
                   const _TopShopsSection(),
+                  const SizedBox(height: 24),
+                  const _HomeFootnote(),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -366,17 +385,49 @@ class _MainCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'What would you like to do?',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
+                    color: cream,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Start a new estimate, pick up the last one, or follow the '
+                  'quotations shops send you.',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12.5,
+                    height: 1.4,
+                    color: cream.withValues(alpha: 0.75),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
           _ActionTile(
             icon: Icons.play_circle_outline_rounded,
             title: 'Continue Last Estimate',
-            subtitle: 'Open your latest estimate.',
+            subtitle: 'Pick up where you left off on your latest estimate.',
             onTap: onContinueLastEstimate,
           ),
           const SizedBox(height: 12),
           _ActionTile(
             icon: Icons.home_repair_service_outlined,
             title: 'Start New Estimate',
-            subtitle: 'Plan materials, then canvass shops.',
+            subtitle:
+                'Choose a room and the work to be done, then get a list of '
+                'materials and quantities.',
             onTap: onStartNewRenovation,
             key: startEstimateKey,
           ),
@@ -384,14 +435,16 @@ class _MainCard extends StatelessWidget {
           _ActionTile(
             icon: Icons.folder_open_outlined,
             title: 'My Projects',
-            subtitle: 'Your saved estimates.',
+            subtitle: 'Every estimate you have saved, in one place.',
             onTap: onSavedProjects,
           ),
           const SizedBox(height: 12),
           _ActionTile(
             icon: Icons.campaign_outlined,
             title: 'Post for Bidding',
-            subtitle: 'Request quotations from shops.',
+            subtitle:
+                'Send a finished material list to hardware shops and ask '
+                'them for quotations.',
             onTap: onPostProject,
             key: postBiddingKey,
           ),
@@ -399,7 +452,9 @@ class _MainCard extends StatelessWidget {
           _ActionTile(
             icon: Icons.timeline_outlined,
             title: 'Canvass Tracking',
-            subtitle: 'Follow bids until you pick a shop.',
+            subtitle:
+                'Follow incoming bids and compare quotations until you pick '
+                'a shop.',
             onTap: onViewQuotations,
             key: canvassKey,
           ),
@@ -502,6 +557,175 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
+/// The three steps of the app, said once on the home screen so a builder
+/// who skipped the first-login tour still knows the path.
+class _HowItWorksSection extends StatelessWidget {
+  const _HowItWorksSection();
+
+  static const _steps = [
+    (
+      title: 'Estimate your materials',
+      body:
+          'Pick a room, tick the work, and enter its measurements. iConstruct '
+          'lists the materials and quantities using Philippine construction '
+          'standards.',
+    ),
+    (
+      title: 'Post for bidding',
+      body:
+          'Send the list to hardware shops. Each shop quotes privately and '
+          'never sees another shop\'s prices.',
+    ),
+    (
+      title: 'Compare and choose',
+      body:
+          'Compare quotations side by side, accept the offer that fits your '
+          'budget, then chat with the shop about stock and pickup.',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    const darkBlue = Color(0xFF2C3E50);
+    const cream = Color(0xFFEBE0CC);
+
+    return Container(
+      // Same rule as _MainCard: 330 where it fits, shrinks on narrow phones.
+      width: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 330.0),
+      decoration: BoxDecoration(
+        color: darkBlue,
+        borderRadius: BorderRadius.circular(50),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 30,
+            offset: const Offset(0, 15),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 26),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.lightbulb_outline_rounded, color: cream, size: 28),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'How iConstruct Works',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 21,
+                    fontWeight: FontWeight.w700,
+                    color: cream,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          for (var i = 0; i < _steps.length; i++)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: i == _steps.length - 1 ? 0 : 16,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: cream,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${i + 1}',
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: darkBlue,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _steps[i].title,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            height: 1.3,
+                            color: cream,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _steps[i].body,
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 12,
+                            height: 1.45,
+                            color: cream.withValues(alpha: 0.78),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// What the numbers on the home screen are and are not.
+class _HomeFootnote extends StatelessWidget {
+  const _HomeFootnote();
+
+  @override
+  Widget build(BuildContext context) {
+    const cream = Color(0xFFEBE0CC);
+
+    return SizedBox(
+      width: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 330.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.verified_user_outlined,
+            size: 18,
+            color: cream.withValues(alpha: 0.85),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'iConstruct works out material quantities only. Every price you '
+              'see comes from a quotation a hardware shop sends you, and '
+              'payment is arranged directly with the shop.',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 11.5,
+                height: 1.45,
+                color: cream.withValues(alpha: 0.85),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// First letter of a shop's name for the card medallion.
 String _shopInitial(String name) {
   final trimmed = name.trim();
@@ -588,6 +812,18 @@ class _TopShopsSectionState extends State<_TopShopsSection> {
                 ),
               ),
             ],
+          ),
+
+          const SizedBox(height: 6),
+          Text(
+            'Shops with the best ratings from builders come first. Tap a '
+            'shop to see its storefront.',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 12,
+              height: 1.4,
+              color: cream.withValues(alpha: 0.75),
+            ),
           ),
 
           const SizedBox(height: 18),

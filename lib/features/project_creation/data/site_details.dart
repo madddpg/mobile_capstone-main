@@ -11,6 +11,8 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
+
 /// The kind of room job, which decides what is measured and which finishes
 /// the bill of materials has to carry.
 enum RoomJob {
@@ -676,9 +678,21 @@ class SiteTakeoff {
     );
   }
 
-  static double _r(double v) => (v * 100).round() / 100;
-  static String _m(double v) => v.toStringAsFixed(2);
-  static String _sq(double v) => v.toStringAsFixed(1);
+  // Figures are kept exact (only floating-point noise is removed) and printed
+  // exactly. They used to be rounded to 0.01 sq.m and printed to 0.1, so a
+  // 2.35 × 1.85 m floor was sized as 4.35 sq.m instead of 4.3475, and a wall
+  // of 14.97 sq.m read "15.0": neither is what length × width gives by hand.
+  static double _r(double v) => PhRenovationRates.clean(v);
+
+  /// A length in metres: at least two decimals, more only when they are real.
+  static String _m(double v) {
+    final text = PhRenovationRates.numText(v);
+    final dot = text.indexOf('.');
+    if (dot < 0) return '$text.00';
+    return text.length - dot - 1 < 2 ? '${text}0' : text;
+  }
+
+  static String _sq(double v) => PhRenovationRates.areaText(v);
 
   /// A line as measured on the whole room and, for a job that covers half of
   /// it, the halved figure the materials are actually sized from.

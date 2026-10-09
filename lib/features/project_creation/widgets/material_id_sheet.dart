@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/features/project_creation/data/material_sources.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
+import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
 import 'package:iconstruct/features/project_creation/widgets/material_swatch.dart';
 
 const _kInk = Color(0xFF1E3042);
@@ -67,12 +68,9 @@ class _MaterialIdSheet extends StatelessWidget {
     required this.size,
   });
 
-  String get _qtyLabel {
-    final q = quantity == quantity.roundToDouble()
-        ? quantity.toInt().toString()
-        : quantity.toStringAsFixed(1);
-    return '$q $unit';
-  }
+  /// Exactly as on the list: 0.25 cu.m used to read "0.3 cu.m" here, on the
+  /// line a builder reads out at the counter.
+  String get _qtyLabel => '${PhRenovationRates.numText(quantity)} $unit';
 
   /// The single line a user can read aloud, or paste into a chat with a
   /// supplier, and get the right item quoted.

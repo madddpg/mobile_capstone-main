@@ -70,6 +70,29 @@ class AiMaterialConsultantService {
 
   final RecommendationCache _cache;
 
+  // The messages the builder sees, word for word as the functionality test
+  // expects them. Kept in one place so the recommendation screen and the
+  // chat cannot drift apart.
+
+  /// No internet, or the AI service failed to answer.
+  static const String unreachableMessage =
+      'The AI service is unreachable right now.';
+
+  /// What a builder can still do without the AI.
+  static const String buildMyBomHint =
+      'You can still tap “Build my BOM” and pick the work from the checklist '
+      'yourself — quantities are estimated for you.';
+
+  /// The AI answered but found no work in the catalogue for the description,
+  /// including a description that is not about renovating at all.
+  static const String noWorkPickedMessage =
+      'The AI did not pick any work. Describe the work in more detail or '
+      'start from the checklist instead.';
+
+  /// The server has no AI key to call the model with.
+  static const String keyNotConfiguredMessage =
+      'The AI key is not configured on the server.';
+
   /// Recommends, from [catalogue], the work [description] calls for — a
   /// builder's own account of the job, given the project and its renovation
   /// type.
@@ -124,48 +147,64 @@ class AiMaterialConsultantService {
             'Renovation type: $scope\nWhat the builder wants:\n$description',
       });
 
-      final data = response.data;
-      if (data is! Map) {
-        return const AiWorkRecommendResult(
-          success: false,
-          errorMessage: 'Unexpected AI response.',
-        );
-      }
-
-      final picks = data.containsKey('workItems')
-          ? workPicksFrom(data['workItems'], catalogue)
-          : workPicksFromMaterials(data['materials'], catalogue);
-
-      if (picks.isEmpty) {
-        // The server explains an off-topic description in its own words.
-        final serverError = (data['error'] ?? '').toString().trim();
-        return AiWorkRecommendResult(
-          success: false,
-          errorMessage: serverError.isNotEmpty
-              ? serverError
-              : 'The AI did not pick any work. Describe the work in more '
-                  'detail, or start from the checklist instead.',
-        );
-      }
+      final result = workAnswer(response.data, catalogue);
+      if (!result.success) return result;
       await _cache.write(
         projectType: cacheType,
         scope: scope,
         description: description,
         materials: [
-          for (final pick in picks)
+          for (final pick in result.picks)
             AiRecommendedMaterial(name: pick.id, reason: pick.reason),
         ],
       );
-      return AiWorkRecommendResult(success: true, picks: picks);
+      return result;
     } on FirebaseFunctionsException catch (e) {
+      final message = friendlyError(e);
       return AiWorkRecommendResult(
-          success: false, errorMessage: _friendlyError(e));
+        success: false,
+        // The recommendation screen has a Build my BOM button, so say so.
+        errorMessage: message == unreachableMessage
+            ? '$unreachableMessage $buildMyBomHint'
+            : message,
+      );
     } catch (_) {
       return const AiWorkRecommendResult(
         success: false,
-        errorMessage: 'The AI service is unreachable right now.',
+        errorMessage: '$unreachableMessage $buildMyBomHint',
       );
     }
+  }
+
+  /// What a recommend answer from the server comes to.
+  static AiWorkRecommendResult workAnswer(
+    Object? data,
+    WorkCatalogue catalogue,
+  ) {
+    if (data is! Map) {
+      // An answer the app cannot read is the AI service failing.
+      return const AiWorkRecommendResult(
+        success: false,
+        errorMessage: '$unreachableMessage $buildMyBomHint',
+      );
+    }
+
+    final picks = data.containsKey('workItems')
+        ? workPicksFrom(data['workItems'], catalogue)
+        : workPicksFromMaterials(data['materials'], catalogue);
+
+    if (picks.isEmpty) {
+      // One message whether the description was off-topic or simply named
+      // no work in the catalogue. The server used to have its say on an
+      // off-topic description ("I can only recommend work for a
+      // renovation…"), so the builder saw a different message from the one
+      // the screen documents for this case.
+      return const AiWorkRecommendResult(
+        success: false,
+        errorMessage: noWorkPickedMessage,
+      );
+    }
+    return AiWorkRecommendResult(success: true, picks: picks);
   }
 
   /// The catalogue as the AI is shown it.
@@ -292,7 +331,7 @@ class AiMaterialConsultantService {
             inScope: true,
             reply: '',
             suggestions: const [],
-            errorMessage: _friendlyError(e2),
+            errorMessage: friendlyError(e2),
           );
         }
       }
@@ -301,7 +340,7 @@ class AiMaterialConsultantService {
         inScope: true,
         reply: '',
         suggestions: const [],
-        errorMessage: _friendlyError(e),
+        errorMessage: friendlyError(e),
       );
     } catch (e) {
       return const AiConsultResult(
@@ -309,7 +348,7 @@ class AiMaterialConsultantService {
         inScope: true,
         reply: '',
         suggestions: [],
-        errorMessage: 'The AI service is unreachable right now.',
+        errorMessage: unreachableMessage,
       );
     }
   }
@@ -377,44 +416,54 @@ class AiMaterialConsultantService {
     );
   }
 
-  String _friendlyError(FirebaseFunctionsException e) {
+  /// The message for a failed AI call.
+  ///
+  /// No internet and an AI service that fails are one case to the builder,
+  /// [unreachableMessage]. They used to read "The AI service hit an error"
+  /// (no connection on Android arrives as `internal`), "The AI is busy right
+  /// now… start from a template" (`unavailable`) or "took too long", none of
+  /// which is the documented message.
+  static String friendlyError(FirebaseFunctionsException e) {
     final code = e.code.toLowerCase();
     final message = (e.message ?? '').toLowerCase();
 
     if (code == 'unauthenticated') {
       return 'Please sign in again to use iConstruct AI.';
     }
+    // Only when the server says the key itself is missing. A retired or busy
+    // model used to land here too, which sent builders to check a key that
+    // was configured all along. "GEMINI_API_KEY" is how an older copy of the
+    // function names the missing key.
+    if ((code == 'failed-precondition' || code == 'internal') &&
+        (message.contains('api key') || message.contains('api_key'))) {
+      return keyNotConfiguredMessage;
+    }
     if (code == 'not-found' ||
         message.contains('not_found') ||
         message.contains('not deployed')) {
       return 'The AI service is not deployed yet.';
     }
-    // Only when the server says the key itself is missing. A retired or busy
-    // model used to land here too, which sent builders to check a key that
-    // was configured all along.
-    if (code == 'failed-precondition' && message.contains('api key')) {
-      return 'The AI key is not configured on the server.';
-    }
-    if (code == 'unavailable') {
-      return 'The AI is busy right now. Try again in a moment, or start from '
-          'a template instead.';
-    }
-    if (code == 'deadline-exceeded') {
-      return 'The AI took too long to respond. Try again in a moment.';
-    }
     if (code == 'resource-exhausted') {
       // The server says which limit was hit, when it resets, and that the
-      // templates are still available. Replacing that with a vague line loses
+      // checklist is still available. Replacing that with a vague line loses
       // the only part the builder can act on.
       final detail = (e.message ?? '').trim();
       return detail.isEmpty
           ? 'The AI is over its usage limit right now. Try again later.'
           : detail;
     }
-    if (code == 'internal') {
-      return 'The AI service hit an error. Try again in a moment.';
+    if (const {
+      'unavailable',
+      'internal',
+      'deadline-exceeded',
+      'unknown',
+      'cancelled',
+      'aborted',
+      'data-loss',
+    }.contains(code)) {
+      return unreachableMessage;
     }
     final m = (e.message ?? '').trim();
-    return m.isEmpty ? 'The AI service is unavailable right now.' : m;
+    return m.isEmpty ? unreachableMessage : m;
   }
 }

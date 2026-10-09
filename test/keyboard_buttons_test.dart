@@ -159,7 +159,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('landing and intro use the same full-width action buttons', (
+  testWidgets('landing keeps its Get Started pill and inline Login link', (
     tester,
   ) async {
     await _setPhone(tester, keyboard: false);
@@ -167,13 +167,27 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: LandingScreen()));
     await tester.pump();
 
-    final started = tester.getSize(
-      find.widgetWithText(ElevatedButton, 'Get Started'),
+    // The original landing design: a centred gradient pill, not the
+    // full-width form button, and Login as a link after the question.
+    final started = tester.getRect(
+      find
+          .ancestor(of: find.text('Get Started'), matching: find.byType(InkWell))
+          .first,
     );
-    final login = tester.getSize(find.widgetWithText(OutlinedButton, 'Login'));
     expect(started.height, greaterThanOrEqualTo(AppButtons.minHeight));
-    expect(login.height, started.height);
-    expect((started.width - login.width).abs(), lessThan(1));
+    expect(started.width, greaterThanOrEqualTo(200));
+    expect(started.width, lessThan(_phone.width * 0.7));
+    expect((started.center.dx - _phone.width / 2).abs(), lessThan(1));
+    expect(find.byType(ElevatedButton), findsNothing);
+    expect(find.byType(OutlinedButton), findsNothing);
+
+    expect(find.text('Already have an account?'), findsOneWidget);
+    final login = tester.getRect(find.widgetWithText(TextButton, 'Login'));
+    expect(login.top, greaterThan(started.bottom));
+    // The question and its link are centred together under the pill.
+    final question = tester.getRect(find.text('Already have an account?'));
+    final line = question.expandToInclude(login);
+    expect((line.center.dx - _phone.width / 2).abs(), lessThan(2));
 
     await _shoot(tester, 'landing');
 
@@ -184,7 +198,6 @@ void main() {
     final next = tester.getSize(find.widgetWithText(ElevatedButton, 'Next'));
     expect(next.height, greaterThanOrEqualTo(AppButtons.minHeight));
     expect(next.width, greaterThan(_phone.width * 0.7));
-    expect(started.width, greaterThan(_phone.width * 0.5));
     await _shoot(tester, 'intro-carousel');
   });
 

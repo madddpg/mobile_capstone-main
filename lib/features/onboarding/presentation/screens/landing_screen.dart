@@ -73,8 +73,8 @@ class _LandingScreenState extends State<LandingScreen>
                 child: Align(
                   alignment: Alignment.center,
                   child: SizedBox(
-                    width: size.width * 0.9,
-                    height: size.height * 0.75,
+                    width: size.width * 0.85,
+                    height: size.height * 0.68,
                     child: _LandingCard(
                       onGetStarted: () {
                         _runExit(() {
@@ -236,23 +236,11 @@ class _LandingCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 36),
-                      AppPrimaryButton(
-                        label: 'Get Started',
-                        onPressed: onGetStarted,
+                      Center(
+                        child: _GetStartedButton(onPressed: onGetStarted),
                       ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Already have an account?',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 15,
-                          color: Color(0xFF2C3E50),
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      AppSecondaryButton(label: 'Login', onPressed: onLogin),
+                      const SizedBox(height: 14),
+                      _LoginPrompt(onLogin: onLogin),
                     ],
                   ),
                 ),
@@ -261,6 +249,137 @@ class _LandingCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The landing card's own pill: cream fading into the background blue, so it
+/// reads as part of the card rather than one of the app's form buttons.
+class _GetStartedButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _GetStartedButton({required this.onPressed});
+
+  static const _radius = BorderRadius.all(Radius.circular(30));
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      child: ConstrainedBox(
+        // A minimum, not a fixed size, so a large font setting grows the
+        // pill instead of clipping its label.
+        constraints: const BoxConstraints(
+          minWidth: 200,
+          minHeight: AppButtons.minHeight,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: _radius,
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                Color(0xFFEDE4D4), // cream
+                Color(0xFFE2DDD4),
+                Color(0xFF7C9CC2), // background blue
+              ],
+              stops: [0.0, 0.5, 1.0],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onPressed,
+              borderRadius: _radius,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 12,
+                ),
+                child: Center(
+                  widthFactor: 1,
+                  heightFactor: 1,
+                  // Bundled fonts only, as on the rest of this card: the
+                  // first screen must not wait on a font download.
+                  child: const Text(
+                    'Get Started',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF2C3E50),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Already have an account? Login" on one line, with Login as the link.
+class _LoginPrompt extends StatelessWidget {
+  final VoidCallback onLogin;
+
+  const _LoginPrompt({required this.onLogin});
+
+  @override
+  Widget build(BuildContext context) {
+    // Full width so the Wrap can centre the line; on its own it shrinks to
+    // the text and sits at the start of the card's left-aligned column.
+    return SizedBox(
+      width: double.infinity,
+      child: _buildLine(),
+    );
+  }
+
+  Widget _buildLine() {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        const Text(
+          'Already have an account?',
+          textAlign: TextAlign.center,
+          // Darker than the subtitle: this line sits low on the card, where
+          // the cream has already faded towards the blue.
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: Color(0xFF3F5266),
+          ),
+        ),
+        TextButton(
+          onPressed: onLogin,
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFF2C3E50),
+            minimumSize: const Size(48, 40),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Text(
+            'Login',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

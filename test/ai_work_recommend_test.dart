@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -145,16 +146,124 @@ void main() {
       await pumpScreen(
         tester,
         const AiWorkRecommendResult(
-            success: false, errorMessage: 'The AI is busy right now.'),
+          success: false,
+          errorMessage: '${AiMaterialConsultantService.unreachableMessage} '
+              '${AiMaterialConsultantService.buildMyBomHint}',
+        ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('The AI is busy right now.'), findsOneWidget);
-      await tester.tap(find.text('Pick the work from the checklist instead'));
+      // The message names a button that is really there.
+      await tester.tap(find.text('Build my BOM'));
       await tester.pumpAndSettle();
 
       // The cosmetic starting package: a full bathroom makeover, 7 items.
       expect(find.byIcon(Icons.check_circle_rounded), findsNWidgets(7));
+    });
+  });
+
+  // The functionality test for AI Work Recommendation quotes each message the
+  // builder must see. These hold the app to those words.
+  group('the functionality test messages', () {
+    FirebaseFunctionsException error(String code, [String message = '']) =>
+        FirebaseFunctionsException(code: code, message: message);
+
+    test('run 3: no internet or a failing AI service is "unreachable"', () {
+      // No connection arrives as `internal` on Android, `unavailable`
+      // elsewhere; a model that cannot be reached is `unavailable` from the
+      // server; a slow one is `deadline-exceeded`.
+      for (final e in [
+        error('internal', 'INTERNAL'),
+        error('unavailable', 'iConstruct AI could not be reached just now.'),
+        error('deadline-exceeded'),
+        error('unknown'),
+      ]) {
+        expect(AiMaterialConsultantService.friendlyError(e),
+            'The AI service is unreachable right now.',
+            reason: e.code);
+      }
+      expect(
+        '${AiMaterialConsultantService.unreachableMessage} '
+        '${AiMaterialConsultantService.buildMyBomHint}',
+        startsWith('The AI service is unreachable right now. You can still '
+            'tap “Build my BOM” and pick the work from the checklist '
+            'yourself'),
+      );
+    });
+
+    test('run 3: an answer the app cannot read is the AI service failing', () {
+      final result = AiMaterialConsultantService.workAnswer('garbled', _bathroom);
+      expect(result.success, isFalse);
+      expect(result.errorMessage,
+          startsWith('The AI service is unreachable right now.'));
+    });
+
+    test('run 4: no relevant work says the AI did not pick any', () {
+      const expected = 'The AI did not pick any work. Describe the work in '
+          'more detail or start from the checklist instead.';
+      // An off-topic description, exactly as the server answers it. Its own
+      // reason used to be shown instead.
+      final offTopic = AiMaterialConsultantService.workAnswer({
+        'success': true,
+        'inScope': false,
+        'workItems': [],
+        'error': 'I can only recommend work for a renovation. Describe the '
+            'work you want done, or chat with the AI instead.',
+      }, _bathroom);
+      expect(offTopic.success, isFalse);
+      expect(offTopic.errorMessage, expected);
+
+      // In scope, but nothing it named is on the project's checklist.
+      final unknown = AiMaterialConsultantService.workAnswer({
+        'success': true,
+        'inScope': true,
+        'workItems': [
+          {'id': 'install_jacuzzi', 'reason': 'Not offered'},
+        ],
+      }, _bathroom);
+      expect(unknown.errorMessage, expected);
+    });
+
+    test('run 5: a missing server key says so', () {
+      for (final e in [
+        error('failed-precondition',
+            'iConstruct AI has no API key configured on the server.'),
+        // How an older copy of the function reports it.
+        error('internal',
+            'AI service is currently unavailable. Set GEMINI_API_KEY or '
+                'OPENAI_API_KEY.'),
+      ]) {
+        expect(AiMaterialConsultantService.friendlyError(e),
+            'The AI key is not configured on the server.',
+            reason: e.message);
+      }
+    });
+
+    testWidgets('each message shows on the Recommended Work screen as written',
+        (tester) async {
+      for (final message in [
+        '${AiMaterialConsultantService.unreachableMessage} '
+            '${AiMaterialConsultantService.buildMyBomHint}',
+        AiMaterialConsultantService.noWorkPickedMessage,
+        AiMaterialConsultantService.keyNotConfiguredMessage,
+      ]) {
+        tester.view.physicalSize = const Size(1080, 6000);
+        tester.view.devicePixelRatio = 3;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(MaterialApp(
+          home: AiRecommendationsScreen(
+            key: ValueKey(message),
+            projectName: 'Bathroom Renovation',
+            scope: RenovationScope.cosmetic,
+            description: 'The floor tiles are cracked and the toilet leaks.',
+            service: _FakeService(
+                AiWorkRecommendResult(success: false, errorMessage: message)),
+          ),
+        ));
+        await tester.pumpAndSettle();
+        expect(find.text(message), findsOneWidget);
+        expect(find.text('Build my BOM'), findsOneWidget);
+      }
     });
   });
 }

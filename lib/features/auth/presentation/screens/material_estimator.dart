@@ -20,6 +20,7 @@ import 'package:iconstruct/features/bidding/data/project_post_payload.dart';
 import 'package:iconstruct/features/project_creation/data/bom_export.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
+import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
 import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
@@ -671,7 +672,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           _buildSummaryRow(
             'Area:',
             _projectArea > 0
-                ? '${_projectArea.toStringAsFixed(2)} sq.m'
+                ? '${PhRenovationRates.areaText(_projectArea)} sq.m'
                 : 'Not set',
           ),
           const SizedBox(height: 8),
@@ -1443,6 +1444,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
     return SelectedMaterialCard(
       name: tile.tileTypeName,
       category: 'Tiles',
+      unit: 'pcs',
       kind: tile.tileSizeGroup,
       size: tile.tileSizeName,
       quantity: postedLineQuantity(
@@ -1477,6 +1479,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
     return SelectedMaterialCard(
       name: plumbing.materialName,
       category: plumbing.categoryTitle,
+      unit: plumbing.unit,
       kind: plumbing.kind,
       size: plumbing.size,
       length: plumbing.length,
@@ -1513,6 +1516,9 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 class SelectedMaterialCard extends StatelessWidget {
   final String name;
   final String category;
+
+  /// The line's own unit, as it is saved and posted.
+  final String? unit;
   final String? kind;
   final String? size;
   final String? length;
@@ -1524,6 +1530,7 @@ class SelectedMaterialCard extends StatelessWidget {
     super.key,
     required this.name,
     required this.category,
+    this.unit,
     this.kind,
     this.size,
     this.length,
@@ -1532,40 +1539,19 @@ class SelectedMaterialCard extends StatelessWidget {
     this.onRemove,
   });
 
-  double autoComputeQuantity() {
-    if (projectArea <= 0) return 0;
+  /// The quantity on the line. A line with none is shown as not set. It used
+  /// to show an "(estimated)" figure from a separate rule (tiles at +10%,
+  /// pipes and wire at 1.5 per sq.m) that disagreed with the estimator and
+  /// was never saved or posted.
+  double getFinalQuantity() => quantity > 0 ? quantity : 0;
 
-    final cat = category.toLowerCase();
-    if (cat == 'tiles' || cat == 'flooring' || cat == 'floor surface') {
-      double tileWidth = 0.6;
-      double tileHeight = 0.6;
-      if (size != null && size!.trim().isNotEmpty) {
-        final match = RegExp(r'(\d+)\s*[×xX]\s*(\d+)').firstMatch(size!);
-        if (match != null) {
-          tileWidth = (double.tryParse(match.group(1)!) ?? 600) / 1000;
-          tileHeight = (double.tryParse(match.group(2)!) ?? 600) / 1000;
-        }
-      }
-      double tileArea = tileWidth * tileHeight;
-      if (tileArea == 0) return 0;
-      double tilesNeeded = projectArea / tileArea;
-      return (tilesNeeded * 1.10).ceilToDouble(); // 10% allowance
-    } else if (cat.contains('plumb') ||
-        cat.contains('pipes') ||
-        cat.contains('wiring')) {
-      return projectArea * 1.5;
-    } else if (cat.contains('fixtures')) {
-      return 1;
-    }
-    return 0;
-  }
-
-  double getFinalQuantity() {
-    if (quantity > 0) {
-      return quantity;
-    } else {
-      return autoComputeQuantity();
-    }
+  /// The line's own unit. Guessed from the category only for an old saved
+  /// line that never had one: the guess called gallons of paint "pcs" and
+  /// electrical tape "meters".
+  String get displayUnit {
+    final own = (unit ?? '').trim();
+    if (own.isNotEmpty && own != 'Qty.') return own;
+    return getUnit(category);
   }
 
   String getUnit(String category) {
@@ -1613,7 +1599,7 @@ class SelectedMaterialCard extends StatelessWidget {
                     context,
                     name: name,
                     category: category,
-                    unit: getUnit(category),
+                    unit: displayUnit,
                     quantity: getFinalQuantity(),
                     size: size,
                   ),
@@ -1621,7 +1607,7 @@ class SelectedMaterialCard extends StatelessWidget {
                     visual: MaterialVisual.forItem(
                       name: name,
                       category: category,
-                      unit: getUnit(category),
+                      unit: displayUnit,
                     ),
                     size: size,
                     dimension: 40,
@@ -1706,12 +1692,7 @@ class SelectedMaterialCard extends StatelessWidget {
               final finalQty = getFinalQuantity();
 
               if (finalQty > 0) {
-                final qtyStr = finalQty.toStringAsFixed(
-                  finalQty.truncateToDouble() == finalQty ? 0 : 2,
-                );
-
-                final isEstimated = quantity <= 0 && projectArea > 0;
-                final estStr = isEstimated ? ' (estimated)' : '';
+                final qtyStr = PhRenovationRates.numText(finalQty);
 
                 return Row(
                   children: [
@@ -1727,7 +1708,7 @@ class SelectedMaterialCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${getUnit(category)}$estStr',
+                      displayUnit,
                       style: const TextStyle(
                         fontFamily: 'Inter',
                         fontSize: 12,

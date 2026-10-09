@@ -44,10 +44,10 @@ void main() {
     // 20 sq.m floor + 44 sq.m wall (2.2x) = 64 sq.m tiled.
     // Adhesive: 64 x 0.22 = 14.08 -> 15 bags.
     expect(_ofKind(items, MaterialKind.tileAdhesive).single.defaultQuantity, 15);
-    // Grout: 20 x 0.25 kg (300x300 non-slip) + 44 x 0.18 kg (300x600)
-    // = 12.92 kg -> 7 packs of 2 kg.
+    // Grout: 20 x 0.18 kg (600x600 non-slip) + 44 x 0.18 kg (300x600)
+    // = 11.52 kg -> 6 packs of 2 kg.
     final grout = _ofKind(items, MaterialKind.tileGrout).single;
-    expect(grout.defaultQuantity, 7);
+    expect(grout.defaultQuantity, 6);
     expect(grout.unit, 'packs');
   });
 
@@ -102,8 +102,8 @@ void main() {
 
     final settled = BomQuantityEstimator.requantifyTileSetting(items, _area);
 
-    // 20 x 0.25 + 44 x 0.30 = 18.2 kg -> 10 packs; the tiled area is unchanged.
-    expect(_ofKind(settled, MaterialKind.tileGrout).single.defaultQuantity, 10);
+    // 20 x 0.18 + 44 x 0.30 = 16.8 kg -> 9 packs; the tiled area is unchanged.
+    expect(_ofKind(settled, MaterialKind.tileGrout).single.defaultQuantity, 9);
     expect(
         _ofKind(settled, MaterialKind.tileAdhesive).single.defaultQuantity, 15);
   });

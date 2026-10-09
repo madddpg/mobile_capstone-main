@@ -105,17 +105,19 @@ now shows both, in the form `Material spec: ... | Quantity: ...`.
 
 | Quantity | Coefficient | Source of the coefficient |
 |---|---|---|
-| Floor and wall tile pieces | Area divided by tile face area, plus 8% | Geometry from the size the user selects, waste allowance per Fajardo |
-| Tile adhesive | 1 bag of 25 kg per 4.5 sq.m at 6 mm notch, over floor plus wall tile area | Manufacturer published coverage |
-| Tile grout | 0.12 to 0.30 kg per sq.m by tile size, summed over each tile line's own area | Joint volume from tile size, manufacturer coverage |
-| Mortar bedding | 25 mm Class B 1:3 | Fajardo |
-| Paint | 1 primer coat plus 2 topcoats | Manufacturer spreading rate; coat count per DPWH Item 1032 |
-| Skim coat | 1 bag of 20 kg per 10 sq.m | Manufacturer published coverage |
+| Floor and wall tile pieces | Area divided by tile face area, plus 8%. Floor tiles default to 600 x 600 mm (non-slip in bathrooms and laundries), wall tiles to 300 x 600 mm | Geometry from the tile size, waste allowance per Fajardo |
+| Tile adhesive | Floor plus wall tile area divided by 4.5 sq.m per 25 kg bag (6 mm notch) | Manufacturer published coverage |
+| Tile grout | 0.12 to 0.30 kg per sq.m by tile size (0.18 for 600 x 600 and 300 x 600), summed over the floor and wall tile, in 2 kg packs | Joint volume from tile size, manufacturer coverage |
+| Tile spacers | 0.10 packs per sq.m of floor plus wall tile (a pack per 10 sq.m), plus 8%, at least one pack | App assumption, stated in the formula |
+| Mortar bedding and new screed | 25 mm of Class B 1:3 mortar: 0.025 cu.m per sq.m, with 12.0 bags of 40 kg cement and 1.0 cu.m of sand per cu.m of mortar, which is 0.30 bags and 0.025 cu.m per sq.m | Fajardo, Class B mortar |
+| Paint | Primer 0.04 gal per sq.m (one sealing coat); topcoat 0.06 gal per sq.m (two finish coats); 4 L gallons | Manufacturer spreading rate; coat count per DPWH Item 1032 |
+| Skim coat | Area divided by 10 sq.m per 20 kg bag | Manufacturer published coverage |
 | CHB pieces | 12.5 pcs per sq.m, plus 5% | Geometry of the 400 x 200 mm block face |
-| CHB mortar and plaster | 0.90 bags per sq.m at 4 in, 1.40 at 6 in | Fajardo, Class B 1:3 mortar plus 16 mm two-face plaster |
+| CHB mortar and plaster | Cement 0.90 bags per sq.m at 4 in (0.52 mortar + 0.38 plaster), 1.40 at 6 in (1.02 + 0.38); sand 0.076 cu.m per sq.m at 4 in (0.044 + 0.032), 0.116 at 6 in (0.084 + 0.032) | Fajardo, Class B 1:3 mortar plus 16 mm plaster on both faces (2 x 0.016 m x 12.0 bags) |
 | Structural concrete | 9.0 bags cement, 0.50 cu.m sand, 1.00 cu.m gravel per cu.m | Fajardo, Class A 1:2:4 mix |
 | Rebar mass | W = D squared divided by 162.2 kg per metre | Nominal mass formula; bar sizes to PNS 49:2020 |
-| Rebar spacing | 4.28 linear metres per sq.m of wall, plus 5% | NSCP detailing for CHB wall reinforcement |
+| Rebar spacing | 4.28 linear metres per sq.m of wall, plus 5% for laps and cut-offs, in 6 m bars | NSCP detailing for CHB wall reinforcement |
+| Tie wire | 0.025 kg of #16 G.I. wire per sq.m of wall | Fajardo |
 | Structural slab and walls | 100 mm slab on grade over the floor area; new wall area of 2.2 x floor area in 4 in CHB, or the measured walls when the room is measured | App assumption, stated on the BOM. Footings, columns, beams, roof framing and underpinning come from a plan signed by a licensed civil engineer |
 | Formwork | 0.2 sheets of 1/2 in marine plywood, 2.5 bd.ft of coco lumber and 0.15 kg of nails per sq.m, plus 8% | App assumption for slab edges, lintels and columns |
 | Roof area | Floor area x 1.15 | Geometry of a roof at about 30 degrees pitch (1 / cos 30) |
@@ -125,10 +127,49 @@ now shows both, in the form `Material spec: ... | Quantity: ...`.
 | Tekscrews | 8 per sq.m of roof | Trade practice, purlins at 600 mm fastened every second rib |
 | Roof sealant | 1 L can per 15 sq.m of roof | Trade practice |
 | Roof repaint | 1 primer coat plus 2 topcoats over the sloped roof, floor area x 1.15 | Manufacturer spreading rate, same slope factor as the sheets |
-| Purlins | 0.32 lengths of 6 m per sq.m of floor | Purlins at 600 mm over the sloped roof: 1.15 ÷ 0.60 ÷ 6 m |
+| Purlins | 0.32 lengths of 6 m per sq.m of floor, plus 8% | Purlins at 600 mm over the sloped roof: 1.15 ÷ 0.60 ÷ 6 m |
+| Welding rod | 0.05 kg per sq.m of floor, plus 8% | App assumption for welding purlins to trusses |
+| Welded mesh | 1.1 sq.m per sq.m of slab (10% lap), plus 8% | App assumption |
 | Gutters and downspouts | Two eaves, each taken as the ridge length; 3 m gutter lengths, a bracket every 0.60 m, a downspout per 9 m of gutter (at least 2), two elbows per downspout | App assumption for a one-storey gable roof; the formula tells the builder to measure the eaves |
-| Room wiring | 3.0 m of 3.5 mm² THHN and 2.0 m of 2.0 mm² per sq.m of floor; outlets 0.25, switches 0.10 and lights 0.12 per sq.m; plus 8% | App assumption for a line and neutral per circuit; conductor sizes per the Philippine Electrical Code |
+| Room wiring | Sized from the outlets, switches and lights the builder enters: 3.0 m of 3.5 mm² THHN per outlet, 2.5 m of 2.0 mm² per switch or light, each plus 8%; 1/2 in conduit and one coupling per 3 m of that circuit run; one utility box per device | App assumption for an average run off the circuit loop; conductor sizes per the Philippine Electrical Code |
+| Heavy-appliance circuit | One fixed 8.0 m run of 5.5 mm² THHN, plus 8%, and a 30 A breaker, for a range or oven (kitchen) or an air-conditioner (living room, bedroom, dining room) | App assumption of one run from the panel |
 | Plumbing lines | Fixed counts for one water closet, one lavatory and one shower (bathroom), one sink (kitchen) or one washing machine (laundry) | App assumption; pipe lengths depend on where the fixtures sit, so the builder adjusts them |
+| Fixed allowances | Breakers, electrical tape, masking tape, brushes, blind rivets, teflon tape, silicone, sandpaper and roller sets are set counts per job, not sized from the area; the formula says "Fixed allowance" | App assumption; the builder changes them to suit |
+
+### Rounding, and how every formula reads
+
+Every quantity is rounded **up**, never down: to a whole bag, piece, gallon,
+can or length, or to the next 0.01 for sand and gravel (cu.m) and tie wire
+(kg). Areas and lengths are never rounded before use: a 2.35 x 1.85 m floor is
+4.3475 sq.m, as length times width gives by hand.
+
+Binary floating point cannot hold figures such as 0.36 or 1.08 exactly, so a
+result that is whole on paper can come out a hair above it (3.0 ÷ 0.36 x 1.08
+computes as 9.000000000000002). The app removes that noise, at six decimals,
+before rounding up, so it orders 9 tiles, as a hand computation does, and
+not 10.
+
+Each "View Formula" shows the measurement it starts from, every factor it
+uses, the unrounded result and the rounding step, for example
+`14.97 sq.m wall ÷ (0.3 m x 0.6 m = 0.18 sq.m per tile) x 1.08 waste = 89.82 → 90 pcs`.
+If the builder types a different quantity, the formula still shows the
+computed working and adds a line saying the quantity was changed.
+
+### How the computation is verified
+
+`test/computation_audit_test.dart` recomputes every quantity independently
+of the app, in exact fractions with no floating point. It runs every work
+item and package of every project through 144 rectangular room sizes and
+four irregular rooms entered wall by wall, half and whole jobs, wainscot and
+full-height tiles, ceilings painted or not, old tiles removed or not, three
+counter lengths and four sets of device counts, plus roofs from 1 to
+350 sq.m. That is about 152,000 material lines. Each line must
+equal the hand computation, and its formula must arrive at that quantity with
+every rounding step a true round-up. The test was itself checked by
+deliberately breaking the adhesive coverage, the mortar cement rate and the
+floating-point rounding; it failed on each.
+`test/functionality_cycle5_test.dart` reproduces the cycle 5 functionality
+test rooms with the numbers from its manual computation.
 
 Rates live in `lib/features/project_creation/data/ph_renovation_rates.dart`.
 
@@ -139,7 +180,7 @@ room, floor, painting and wall finishing) start from a site-details step
 instead of a single area. The builder enters length, width, ceiling height,
 doors and windows by size and count, how high the wall tiles go, and whether
 the old floor tiles come off. Each material is then sized from the surface it
-actually covers. Roofing keeps a single area, and functional work asks only for the room's size, since its pipes and wiring are sized from the floor.
+actually covers. Roofing keeps a single area. Functional work asks for the room's size and, for wiring, the number of outlets, switches and lights, which size the wire, conduit and boxes; pipes and fittings are set counts for the fixtures.
 
 | Surface | Rule | Source |
 |---|---|---|
@@ -282,9 +323,9 @@ in `test/material_kind_test.dart`.
   labels these so a user knows to check the bag.
 - The trade practice layer reflects CALABARZON hardware retail and may differ
   by province and by store. It is not claimed to hold outside Region IV-A.
-- A measured room is treated as a rectangle. An L-shaped room, a sloped
-  ceiling or a wall only partly tiled should be entered as the nearest
-  rectangle and the quantities checked, or split into two estimates.
+- A room that is not a rectangle is entered wall by wall, with its floor area
+  worked out on site. A sloped ceiling is not modelled: enter the average
+  height and check the wall quantities.
 - The system estimates materials for canvassing and quotation. It does not
   perform structural design, and it does not replace a licensed engineer where
   the NSCP requires one.

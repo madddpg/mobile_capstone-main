@@ -41,7 +41,8 @@ void main() {
     // Walls at 2.2 x 20 = 44 sq.m of 4" CHB, mortared and plastered both faces.
     expect(qty((i) => _kind(i, MaterialKind.chbBlock)), 578);
     expect(qty((i) => _kind(i, MaterialKind.chbMortar)), 40);
-    expect(qty((i) => _sandFor(i, 'plaster')), 3.34);
+    // 44 × 0.076 = 3.344 cu.m, rounded up, never down, to 3.35.
+    expect(qty((i) => _sandFor(i, 'plaster')), 3.35);
     expect(qty((i) => _kind(i, MaterialKind.rebar)), 33);
     expect(qty((i) => _kind(i, MaterialKind.tieWire)), 1.1);
 
@@ -152,7 +153,8 @@ void main() {
 
     expect(formula((i) => _sandFor(i, 'slab')), contains('Item 900'));
     expect(formula((i) => _sandFor(i, 'plaster')), contains('44.0 sq.m wall'));
-    expect(formula((i) => _kind(i, MaterialKind.gravel)), contains('2.00 m³'));
+    expect(formula((i) => _kind(i, MaterialKind.gravel)),
+        contains('= 2 cu.m of concrete × 1.0 cu.m gravel/cu.m = 2 cu.m'));
     expect(formula((i) => _kind(i, MaterialKind.tieWire)),
         contains('44.0 sq.m wall'));
   });

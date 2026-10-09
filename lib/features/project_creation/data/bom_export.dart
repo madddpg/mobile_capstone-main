@@ -6,6 +6,7 @@
 library;
 
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
+import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
 
 class BomExportItem {
   final String name;
@@ -47,13 +48,11 @@ class BomExportItem {
     return text.isEmpty || text == 'null' ? null : text;
   }
 
-  /// Quantity without a trailing `.0`, or a dash when it was never set.
+  /// The quantity exactly, without a trailing `.0`, or a dash when it was
+  /// never set.
   String get quantityLabel {
     if (quantity <= 0) return '—';
-    if (quantity == quantity.roundToDouble()) {
-      return quantity.toStringAsFixed(0);
-    }
-    return quantity.toStringAsFixed(2);
+    return PhRenovationRates.qtyText(quantity);
   }
 }
 

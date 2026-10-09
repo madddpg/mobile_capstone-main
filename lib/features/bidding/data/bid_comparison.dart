@@ -5,6 +5,7 @@
 library;
 
 import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
+import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
 
 double bidAsDouble(dynamic value) {
   if (value == null) return 0;
@@ -208,9 +209,7 @@ class QuotedLine {
 
   String get quantityLabel {
     if (quantity <= 0) return '';
-    final qty = quantity == quantity.roundToDouble()
-        ? quantity.toStringAsFixed(0)
-        : quantity.toStringAsFixed(2);
+    final qty = PhRenovationRates.qtyText(quantity);
     return unit.trim().isEmpty ? qty : '$qty $unit';
   }
 
