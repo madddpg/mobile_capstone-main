@@ -390,7 +390,8 @@ class _TrackingCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '${project.materialCount} materials',
+                              '${project.materialCount} '
+                              'material${project.materialCount == 1 ? '' : 's'}',
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 color: _darkBlue.withValues(alpha: 0.6),

@@ -654,7 +654,7 @@ class BomQuantityEstimator {
       return '${n(outletRun)} m outlet run + ${n(lightingRun)} m lighting run '
           '= ${n(totalRunM)} m of circuit run ÷ 3 m per length '
           '${PhRenovationRates.resultText(totalRunM / 3.0, qty, unit)}\n'
-          '(Quantity: outlet and lighting runs share one raceway, $per; the '
+          '(Quantity: outlet and lighting runs share one conduit, $per; the '
           'run is measured before the 8% wire allowance)';
     }
     return null;
@@ -1396,7 +1396,7 @@ class BomQuantityEstimator {
     unit: 'L',
     defaultQuantity: 1,
     qtyPerSqm: 0.8,
-    notes: 'Two coats on the floor and a 0.30 m upturn',
+    notes: 'Two coats on the floor and 0.30 m up the walls',
   );
 
   static const _primerRow = RenovationTemplateItem(
@@ -1420,7 +1420,7 @@ class BomQuantityEstimator {
     category: 'Floor Preparation',
     unit: 'bags',
     defaultQuantity: 1,
-    notes: 'New 25 mm screed once the old tiles are off',
+    notes: 'A new 25 mm leveling layer once the old tiles are off',
   );
 
   static const _screedSandRow = RenovationTemplateItem(
@@ -1428,7 +1428,7 @@ class BomQuantityEstimator {
     category: 'Floor Preparation',
     unit: 'cu.m',
     defaultQuantity: 1,
-    notes: 'New 25 mm screed once the old tiles are off',
+    notes: 'A new 25 mm leveling layer once the old tiles are off',
   );
 
   /// Best-effort scope guess for the AI consultation path, which never asks the

@@ -133,7 +133,7 @@ class WorkCatalogue {
   RenovationTemplate templateFor(Set<String> selection) {
     final ticked = _ticked(selection);
     if (ticked.isEmpty) {
-      throw ArgumentError('Tick at least one work item.');
+      throw ArgumentError('Select at least one work item.');
     }
     final types = typesOf(selection);
     final seen = <String>{};
@@ -188,7 +188,7 @@ const _tileWalls = WorkItem(
 const _waterproofFloor = WorkItem(
   id: 'waterproof_floor',
   label: 'Waterproof the floor',
-  detail: 'Two coats on the floor and a 0.30 m upturn',
+  detail: 'Two coats on the floor and 0.30 m up the walls',
   scope: RenovationScope.cosmetic,
   materials: [_T._waterproofing],
 );

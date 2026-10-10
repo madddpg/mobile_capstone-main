@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:iconstruct/core/navigation/app_nav.dart';
@@ -79,6 +80,19 @@ class AccountFormShell extends StatelessWidget {
     // small phone still shows the field being typed in.
     final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
+    // Light status bar icons on the navy band. The cream screens around this
+    // one ask for dark icons, which all but vanished against the navy.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: darkBlue,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      child: _buildScaffold(context, keyboardOpen),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context, bool keyboardOpen) {
     return Scaffold(
       backgroundColor: darkBlue,
       body: SafeArea(

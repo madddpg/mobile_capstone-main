@@ -80,7 +80,7 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
     return const LeaveWarning(
       title: 'Undo your work picks?',
       message:
-          'Going back resets the work you ticked and unticked on this '
+          'Going back resets the work you selected and deselected on this '
           'list. Next time it opens with the starting picks again.',
       keeps: 'Everything you chose on the earlier steps is kept.',
       confirmLabel: 'Go back',
@@ -154,8 +154,8 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
       title: _fromAi ? 'Recommended\nWork' : 'What Work\nIs Included?',
       subtitle: widget.projectName,
       instruction: _fromAi
-          ? 'Untick anything you do not want.'
-          : 'Tick the work. Shops are told what you leave out.',
+          ? 'Deselect anything you do not want.'
+          : 'Select the work. Shops are told what you leave out.',
       onBack: _backWarning,
       onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
@@ -209,7 +209,7 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
           ],
           if (_selected.isEmpty) ...[
             const SizedBox(height: 8),
-            _note('Tick at least one piece of work to continue.'),
+            _note('Select at least one piece of work to continue.'),
           ],
         ],
       ),

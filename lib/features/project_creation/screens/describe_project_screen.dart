@@ -211,7 +211,8 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
       title: 'Describe\nYour Project',
       subtitle: '${widget.types.label} · ${widget.projectName}',
       instruction: _isAi
-          ? 'Describe the work. The AI suggests materials.'
+          // The AI picks work from the checklist; the app adds the materials.
+          ? 'Describe the work. The AI recommends what to include.'
           : 'Add a note for the shops.',
       onBack: _backWarning,
       onExit: () => const LeaveWarning.exitEstimate(),

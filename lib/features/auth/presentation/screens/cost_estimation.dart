@@ -11,6 +11,7 @@ import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator
 import 'package:iconstruct/features/project_creation/data/bom_sections.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/functional_counts.dart';
+import 'package:iconstruct/features/project_creation/data/material_kind.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
 import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
@@ -498,6 +499,22 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
     );
   }
 
+  /// Whether any line on the list is paint, primer or skim coat, so the
+  /// measured paint area is worth naming.
+  bool get _listPaints =>
+      _templateItems.any((i) => kPaintKinds.contains(classifyMaterial(i)));
+
+  /// The first line above the list: whose list it is and, when no room was
+  /// measured, what its quantities were scaled from.
+  String _introLine() {
+    final isAi = widget.template?.id == 'ai_consultation_bom';
+    final list = isAi ? 'Here is your AI material list' : 'Here is your material list';
+    if (widget.takeoff != null) return '$list.';
+    return isAi
+        ? '$list, scaled from the area and the work you chose.'
+        : '$list, scaled from the floor area.';
+  }
+
   /// Title, instructions and notes shown above the material rows.
   Widget _buildBomHeader(BuildContext context, String titleText) {
     final hasRows = _templateItems.isNotEmpty && _selectedProducts.isNotEmpty;
@@ -519,10 +536,12 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
         const SizedBox(height: 10),
         const Divider(color: Color(0xFFEDE4D4), thickness: 1),
         const SizedBox(height: 10),
+        // Plain words, and only what is true: a measured room is sized from
+        // its measurements (the line below says so), not "scaled from area",
+        // and builders did not know what a "Reference package" was.
         Text(
-          widget.template?.id == 'ai_consultation_bom'
-              ? 'Your AI material list — quantities scaled from area & scope.\nEdit a quantity or remove an item you don\'t need.'
-              : 'Reference package — quantities scaled from area.\nEdit a quantity or remove an item you don\'t need.',
+          '${_introLine()}\n'
+          'Edit a quantity or remove an item you don\'t need.',
           style: GoogleFonts.poppins(
             fontSize: 12,
             color: const Color(0xFFE0D7C9),
@@ -534,8 +553,10 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
         const SizedBox(height: 12),
         if (hasRows && widget.takeoff != null) ...[
           Text(
-            'Measured room: ${widget.takeoff!.summary}. Every quantity is sized '
-            'from these measurements; open View Formula on a line to see how.',
+            'Measured room: '
+            '${widget.takeoff!.summaryFor(paints: _listPaints)}. Every '
+            'quantity is sized from these measurements; open View Formula on '
+            'a line to see how.',
             style: GoogleFonts.poppins(
               fontSize: 11,
               color: const Color(0xFF8FB2D4),

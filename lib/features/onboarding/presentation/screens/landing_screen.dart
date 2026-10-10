@@ -227,7 +227,7 @@ class _LandingCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       const Text(
-                        'Your projects starts with us.',
+                        'Your project starts with us.',
                         style: TextStyle(
                           fontFamily: 'Poppins',
                           fontSize: 14,
@@ -371,7 +371,7 @@ class _LoginPrompt extends StatelessWidget {
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           child: const Text(
-            'Login',
+            'Log in',
             style: TextStyle(
               fontFamily: 'Poppins',
               fontSize: 14,

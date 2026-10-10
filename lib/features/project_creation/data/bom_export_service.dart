@@ -177,7 +177,9 @@ class BomExportService {
     final area = data.areaSqm > 0
         ? ' (${_trimDouble(data.areaSqm)} sq.m)'
         : '';
-    return 'Requesting a quotation for ${data.materials.length} materials — '
+    final count = data.materials.length;
+    return 'Requesting a quotation for $count '
+        'material${count == 1 ? '' : 's'} — '
         '${data.estimateName}$area. Prices and availability are up to you; '
         'please fill in the blank columns.';
   }
@@ -313,7 +315,10 @@ class BomExportService {
         'Project area',
         data.areaSqm > 0 ? '${_trimDouble(data.areaSqm)} sq.m' : 'Not set',
       ],
-      ['Materials', '${data.materials.length} items'],
+      [
+        'Materials',
+        '${data.materials.length} item${data.materials.length == 1 ? '' : 's'}',
+      ],
       [
         'Budget preference',
         (data.budgetPreference ?? '').trim().isEmpty

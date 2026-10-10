@@ -82,7 +82,7 @@ class _SelectRenovationTypeScreenState
       title: 'Type of\nRenovation',
       subtitle: _type,
       instruction:
-          'Tick every kind of work this job includes.',
+          'Select every kind of work this job includes.',
       onBack: () => const LeaveWarning.exitEstimate(),
       onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
@@ -127,7 +127,7 @@ class _SelectRenovationTypeScreenState
           ),
           const SizedBox(height: 22),
           Text(
-            'KIND OF WORK · TICK ALL THAT APPLY',
+            'KIND OF WORK · SELECT ALL THAT APPLY',
             style: GoogleFonts.poppins(
               fontSize: 10.5,
               fontWeight: FontWeight.w700,
@@ -173,7 +173,7 @@ class _SelectRenovationTypeScreenState
           if (_selected.isEmpty) ...[
             const SizedBox(height: 14),
             Text(
-              'Tick at least one kind of work to continue.',
+              'Select at least one kind of work to continue.',
               style: GoogleFonts.poppins(
                 fontSize: 11.5,
                 color: const Color(0xFFE0D7C9),

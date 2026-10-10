@@ -338,7 +338,7 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
                   visualDensity: VisualDensity.compact,
                 ),
                 child: Text(
-                  _kept.length == offered ? 'Untick all' : 'Tick all',
+                  _kept.length == offered ? 'Deselect all' : 'Select all',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -383,7 +383,7 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
               '${widget.shopName} did not have ${one ? 'one' : '$_substitutes'} '
               'of your materials and offered '
               '${one ? 'a substitute' : 'substitutes'}. Check '
-              '${one ? 'it' : 'them'} below, and untick any you do not want.',
+              '${one ? 'it' : 'them'} below, and deselect any you do not want.',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 color: const Color(0xFF78350F),
@@ -404,7 +404,7 @@ class _SelectShopSheetState extends State<SelectShopSheet> {
     final label = _lumpSum
         ? 'Accept offer'
         : kept == 0
-        ? 'Tick at least one line'
+        ? 'Select at least one line'
         : kept == all
         ? 'Accept all'
         : 'Accept $kept line${kept == 1 ? '' : 's'}';

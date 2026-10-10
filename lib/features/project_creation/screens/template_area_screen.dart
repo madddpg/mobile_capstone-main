@@ -9,6 +9,7 @@ import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator
 import 'package:iconstruct/features/project_creation/data/description_hints.dart';
 import 'package:iconstruct/features/project_creation/data/functional_counts.dart';
 import 'package:iconstruct/features/project_creation/data/material_kind.dart';
+import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
@@ -299,7 +300,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           'Going back clears the measurements and site details you '
           'entered on this screen. Quantities are sized from them, so you '
           'would need to enter them again.',
-      keeps: 'Your ticked work list is kept.',
+      keeps: 'Your selected work list is kept.',
       confirmLabel: 'Discard',
       cancelLabel: 'Keep editing',
     );
@@ -507,7 +508,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
                 _buildGuideCard(
                   title: '3. Type of Renovation',
                   body:
-                      '• Cosmetic: tiles, paint, fixtures and the screed under new tiles.\n• Structural: CHB walls, slab, rebar and forms. Footings, columns, beams and underpinning come from the engineer\'s plan.\n• Functional: wire, conduit and boxes are sized from the outlets, switches and lights you enter. Pipes and fittings are set counts for the fixtures.',
+                      '• Cosmetic: tiles, paint, fixtures and the cement layer under new tiles.\n• Structural: CHB walls, slab, rebar and forms. Footings, columns, beams and underpinning come from the engineer\'s plan.\n• Functional: wire, conduit and boxes are sized from the outlets, switches and lights you enter. Pipes and fittings are set counts for the fixtures.',
                   icon: Icons.tune_outlined,
                 ),
                 const SizedBox(height: 10),
@@ -637,7 +638,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           // screen instead of pushing it past the panel edge.
           Expanded(
             child: _label(
-                '${widget.types.label} renovation · ${widget.template.items.length} materials'),
+                '${widget.types.label} renovation · '
+                '${widget.template.items.length} '
+                'material${widget.template.items.length == 1 ? '' : 's'}'),
           ),
           const SizedBox(width: 8),
           InkWell(
@@ -894,24 +897,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           _metresField(_heightController, 'Ceiling height', 'e.g. 2.7'),
         ],
       ],
-      if (!_isIrregular)
-      Row(
-        children: [
-          Expanded(
-            child: _metresField(_lengthController, 'Length', 'e.g. 3.0'),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _metresField(_widthController, 'Width', 'e.g. 2.5'),
-          ),
-          if (job.hasWalls) ...[
-            const SizedBox(width: 10),
-            Expanded(
-              child: _metresField(_heightController, 'Height', 'e.g. 2.7'),
-            ),
-          ],
-        ],
-      ),
+      if (!_isIrregular) _roomSizeFields(withHeight: job.hasWalls),
       if (_needsFunctionalCounts) ...[
         const SizedBox(height: 18),
         _label('Devices to install *'),
@@ -980,7 +966,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       if (job.hasFloor && _asksFloor)
         _switchRow(
           title: 'Remove the old floor tiles',
-          subtitle: 'Adds cement and sand for a new screed',
+          subtitle: 'Adds cement and sand to level the floor for the new tiles',
           value: _removeOldTiles,
           onChanged: (v) => setState(() => _removeOldTiles = v),
         ),
@@ -993,8 +979,104 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         ),
       ],
       const SizedBox(height: 12),
+      _buildMeasurementGuide(details),
+      const SizedBox(height: 10),
       _buildTakeoffSummary(details),
     ];
+  }
+
+  /// What the builder typed, read back with the total area, so a wrong
+  /// figure is seen before it sizes every material.
+  Widget _buildMeasurementGuide(SiteDetails details) {
+    final job = details.job;
+    String m(double v) {
+      final text = PhRenovationRates.numText(v);
+      final dot = text.indexOf('.');
+      if (dot < 0) return '$text.00';
+      return text.length - dot - 1 < 2 ? '${text}0' : text;
+    }
+
+    final shape = details.irregular;
+    final floor = details.measuredFloorSqm;
+    final heightOk = !job.hasWalls || details.heightM > 0;
+    final complete = floor > 0 && heightOk;
+
+    final lines = <String>[];
+    if (complete) {
+      final size = shape != null
+          ? '${shape.wallRunsM.length} walls, ${m(shape.perimeterM)} m around'
+          : '${m(details.lengthM)} m long × ${m(details.widthM)} m wide';
+      lines.add(job.hasWalls ? '$size, ${m(details.heightM)} m high' : size);
+    }
+
+    final bodyStyle = GoogleFonts.poppins(
+      fontSize: 12,
+      color: const Color(0xFFE0D7C9),
+      height: 1.4,
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: GlitchedFlowShell.cream.withAlpha(24),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: GlitchedFlowShell.cream.withAlpha(90)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.info_outline_rounded,
+                size: 18,
+                color: Color(0xFF8FB2D4),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _label(
+                  details.partial != null
+                      ? 'The part you measured'
+                      : 'Your measurements',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (!complete)
+            Text(
+              shape != null
+                  ? 'Enter the floor area and each wall to see the total.'
+                  : job.hasWalls
+                      ? 'Enter the length, width and height to see the total '
+                          'area.'
+                      : 'Enter the length and width to see the total area.',
+              style: bodyStyle,
+            )
+          else ...[
+            for (final line in lines) Text(line, style: bodyStyle),
+            const SizedBox(height: 4),
+            Text(
+              shape != null
+                  ? 'Total floor area: ${PhRenovationRates.areaText(floor)} sq.m'
+                  : 'Total floor area: ${m(details.lengthM)} × '
+                      '${m(details.widthM)} = '
+                      '${PhRenovationRates.areaText(floor)} sq.m',
+              style: bodyStyle.copyWith(
+                fontWeight: FontWeight.w700,
+                color: GlitchedFlowShell.cream,
+              ),
+            ),
+            if (details.half)
+              Text(
+                'Half of the room is used: '
+                '${PhRenovationRates.areaText(floor / 2)} sq.m',
+                style: bodyStyle,
+              ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _hint(String text) {
@@ -1102,6 +1184,55 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     );
   }
 
+  /// The narrowest a metres box can be and still show a value such as
+  /// "12.35" next to its "m".
+  static const double _minMetresFieldWidth = 110;
+
+  /// Length and width, and the ceiling height when the job has walls. Three
+  /// across left each box about 80 wide on a phone, too narrow for a value
+  /// and its unit: "2.4" slid under the "m" and the hints were cut to "3.…".
+  /// The height takes a row of its own whenever three do not fit.
+  Widget _roomSizeFields({required bool withHeight}) {
+    const gap = 10.0;
+    Widget pair(Widget left, Widget right) => Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: left),
+            const SizedBox(width: gap),
+            Expanded(child: right),
+          ],
+        );
+    final length = _metresField(_lengthController, 'Length', 'e.g. 3.0');
+    final width = _metresField(_widthController, 'Width', 'e.g. 2.5');
+    if (!withHeight) return pair(length, width);
+    final height = _metresField(_heightController, 'Height', 'e.g. 2.7');
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final threeAcross =
+            (constraints.maxWidth - 2 * gap) / 3 >= _minMetresFieldWidth;
+        if (threeAcross) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: length),
+              const SizedBox(width: gap),
+              Expanded(child: width),
+              const SizedBox(width: gap),
+              Expanded(child: height),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            pair(length, width),
+            const SizedBox(height: 12),
+            pair(height, const SizedBox.shrink()),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _metresField(
     TextEditingController controller,
     String label,
@@ -1166,64 +1297,89 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       fontSize: 12,
       color: const Color(0xFFE0D7C9),
     );
+    Widget stepper(int i) => _CountStepper(
+          count: rows[i].count,
+          noun: noun,
+          onChanged: (value) => setState(() => rows[i].count = value),
+        );
     return [
       for (var i = 0; i < rows.length; i++)
         Padding(
           padding: const EdgeInsets.only(bottom: 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: rows[i].preset != null
-                    ? Text(
+          child: rows[i].preset != null
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: Text(
                         '${rows[i].preset!.sizeLabel} · ${rows[i].use}',
                         style: labelStyle,
-                      )
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: _metresField(
-                                rows[i].widthController!, 'Width', '0.80',
-                                dense: true),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Text('×', style: labelStyle),
-                          ),
-                          Expanded(
-                            child: _metresField(
-                                rows[i].heightController!, 'Height', '2.10',
-                                dense: true),
-                          ),
-                        ],
                       ),
-              ),
-              const SizedBox(width: 8),
-              _CountStepper(
-                count: rows[i].count,
-                noun: noun,
-                onChanged: (value) => setState(() => rows[i].count = value),
-              ),
-              if (rows[i].preset == null)
-                IconButton(
-                  tooltip: 'Remove this $noun size',
-                  onPressed: () => setState(() {
-                    final removed = rows.removeAt(i);
-                    // Its fields are still on screen until this rebuild.
-                    WidgetsBinding.instance
-                        .addPostFrameCallback((_) => removed.dispose());
-                  }),
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 36, minHeight: 36),
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    size: 18,
-                    color: GlitchedFlowShell.cream,
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    stepper(i),
+                  ],
+                )
+              // A size of the builder's own. Its two boxes take the whole
+              // row, with the count under them: squeezed beside the counter
+              // they were too narrow to show "0.85" at all.
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Aligned on the boxes, not on the boxes and their labels,
+                    // so "×" and the remove button sit on the boxes' middle.
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: _metresField(
+                              rows[i].widthController!, 'Width', '0.80',
+                              dense: true),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 0, 4, 15),
+                          child: Text('×', style: labelStyle),
+                        ),
+                        Expanded(
+                          child: _metresField(
+                              rows[i].heightController!, 'Height', '2.10',
+                              dense: true),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: IconButton(
+                            tooltip: 'Remove this $noun size',
+                            onPressed: () => setState(() {
+                              final removed = rows.removeAt(i);
+                              // Its fields are still on screen until this
+                              // rebuild.
+                              WidgetsBinding.instance.addPostFrameCallback(
+                                  (_) => removed.dispose());
+                            }),
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                                minWidth: 36, minHeight: 36),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: GlitchedFlowShell.cream,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text('How many of this size', style: labelStyle),
+                        ),
+                        const SizedBox(width: 8),
+                        stepper(i),
+                      ],
+                    ),
+                  ],
                 ),
-            ],
-          ),
         ),
     ];
   }
@@ -1331,8 +1487,10 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       final job = details.job;
       if (job.hasFloor) lines.add(t.floorLine);
       if (job.hasWalls) lines.add(t.wallLine);
-      if (t.wallTileSqm > 0) lines.add(t.wallTileLine);
-      if (t.paintSqm > 0) lines.add(t.paintLine);
+      if (t.wallTileSqm > 0) lines.add(t.wallTileBreakdownLine);
+      // Only when the list paints: a job of floor tiles and waterproofing
+      // listed a paint area that no line is sized from.
+      if (_asksPaint && t.paintSqm > 0) lines.add(t.paintLine);
       if (job.hasSkirting && t.skirtingM > 0) lines.add(t.skirtingLine);
       if (t.waterproofingSqm > 0) lines.add(t.waterproofingLine);
       warnings = _finishes ? details.warnings() : const <String>[];
@@ -1362,7 +1520,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
                 color: Color(0xFF8FB2D4),
               ),
               const SizedBox(width: 8),
-              Expanded(child: _label('Takeoff')),
+              Expanded(child: _label('Area breakdown')),
             ],
           ),
           const SizedBox(height: 6),
@@ -1431,6 +1589,16 @@ class _CountStepper extends StatelessWidget {
 
   static const int _max = 20;
 
+  /// "1 door", "2 doors", "3 switches": read aloud for the number, so it
+  /// has to be proper English. A bare "s" said "1 doors" and "2 switchs".
+  static String _countLabel(int count, String noun) {
+    if (count == 1) return '1 $noun';
+    final plural = RegExp(r'(s|x|z|ch|sh)$').hasMatch(noun)
+        ? '${noun}es'
+        : '${noun}s';
+    return '$count $plural';
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget step(IconData icon, String tooltip, VoidCallback? onPressed) {
@@ -1461,7 +1629,7 @@ class _CountStepper extends StatelessWidget {
             child: Text(
               '$count',
               textAlign: TextAlign.center,
-              semanticsLabel: '$count ${noun}s',
+              semanticsLabel: _countLabel(count, noun),
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,

@@ -277,6 +277,82 @@ void main() {
             reason: item.name);
       }
     });
+
+    testWidgets('a list that paints nothing names no paint area',
+        (tester) async {
+      tester.view.physicalSize = const Size(390, 4000) * 3;
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      // The AI's picks on the emulator for "replace the cracked floor tiles
+      // and waterproof the floor; the wall tiles are fine". The header read
+      // "walls 16.8 sq.m · paint 16.8 sq.m" with no paint on the list.
+      final catalogue =
+          RenovationTemplatesCatalog.workCatalogueFor('Bathroom Renovation');
+      const ticked = {'retile_floor', 'waterproof_floor'};
+      final types = catalogue.typesOf(ticked);
+      const room = SiteDetails(
+        job: RoomJob.wetRoom,
+        lengthM: 2.0,
+        widthM: 1.5,
+        heightM: 2.4,
+      );
+      final takeoff = SiteTakeoff.from(room);
+      final items = BomQuantityEstimator.scaleTemplate(
+        template: catalogue.templateFor(ticked),
+        areaSqm: takeoff.floorSqm,
+        scope: types.primary,
+        types: types,
+        takeoff: takeoff,
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: CostEstimationScreen(
+          projectName: 'Bathroom Renovation',
+          template: catalogue.templateFor(ticked).copyWithItems(items),
+          projectAreaSqm: takeoff.floorSqm,
+          takeoff: takeoff,
+        ),
+      ));
+      await tester.pump();
+
+      expect(
+        find.textContaining(
+            'Measured room: Floor 3.0 sq.m · walls 16.8 sq.m. Every quantity'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the list opens in plain words that match how it was sized',
+        (tester) async {
+      tester.view.physicalSize = const Size(390, 4000) * 3;
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final catalogue =
+          RenovationTemplatesCatalog.workCatalogueFor('Bathroom Renovation');
+      final ticked = catalogue.packageById('retile_only')!.itemIds.toSet();
+      final takeoff = SiteTakeoff.from(_roomA);
+      final items = _estimate('Bathroom Renovation', 'retile_only', _roomA);
+
+      await tester.pumpWidget(MaterialApp(
+        home: CostEstimationScreen(
+          projectName: 'Bathroom Renovation',
+          template: catalogue.templateFor(ticked).copyWithItems(items),
+          projectAreaSqm: takeoff.floorSqm,
+          takeoff: takeoff,
+        ),
+      ));
+      await tester.pump();
+
+      // It said "Reference package — quantities scaled from area" over a list
+      // sized from the measured room, as the line under it says.
+      expect(find.textContaining('Here is your material list.'), findsOneWidget);
+      expect(find.textContaining('Reference package'), findsNothing);
+      expect(find.textContaining('scaled from'), findsNothing);
+      expect(
+        find.textContaining('Every quantity is sized from these measurements'),
+        findsOneWidget,
+      );
+    });
   });
 
   test('run 4: the structural note names the measured floor', () {

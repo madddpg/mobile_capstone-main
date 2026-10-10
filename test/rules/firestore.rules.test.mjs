@@ -82,13 +82,15 @@ test('approved shop can submit its own quotation', async () => {
     await db.doc('shops/shop-a').set({ status: 'approved', name: 'A' });
   });
 
+  // The payload insertQuotation() writes, which the create rule checks.
   const shopA = authed('shop-a');
   await assertSucceeds(
     shopA.doc('projectPosts/post-1/quotations/shop-a').set({
       shopId: 'shop-a',
-      postId: 'post-1',
-      estimatedTotal: 1200,
-      status: 'submitted',
+      projectId: 'post-1',
+      amount: 1200,
+      status: 'pending',
+      items: [],
     }),
   );
 });
@@ -157,7 +159,7 @@ test('unrelated builder cannot read another builder post', async () => {
   await assertFails(stranger.doc('projectPosts/post-1').get());
 });
 
-test('builder can accept a quote with only status and acceptedAt', async () {
+test('builder can accept a quote with only status and acceptedAt', async () => {
   await env.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await db.doc('projectPosts/post-1').set({
@@ -170,6 +172,7 @@ test('builder can accept a quote with only status and acceptedAt', async () {
     await db.doc('projectPosts/post-1/quotations/shop-a').set({
       shopId: 'shop-a',
       postId: 'post-1',
+      projectId: 'post-1',
       userId: 'builder-1',
       estimatedTotal: 100,
       status: 'submitted',
@@ -185,7 +188,7 @@ test('builder can accept a quote with only status and acceptedAt', async () {
   );
 });
 
-test('builder cannot accept a quote with extra keys', async () {
+test('builder cannot accept a quote with extra keys', async () => {
   await env.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await db.doc('projectPosts/post-1').set({
@@ -198,6 +201,7 @@ test('builder cannot accept a quote with extra keys', async () {
     await db.doc('projectPosts/post-1/quotations/shop-a').set({
       shopId: 'shop-a',
       postId: 'post-1',
+      projectId: 'post-1',
       userId: 'builder-1',
       estimatedTotal: 100,
       status: 'submitted',
@@ -215,7 +219,7 @@ test('builder cannot accept a quote with extra keys', async () {
   );
 });
 
-test('builder can accept a quote when the post stores uid on builderId', async () {
+test('builder can accept a quote when the post stores uid on builderId', async () => {
   await env.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await db.doc('projectPosts/post-1').set({
@@ -228,6 +232,7 @@ test('builder can accept a quote when the post stores uid on builderId', async (
     await db.doc('projectPosts/post-1/quotations/shop-a').set({
       shopId: 'shop-a',
       postId: 'post-1',
+      projectId: 'post-1',
       estimatedTotal: 100,
       status: 'submitted',
     });
@@ -242,7 +247,7 @@ test('builder can accept a quote when the post stores uid on builderId', async (
   );
 });
 
-test('builder can create a conversation after accepting a quote', async () {
+test('builder can create a conversation after accepting a quote', async () => {
   await env.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await db.doc('projectPosts/post-1').set({
@@ -255,6 +260,7 @@ test('builder can create a conversation after accepting a quote', async () {
     await db.doc('projectPosts/post-1/quotations/shop-a').set({
       shopId: 'shop-a',
       postId: 'post-1',
+      projectId: 'post-1',
       userId: 'builder-1',
       estimatedTotal: 100,
       status: 'accepted',
@@ -286,3 +292,225 @@ test('builder can create a conversation after accepting a quote', async () {
   );
 });
 
+
+// ── Shop confirmation (shopConfirmation: pending / confirmed / declined) ──
+//
+// After the builder accepts, the shop answers from the web dashboard. Chat
+// waits for that answer: a thread cannot be opened, nor a message sent, until
+// the shop has confirmed. A quotation from before confirmations existed has
+// no field and counts as confirmed.
+
+async function seedAccepted({ status = 'accepted', shopConfirmation } = {}) {
+  await env.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await db.doc('projectPosts/post-1').set({
+      userId: 'builder-1',
+      projectName: 'Roof',
+      materials: [],
+      status: 'offer_accepted',
+      quotationCount: 1,
+    });
+    await db.doc('shops/shop-a').set({ status: 'approved', name: 'A' });
+    await db.doc('shops/shop-b').set({ status: 'approved', name: 'B' });
+    const quote = {
+      shopId: 'shop-a',
+      projectId: 'post-1',
+      userId: 'builder-1',
+      amount: 100,
+      status,
+      items: [],
+    };
+    if (shopConfirmation !== undefined) quote.shopConfirmation = shopConfirmation;
+    await db.doc('projectPosts/post-1/quotations/q1').set(quote);
+  });
+}
+
+const QUOTE = 'projectPosts/post-1/quotations/q1';
+const THREAD = 'conversations/post-1_shop-a';
+const MESSAGE_1 = THREAD + '/messages/m1';
+const MESSAGE_2 = THREAD + '/messages/m2';
+
+function thread() {
+  return {
+    projectId: 'post-1',
+    quotationId: 'q1',
+    shopId: 'shop-a',
+    shopName: 'A',
+    builderId: 'builder-1',
+    userId: 'builder-1',
+    builderName: 'Builder',
+    projectTitle: 'Roof',
+    status: 'open',
+    lastMessage: 'Quote accepted',
+  };
+}
+
+function message(uid, role) {
+  return { senderId: uid, senderRole: role, text: 'Hello', createdAt: new Date() };
+}
+
+/** The thread as the web Function creates it, bypassing the rules. */
+async function seedThread() {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc(THREAD).set(thread());
+  });
+}
+
+test('shop can confirm or decline a quotation the builder accepted', async () => {
+  await seedAccepted({ shopConfirmation: 'pending' });
+  const shopA = authed('shop-a');
+  await assertSucceeds(
+    shopA.doc(QUOTE).update({ shopConfirmation: 'confirmed', updatedAt: new Date() }),
+  );
+  await assertSucceeds(shopA.doc(QUOTE).update({ shopConfirmation: 'declined' }));
+});
+
+test('shop can confirm a partially accepted quotation', async () => {
+  await seedAccepted({ status: 'partially_accepted', shopConfirmation: 'pending' });
+  await assertSucceeds(
+    authed('shop-a').doc(QUOTE).update({ shopConfirmation: 'confirmed' }),
+  );
+});
+
+test('shop cannot confirm a quotation the builder has not accepted', async () => {
+  await seedAccepted({ status: 'pending' });
+  await assertFails(
+    authed('shop-a').doc(QUOTE).update({ shopConfirmation: 'confirmed' }),
+  );
+});
+
+test('shop confirmation can be confirmed or declined, nothing else', async () => {
+  await seedAccepted({ shopConfirmation: 'pending' });
+  const shopA = authed('shop-a');
+  await assertFails(shopA.doc(QUOTE).update({ shopConfirmation: 'pending' }));
+  await assertFails(shopA.doc(QUOTE).update({ shopConfirmation: 'maybe' }));
+});
+
+test('a shop confirming cannot touch status, items or acceptedTotal', async () => {
+  await seedAccepted({ shopConfirmation: 'pending' });
+  const shopA = authed('shop-a');
+  await assertFails(
+    shopA.doc(QUOTE).update({ shopConfirmation: 'confirmed', status: 'rejected' }),
+  );
+  await assertFails(
+    shopA.doc(QUOTE).update({ shopConfirmation: 'confirmed', acceptedTotal: 1 }),
+  );
+  await assertFails(
+    shopA.doc(QUOTE).update({ shopConfirmation: 'confirmed', items: [{ name: 'x' }] }),
+  );
+});
+
+test('only the quoting shop, while approved, can answer', async () => {
+  await seedAccepted({ shopConfirmation: 'pending' });
+  await assertFails(
+    authed('shop-b').doc(QUOTE).update({ shopConfirmation: 'confirmed' }),
+  );
+  await env.withSecurityRulesDisabled(async (context) => {
+    await context.firestore().doc('shops/shop-a').update({ status: 'suspended' });
+  });
+  await assertFails(
+    authed('shop-a').doc(QUOTE).update({ shopConfirmation: 'confirmed' }),
+  );
+});
+
+test('the builder can never write shopConfirmation', async () => {
+  await seedAccepted({ shopConfirmation: 'pending' });
+  const builder = authed('builder-1');
+  await assertFails(builder.doc(QUOTE).update({ shopConfirmation: 'confirmed' }));
+  await assertFails(
+    builder.doc(QUOTE).update({ status: 'accepted', shopConfirmation: 'confirmed' }),
+  );
+});
+
+test('pending confirmation: no thread from the app, no messages in any thread', async () => {
+  await seedAccepted({ shopConfirmation: 'pending' });
+  const builder = authed('builder-1');
+  await assertFails(builder.doc(THREAD).set(thread()));
+
+  // A thread the web Function already created still cannot be written in.
+  await seedThread();
+  await assertFails(builder.doc(MESSAGE_1).set(message('builder-1', 'builder')));
+  await assertFails(authed('shop-a').doc(MESSAGE_2).set(message('shop-a', 'shop')));
+});
+
+test('declined confirmation blocks the thread and its messages', async () => {
+  await seedAccepted({ shopConfirmation: 'declined' });
+  const builder = authed('builder-1');
+  await assertFails(builder.doc(THREAD).set(thread()));
+  await seedThread();
+  await assertFails(builder.doc(MESSAGE_1).set(message('builder-1', 'builder')));
+  await assertFails(authed('shop-a').doc(MESSAGE_2).set(message('shop-a', 'shop')));
+});
+
+test('confirmed: the builder opens the thread and both sides can write', async () => {
+  await seedAccepted({ shopConfirmation: 'confirmed' });
+  const builder = authed('builder-1');
+  await assertSucceeds(builder.doc(THREAD).set(thread()));
+  await assertSucceeds(builder.doc(MESSAGE_1).set(message('builder-1', 'builder')));
+  await assertSucceeds(authed('shop-a').doc(MESSAGE_2).set(message('shop-a', 'shop')));
+});
+
+test('a thread created early opens for messages once the shop confirms', async () => {
+  await seedAccepted({ shopConfirmation: 'pending' });
+  await seedThread();
+  const builder = authed('builder-1');
+  await assertFails(builder.doc(MESSAGE_1).set(message('builder-1', 'builder')));
+
+  await assertSucceeds(
+    authed('shop-a').doc(QUOTE).update({ shopConfirmation: 'confirmed' }),
+  );
+  await assertSucceeds(builder.doc(MESSAGE_1).set(message('builder-1', 'builder')));
+});
+
+test('a quotation from before confirmations existed counts as confirmed', async () => {
+  await seedAccepted();
+  const builder = authed('builder-1');
+  await assertSucceeds(builder.doc(THREAD).set(thread()));
+  await assertSucceeds(builder.doc(MESSAGE_1).set(message('builder-1', 'builder')));
+});
+
+// ── User profiles (users/{uid}) ──────────────────────────────────────────
+//
+// A profile holds a name, email, photo and push tokens. Only its owner and
+// admins may read it, by get as well as by list.
+
+async function seedProfiles() {
+  await env.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await db.doc('users/builder-1').set({
+      firstName: 'Juan',
+      lastName: 'Dela Cruz',
+      email: 'juan@example.com',
+      fcmTokens: ['token-1'],
+    });
+    await db.doc('shops/shop-a').set({ status: 'approved', name: 'A' });
+    await db.doc('admins/admin-1').set({ role: 'admin' });
+  });
+}
+
+test('a builder can read their own profile', async () => {
+  await seedProfiles();
+  await assertSucceeds(authed('builder-1').doc('users/builder-1').get());
+});
+
+test('another builder cannot read a profile by uid', async () => {
+  await seedProfiles();
+  await assertFails(authed('builder-2').doc('users/builder-1').get());
+});
+
+test('a shop, even an approved one, cannot read a builder profile', async () => {
+  await seedProfiles();
+  await assertFails(authed('shop-a').doc('users/builder-1').get());
+});
+
+test('a signed-out visitor cannot read a profile', async () => {
+  await seedProfiles();
+  await assertFails(
+    env.unauthenticatedContext().firestore().doc('users/builder-1').get(),
+  );
+});
+
+test('an admin can read any profile', async () => {
+  await seedProfiles();
+  await assertSucceeds(authed('admin-1').doc('users/builder-1').get());
+});

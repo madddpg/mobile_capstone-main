@@ -38,7 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _logout(BuildContext context) async {
     // Profile can sit over an estimate in progress, and signing out drops it.
     if (!await ProgressGuard.confirmExit(context)) return;
-    await FirebaseAuth.instance.signOut();
+    await UserProvider.signOut();
 
     if (!context.mounted) return;
 
@@ -276,6 +276,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     UserAvatar(
                                       size: 96,
                                       hasBorder: true,
+                                      semanticLabel: 'Change profile photo',
                                       onTap: _isUploading
                                           ? null
                                           : _showImagePickerOptions,

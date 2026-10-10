@@ -43,6 +43,9 @@ class AIConsultationScreen extends StatefulWidget {
 
   RenovationTypes get types => renovationTypes ?? RenovationTypes.only(scope);
 
+  /// Injected in tests; the app uses the Cloud Functions service.
+  final AiMaterialConsultantService? service;
+
   const AIConsultationScreen({
     super.key,
     required this.projectName,
@@ -51,6 +54,7 @@ class AIConsultationScreen extends StatefulWidget {
     this.scope = RenovationScope.cosmetic,
     this.coverage = RenovationCoverage.full,
     this.renovationTypes,
+    this.service,
   });
 
   @override
@@ -61,7 +65,8 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   final List<ChatMessage> _messages = [];
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final _aiService = AiMaterialConsultantService();
+  late final AiMaterialConsultantService _aiService =
+      widget.service ?? AiMaterialConsultantService();
 
   late final WorkCatalogue _catalogue =
       RenovationTemplatesCatalog.workCatalogueFor(widget.projectName);
@@ -259,12 +264,16 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   Future<void> _openSuggestionsModal() async {
     if (!mounted || _pendingRecommendations.isEmpty) return;
 
+    // Outside the builder, which runs again whenever the screen's metrics
+    // change (the keyboard closing, rotation, an accessibility service
+    // starting). Made inside it, the picks were emptied on each rerun, and
+    // "Add to my list" then added nothing and read as Skip.
+    final working = Set<String>.from(_pendingSelected);
     final selected = await showModalBottomSheet<Set<String>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final working = Set<String>.from(_pendingSelected);
         return StatefulBuilder(
           builder: (context, setModalState) {
             final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
@@ -821,7 +830,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Powered by AI API · iConstruct renovation planning only. You choose; I suggest.',
+                  'iConstruct AI · renovation planning only. You choose; I suggest.',
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     color: const Color(0xFFE0D7C9),
@@ -978,7 +987,9 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
                   style: const TextStyle(color: Colors.white),
                   scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
                   decoration: InputDecoration(
-                    hintText: 'Describe your project ideas freely…',
+                    // Short enough to show whole beside the send button;
+                    // "Describe your project ideas freely…" was cut off.
+                    hintText: 'Describe the job…',
                     hintStyle: TextStyle(
                       color: Colors.white.withValues(alpha: 0.55),
                     ),

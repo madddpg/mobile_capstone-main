@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:iconstruct/core/widgets/offset_pill_nav.dart';
 
@@ -32,6 +33,24 @@ void main() {
     expect(find.text('Chat'), findsOneWidget);
     // Same icon in both states, as with home and files; only the chip differs.
     expect(find.byIcon(Icons.chat_bubble_rounded), findsOneWidget);
+  });
+
+  testWidgets('the active label shows whole on a phone', (tester) async {
+    // Every slot used to share the row equally, so "Home" was cut to "H…"
+    // although the three icons beside it left room to spare.
+    tester.view.physicalSize = const Size(411, 900) * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    for (final (tab, label) in [
+      (OffsetNavTab.home, 'Home'),
+      (OffsetNavTab.bidding, 'Bidding'),
+      (OffsetNavTab.chat, 'Chat'),
+      (OffsetNavTab.files, 'Files'),
+    ]) {
+      await pumpNav(tester, tab);
+      final text = tester.renderObject<RenderParagraph>(find.text(label));
+      expect(text.didExceedMaxLines, isFalse, reason: '$label is cut off');
+    }
   });
 
   testWidgets('planning steps highlight no destination', (tester) async {

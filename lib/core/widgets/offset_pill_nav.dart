@@ -39,6 +39,14 @@ class OffsetPillNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.paddingOf(context).bottom;
 
+    // Only the active chip is Flexible, so it can shorten its label on a
+    // narrow phone with large text instead of pushing the row past the edge
+    // of the pill. With every slot Flexible the row was split four ways, and
+    // "Home" was cut to "H…" with room to spare: an icon needs 40, not a
+    // quarter of the pill.
+    Widget slot(OffsetNavTab tab, Widget child) =>
+        activeTab == tab ? Flexible(child: child) : child;
+
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
@@ -61,14 +69,12 @@ class OffsetPillNav extends StatelessWidget {
               ),
             ],
           ),
-          // Every slot is Flexible so the active chip can shorten its label on
-          // a narrow phone with large text, instead of pushing the row past
-          // the edge of the pill.
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Flexible(
-                child: activeTab == OffsetNavTab.home
+              slot(
+                OffsetNavTab.home,
+                activeTab == OffsetNavTab.home
                     ? const _ActiveNavChip(
                         icon: Icons.home_rounded,
                         label: 'Home',
@@ -79,8 +85,9 @@ class OffsetPillNav extends StatelessWidget {
                       ),
               ),
               const SizedBox(width: 10),
-              Flexible(
-                child: activeTab == OffsetNavTab.bidding
+              slot(
+                OffsetNavTab.bidding,
+                activeTab == OffsetNavTab.bidding
                     ? const _ActiveNavChip(
                         imagePath: 'assets/images/hammer.png',
                         label: 'Bidding',
@@ -91,8 +98,9 @@ class OffsetPillNav extends StatelessWidget {
                       ),
               ),
               const SizedBox(width: 10),
-              Flexible(
-                child: StreamBuilder<int>(
+              slot(
+                OffsetNavTab.chat,
+                StreamBuilder<int>(
                   stream: _chatUnreadStream(),
                   builder: (context, chatSnap) {
                     final unreadChats = chatSnap.data ?? 0;
@@ -116,8 +124,9 @@ class OffsetPillNav extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Flexible(
-                child: activeTab == OffsetNavTab.files
+              slot(
+                OffsetNavTab.files,
+                activeTab == OffsetNavTab.files
                     ? const _ActiveNavChip(
                         icon: Icons.folder_rounded,
                         label: 'Files',

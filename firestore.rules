@@ -213,8 +213,11 @@ service cloud.firestore {
     // ── Builders / mobile app users ─────────────────────────────────────────
     // Profiles + fcmTokens live on users/{uid}. Nested drafts stay owner-only.
     // Owner must be able to list their own user doc + subcollections.
+    // A profile is read only by its owner or an admin: any signed-in account
+    // used to be able to fetch anyone's name, email, photo and push tokens by
+    // uid. Others see a builder's name from the copy on their post or thread.
     match /users/{userId} {
-      allow get: if signedIn();
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if isOwner(userId) || isAdmin();
       allow create, update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
@@ -285,18 +288,29 @@ service cloud.firestore {
           && request.resource.data.amount >= 0
           && request.resource.data.status == 'pending';
 
-        // Only the builder who posted the project decides a quote — full
-        // accept, reject, or partial accept (per-line items[].accepted +
-        // acceptedTotal, written by the builder app). Shops never update
-        // their own quote once submitted; no web feature does this, and
-        // allowing it would let a shop self-approve its own bid.
+        // Two writers, kept as separate branches so neither can borrow the
+        // other's fields:
+        // - The builder who posted the project decides a quote — full accept,
+        //   reject, or partial accept (per-line items[].accepted +
+        //   acceptedTotal, written by the builder app). Never shopConfirmation.
+        // - After the builder accepts, the shop answers from the dashboard
+        //   with shopConfirmation (confirmed / declined). Only that field, so
+        //   a shop can never self-approve its bid or edit status, items or
+        //   acceptedTotal.
         allow update: if isAdmin()
           || (ownsPostedEstimate(postId)
               && request.resource.data.diff(resource.data).affectedKeys()
                    .hasOnly(['status', 'acceptedAt', 'items', 'acceptedTotal'])
               && request.resource.data.status in ['accepted', 'rejected', 'partially_accepted']
               && request.resource.data.shopId == resource.data.shopId
-              && request.resource.data.projectId == resource.data.projectId);
+              && request.resource.data.projectId == resource.data.projectId)
+          || (signedIn()
+              && resource.data.shopId == request.auth.uid
+              && shopIsApproved(request.auth.uid)
+              && resource.data.status in ['accepted', 'partially_accepted']
+              && request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['shopConfirmation', 'updatedAt'])
+              && request.resource.data.shopConfirmation in ['confirmed', 'declined']);
 
         allow delete: if isAdmin()
           || (signedIn()
@@ -332,7 +346,8 @@ service cloud.firestore {
         && shopIsApproved(request.auth.uid);
     }
 
-    // Builder ↔ shop chat. Unlocks after a quotation is accepted.
+    // Builder ↔ shop chat. Unlocks once a quotation is accepted by the
+    // builder and confirmed by the shop.
     // Canonical builder uid is userId on the post; conversations store it as
     // builderId (and may also copy userId).
     match /conversations/{conversationId} {
@@ -344,6 +359,14 @@ service cloud.firestore {
         );
       }
 
+      // The shop's answer to an accepted quotation. A quotation from before
+      // shops confirmed has no field and counts as confirmed, matching
+      // shopConfirmationOf() in lib/features/bidding/data/shop_confirmation.dart.
+      function quotationIsConfirmed(projectId, quotationId) {
+        return get(/databases/$(database)/documents/projectPosts/$(projectId)/quotations/$(quotationId))
+          .data.get('shopConfirmation', 'confirmed') == 'confirmed';
+      }
+
       function acceptedQuoteForConv() {
         return request.resource.data.projectId is string
           && request.resource.data.quotationId is string
@@ -352,7 +375,8 @@ service cloud.firestore {
           && (
                get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.shopId == request.resource.data.shopId
                || request.resource.data.quotationId == request.resource.data.shopId
-             );
+             )
+          && quotationIsConfirmed(request.resource.data.projectId, request.resource.data.quotationId);
       }
 
       allow get: if isAdmin()
@@ -391,8 +415,17 @@ service cloud.firestore {
         // A message carries text, an imageUrl, or both. Text (when present) is
         // a string <= 4000 chars; imageUrl (when present) is an https URL
         // <= 2000 chars. At least one of the two must be a non-empty string.
+        //
+        // Nobody can send until the shop has confirmed, even into a thread
+        // that already exists (e.g. created early by the web Function). The
+        // quotation is found from the parent thread; messages do not carry
+        // projectId or quotationId themselves.
         allow create: if signedIn()
           && isConvParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data)
+          && quotationIsConfirmed(
+               get(/databases/$(database)/documents/conversations/$(conversationId)).data.projectId,
+               get(/databases/$(database)/documents/conversations/$(conversationId)).data.quotationId
+             )
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.senderRole in ['builder', 'shop']
           && (

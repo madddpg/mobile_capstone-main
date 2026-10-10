@@ -709,6 +709,16 @@ class SiteTakeoff {
       ? _wallTileLine
       : _line((t) => t._wallTileLine, '${_sq(wallTileSqm)} sq.m');
 
+  /// [wallTileLine] for the area breakdown, which shows [wallLine] just
+  /// above it. Full-height tiles cover exactly that wall, so the line points
+  /// to it rather than repeat its working word for word ("Full-height tiles:
+  /// Walls: 7.00 m around × …"). A formula still gets the whole working.
+  String get wallTileBreakdownLine =>
+      details.wallTileHeight == WallTileHeight.full && details.job.hasWalls
+          ? 'Full-height tiles: all of the wall area above = '
+              '${_sq(wallTileSqm)} sq.m'
+          : wallTileLine;
+
   String get paintLine => _line((t) => t._paintLine, '${_sq(paintSqm)} sq.m');
 
   String get skirtingLine =>
@@ -769,15 +779,20 @@ class SiteTakeoff {
       'Countertop: ${_m(details.counterLengthM)} m of counter × ${_m(kCountertopDepthM)} m deep = ${_sq(countertopSqm)} sq.m';
 
   String get _waterproofingLine =>
-      'Waterproofing: ${_sq(floorSqm)} sq.m floor + ${_m(perimeterM)} m × ${_m(kWaterproofUpturnM)} m upturn = ${_sq(waterproofingSqm)} sq.m';
+      'Waterproofing: ${_sq(floorSqm)} sq.m floor + ${_m(perimeterM)} m × ${_m(kWaterproofUpturnM)} m up the walls = ${_sq(waterproofingSqm)} sq.m';
 
   /// One line for the top of the materials list.
-  String get summary {
+  String get summary => summaryFor();
+
+  /// [summary] for a list that may paint nothing. With [paints] false the
+  /// paint area is left out: no line is sized from it, and a retiling job
+  /// read "paint 16.8 sq.m" though nothing was being painted.
+  String summaryFor({bool paints = true}) {
     final parts = <String>[];
     if (job.hasFloor) parts.add('floor ${_sq(floorSqm)} sq.m');
     if (job.hasWalls) parts.add('walls ${_sq(netWallSqm)} sq.m');
     if (wallTileSqm > 0) parts.add('wall tiles ${_sq(wallTileSqm)} sq.m');
-    if (paintSqm > 0) parts.add('paint ${_sq(paintSqm)} sq.m');
+    if (paints && paintSqm > 0) parts.add('paint ${_sq(paintSqm)} sq.m');
     if (job.hasSkirting && skirtingM > 0) {
       parts.add('skirting ${_m(skirtingM)} m');
     }

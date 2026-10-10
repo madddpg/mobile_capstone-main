@@ -96,7 +96,9 @@ class _BomShareSheetState extends State<_BomShareSheet> {
             ),
             const SizedBox(height: 6),
             Text(
-              '${data.materials.length} materials · prices left blank for the '
+              '${data.materials.length} '
+              'material${data.materials.length == 1 ? '' : 's'} · prices left '
+              'blank for the '
               'shop to fill in. Useful for shops that quote in person or over '
               'chat.',
               style: GoogleFonts.poppins(

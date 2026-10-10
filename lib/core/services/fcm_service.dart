@@ -217,26 +217,74 @@ class FCMService {
     }
   }
 
-  /// Call on sign-out. Removes this device's token from the previous user's doc
-  /// and deletes the local token, so the next account on this device does not
-  /// keep receiving the previous user's quotation / chat pushes.
+  /// Whether this device's token is registered to a signed-in account.
+  bool get isBound => _boundUid != null;
+
+  /// Call just before signing out, while the session can still write
+  /// users/{uid}: removes this device's token from that profile and deletes
+  /// it locally, so the next account on this device does not receive the
+  /// previous user's quotation / chat pushes. Sign out with
+  /// `UserProvider.signOut`, which calls this first.
   Future<void> detachFromUser() async {
     final previousUid = _boundUid;
+    await _unbind();
+    await detachDevice(
+      uid: previousUid,
+      getToken: _messaging.getToken,
+      removeFromProfile: (uid, token) =>
+          _firestore.collection('users').doc(uid).update({
+        'fcmTokens': FieldValue.arrayRemove([token]),
+      }),
+      deleteLocalToken: _messaging.deleteToken,
+    );
+    debugPrint('FCM token detached from users/$previousUid');
+  }
+
+  /// For a session that ended without [detachFromUser] (expired or revoked):
+  /// the profile can no longer be written, but the local token is still
+  /// deleted, so this device stops receiving that account's pushes and the
+  /// next account to sign in gets a token of its own.
+  Future<void> releaseDevice() async {
+    await _unbind();
+    try {
+      await _messaging.deleteToken();
+    } catch (e) {
+      debugPrint('Error deleting FCM token: $e');
+    }
+  }
+
+  Future<void> _unbind() async {
     await _tokenRefreshSub?.cancel();
     _tokenRefreshSub = null;
     _boundUid = null;
+  }
 
+  /// Removes [uid]'s copy of this device's token, then deletes the token on
+  /// the device. The local delete runs even when the profile write fails: the
+  /// two used to share one try, so a rejected write (it always was, because
+  /// it ran after sign-out) skipped the delete and left the device with a
+  /// live token still listed on the old account.
+  ///
+  /// The removal is an update, never a merge-set, so it cannot create a stub
+  /// users/{uid} document for an account whose profile does not exist.
+  static Future<void> detachDevice({
+    required String? uid,
+    required Future<String?> Function() getToken,
+    required Future<void> Function(String uid, String token) removeFromProfile,
+    required Future<void> Function() deleteLocalToken,
+  }) async {
     try {
-      final token = await _messaging.getToken();
-      if (previousUid != null && previousUid.isNotEmpty && token != null) {
-        await _firestore.collection('users').doc(previousUid).set({
-          'fcmTokens': FieldValue.arrayRemove([token]),
-        }, SetOptions(merge: true));
+      final token = await getToken();
+      if (uid != null && uid.isNotEmpty && token != null) {
+        await removeFromProfile(uid, token);
       }
-      await _messaging.deleteToken();
-      debugPrint('FCM token detached from users/$previousUid');
     } catch (e) {
-      debugPrint('Error detaching FCM token: $e');
+      debugPrint('Error removing FCM token from users/$uid: $e');
+    }
+    try {
+      await deleteLocalToken();
+    } catch (e) {
+      debugPrint('Error deleting FCM token: $e');
     }
   }
 

@@ -582,7 +582,7 @@ class RenovationTemplatesCatalog {
     unit: 'L',
     defaultQuantity: 1,
     qtyPerSqm: 0.8,
-    notes: 'Two coats on the floor and a 0.30 m upturn',
+    notes: 'Two coats on the floor and 0.30 m up the walls',
   );
 
   static const _skimCoat = RenovationTemplateItem(

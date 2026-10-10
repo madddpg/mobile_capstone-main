@@ -15,6 +15,7 @@ import 'package:iconstruct/core/navigation/progress_guard.dart';
 import 'package:iconstruct/core/state/user_state/user_provider.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/auth/presentation/screens/cost_estimation.dart';
+import 'package:iconstruct/features/auth/presentation/screens/material_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/ai_material_consultant_service.dart';
 import 'package:iconstruct/features/project_creation/data/bom_quantity_estimator.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
@@ -415,6 +416,50 @@ void main() {
       await tester.tap(find.byType(OffsetBackButton));
       await tester.pumpAndSettle();
       expect(find.text('Undo your work picks?'), findsOneWidget);
+    });
+
+    Widget reviewScreen() => const MaterialEstimatorScreen(
+          projectName: 'Bathroom Renovation',
+          plumbingMaterials: [],
+          aiProjectArea: 20,
+          scope: RenovationScope.cosmetic,
+          lockEstimateDetails: true,
+        );
+
+    // The scrolling body used to sit over the header and take its taps, so
+    // the back arrow on Review Bill of Materials did nothing. Once it worked
+    // it asked "Leave this estimate?" and said everything would be cleared,
+    // though back only returns to the material list, untouched.
+    testWidgets('Review Bill of Materials: the back arrow goes back', (
+      tester,
+    ) async {
+      await tester.pumpWidget(app(reviewScreen));
+      await _open(tester);
+      expect(find.text('Review Bill of\nMaterials'), findsOneWidget);
+
+      await tester.tap(find.byType(OffsetBackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('open'), findsOneWidget);
+    });
+
+    testWidgets('Review Bill of Materials: back warns after an edit', (
+      tester,
+    ) async {
+      await tester.pumpWidget(app(reviewScreen));
+      await _open(tester);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Brand preferences or scope remarks'),
+        'Prefer Mariwasa tiles',
+      );
+      await tester.tap(find.byType(OffsetBackButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Leave the review?'), findsOneWidget);
+      expect(find.text('Leave this estimate?'), findsNothing);
+      await tester.tap(find.text('Go back'));
+      await tester.pumpAndSettle();
+      expect(find.text('open'), findsOneWidget);
     });
 
     testWidgets('BOM review has a back button, and warns after an edit', (

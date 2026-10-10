@@ -147,6 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
+                    tooltip: 'Back',
                     padding: EdgeInsets.zero,
                     icon: const Icon(
                       Icons.arrow_back_ios_new_rounded,
@@ -211,6 +212,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             onChanged: _validatePassword,
                             textInputAction: TextInputAction.done,
                             trailing: IconButton(
+                              // Named for screen readers, as on Change
+                              // Password; it was an unlabeled button.
+                              tooltip: _obscurePassword
+                                  ? 'Show password'
+                                  : 'Hide password',
                               icon: Icon(
                                 _obscurePassword
                                     ? Icons.visibility_off_rounded

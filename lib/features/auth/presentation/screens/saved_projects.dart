@@ -438,11 +438,16 @@ class ProjectCard extends StatelessWidget {
     this.emphasizePost = false,
   });
 
-  String _formatTimeAgo(DateTime time) {
-    final diff = DateTime.now().difference(time);
-    if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes} mins ago';
-    if (diff.inHours < 24) return 'Updated ${diff.inHours} hours ago';
-    return 'Updated ${diff.inDays} days ago';
+  /// "Updated 1 hour ago", never "1 hours" or "0 mins".
+  @visibleForTesting
+  static String formatTimeAgo(DateTime time, {DateTime? now}) {
+    final diff = (now ?? DateTime.now()).difference(time);
+    String ago(int n, String unit) =>
+        'Updated $n $unit${n == 1 ? '' : 's'} ago';
+    if (diff.inMinutes < 1) return 'Updated just now';
+    if (diff.inMinutes < 60) return ago(diff.inMinutes, 'minute');
+    if (diff.inHours < 24) return ago(diff.inHours, 'hour');
+    return ago(diff.inDays, 'day');
   }
 
   Color _getStatusColor(String status) {
@@ -481,7 +486,28 @@ class ProjectCard extends StatelessWidget {
     }
   }
 
-  String _getCostEmoji(String costLevel) {
+  /// "10 materials • 7.50 sq.m • 🟡 Medium budget". The last part is the
+  /// budget preference picked on the review screen, saved as low, medium or
+  /// high; it used to read "medium Cost", though the app prices nothing, and
+  /// a one-line list said "1 Materials".
+  @visibleForTesting
+  static String summaryLine(
+    int materialCount,
+    double areaSqm,
+    String costLevel,
+  ) {
+    final level = costLevel.trim().toLowerCase();
+    final budget = switch (level) {
+      'low' || 'medium' || 'high' =>
+        ' • ${_getCostEmoji(level)} '
+            '${level[0].toUpperCase()}${level.substring(1)} budget',
+      _ => '',
+    };
+    return '$materialCount material${materialCount == 1 ? '' : 's'} • '
+        '${areaSqm.toStringAsFixed(2)} sq.m$budget';
+  }
+
+  static String _getCostEmoji(String costLevel) {
     switch (costLevel.toLowerCase()) {
       case 'high':
         return '🔴';
@@ -1084,7 +1110,8 @@ class ProjectCard extends StatelessWidget {
 
             // 4. Key Project Summary
             Text(
-              '${project.materialCount} Materials • ${project.projectArea.toStringAsFixed(2)} sq.m • ${_getCostEmoji(project.costLevel)} ${project.costLevel} Cost',
+              summaryLine(project.materialCount, project.projectArea,
+                  project.costLevel),
               style: const TextStyle(
                 color: textDark,
                 fontSize: 14,
@@ -1162,7 +1189,7 @@ class ProjectCard extends StatelessWidget {
                 const Icon(Icons.access_time, size: 14, color: Colors.grey),
                 const SizedBox(width: 6),
                 Text(
-                  _formatTimeAgo(project.lastUpdated),
+                  formatTimeAgo(project.lastUpdated),
                   style: TextStyle(
                     color: Colors.grey.shade600,
                     fontSize: 12,

@@ -219,6 +219,28 @@ class AiMaterialConsultantService {
           },
       ];
 
+  /// [text] with each work id from [catalogue] it mentions written as the
+  /// item's name: "point to retile_floor" reads "point to “Retile the
+  /// floor”". The model is shown both and sometimes answers with the id,
+  /// which a builder has never seen. Only ids that look like code (with an
+  /// underscore) are replaced; "repaint" is also a word, and stays one.
+  static String namesForIds(String text, WorkCatalogue? catalogue) {
+    if (catalogue == null || text.isEmpty) return text;
+    var out = text;
+    for (final item in catalogue.items) {
+      if (!item.id.contains('_')) continue;
+      out = out.replaceAllMapped(
+        RegExp(
+          '[`\'"“]?(?<![A-Za-z0-9_])${RegExp.escape(item.id)}'
+          '(?![A-Za-z0-9_])[`\'"”]?',
+          caseSensitive: false,
+        ),
+        (_) => '“${item.label}”',
+      );
+    }
+    return out;
+  }
+
   /// Work ids suggested in a chat answer. A server that predates work items
   /// suggests material names instead, which are matched to work by kind.
   static List<String> suggestedWorkFrom(
@@ -252,7 +274,7 @@ class AiMaterialConsultantService {
             seen.add('${entry['id']}'.trim()))
           AiWorkPick(
             id: '${entry['id']}'.trim(),
-            reason: '${entry['reason'] ?? ''}'.trim(),
+            reason: namesForIds('${entry['reason'] ?? ''}'.trim(), catalogue),
           ),
     ];
   }
@@ -405,7 +427,7 @@ class AiMaterialConsultantService {
     return AiConsultResult(
       success: ok,
       inScope: map['inScope'] != false,
-      reply: (map['reply'] ?? '').toString().trim(),
+      reply: namesForIds((map['reply'] ?? '').toString().trim(), catalogue),
       suggestions: suggestions.take(8).toList(),
       suggestedWork: catalogue == null
           ? const []

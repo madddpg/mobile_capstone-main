@@ -99,7 +99,9 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                 color: GlitchedFlowShell.darkBlue,
                 fontSize: 14,
               ),
-              decoration: _fieldDecoration('e.g. Master Bathroom Makeover'),
+              // Short enough to show whole on a narrow phone: "e.g. Master
+              // Bathroom Makeover" was cut to "Makeo…". Fits any room, too.
+              decoration: _fieldDecoration('e.g. Reyes Residence'),
               scrollPadding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {

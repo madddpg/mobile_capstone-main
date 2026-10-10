@@ -394,6 +394,7 @@ Respond ONLY as JSON with this exact shape:
 
 Rules:
 - Use only ids from the list, copied exactly; never invent one
+- In a reason, name work by its label, never by its id
 - Pick only what the description asks for or clearly needs; leave out work it does not mention
 - Stay inside the renovation type unless the description plainly asks for more
 - If the description asks for something no item covers, leave it out; the builder can add it later
@@ -593,7 +594,10 @@ Rules for suggestedWork:
 - Only ids from the work list above; never invent one
 - Only work this conversation calls for, and not work already chosen
 - If the builder wants something no item covers, say so in the reply and suggest nothing for it
-- Empty if the message is off-topic or not about the work`
+- Empty if the message is off-topic or not about the work
+
+Rule for reply:
+- Name work by its label from the list, for example "Retile the floor"; never write an id such as retile_floor, which the builder never sees`
     : `Respond ONLY as JSON with this exact shape:
 {
   "inScope": true,

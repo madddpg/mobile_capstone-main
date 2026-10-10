@@ -287,10 +287,13 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
     if (_alreadyPosted) return null;
     final now = _signature();
     if (widget.existingProject != null) {
-      if (now == _savedAs) return const LeaveWarning.exitEstimate(
-        message:
-            'Your saved estimate stays in Files. Leaving now closes this review.',
-      );
+      if (now == _savedAs) {
+        return const LeaveWarning.exitEstimate(
+          message:
+              'Your saved estimate stays in Files. Leaving now closes this '
+              'review.',
+        );
+      }
       return const LeaveWarning(
         title: 'Leave without saving?',
         message:
@@ -303,7 +306,11 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         cancelLabel: 'Stay',
       );
     }
-    if (now == _openedWith) return const LeaveWarning.exitEstimate();
+    // Nothing changed here, so going back loses nothing: the screen before
+    // keeps the material list as it was. This used to ask "Leave this
+    // estimate?" and say the choices, measurements and list would be
+    // cleared, when back only returned to that list, untouched.
+    if (now == _openedWith) return null;
     return const LeaveWarning(
       title: 'Leave the review?',
       message:

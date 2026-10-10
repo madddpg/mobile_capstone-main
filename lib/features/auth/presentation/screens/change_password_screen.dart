@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:iconstruct/core/firebase/firestore_error.dart';
+import 'package:iconstruct/core/state/user_state/user_provider.dart';
 import 'package:iconstruct/core/validation/password_policy.dart';
 import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart';
 import 'package:iconstruct/core/widgets/app_buttons.dart';
@@ -130,7 +131,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       );
 
       // Force a fresh session after a credential change.
-      await FirebaseAuth.instance.signOut();
+      await UserProvider.signOut();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),

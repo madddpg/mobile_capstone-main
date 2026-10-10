@@ -223,7 +223,8 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                 child: Text(
                   bom.isEmpty
                       ? 'Compare quotations'
-                      : 'Compare quotations · ${bom.length} materials requested',
+                      : 'Compare quotations · ${bom.length} '
+                          'material${bom.length == 1 ? '' : 's'} requested',
                   style: GoogleFonts.poppins(
                     color: AppColors.cream.withValues(alpha: 0.72),
                     fontSize: 13,

@@ -21,10 +21,18 @@ import 'package:iconstruct/features/onboarding/presentation/widgets/home_guide_o
 import 'package:iconstruct/features/project_creation/screens/project_tracking_screen.dart';
 
 class MainHomeScreen extends StatefulWidget {
-  const MainHomeScreen({super.key, this.forceHomeGuide = false});
+  const MainHomeScreen({
+    super.key,
+    this.forceHomeGuide = false,
+    this.loadShops,
+  });
 
   /// Replay the first-login tour even if it was already finished.
   final bool forceHomeGuide;
+
+  /// Where the hardware shops come from. Tests pass their own; the app reads
+  /// them from Firestore.
+  final Future<List<RankedShop>> Function()? loadShops;
 
   @override
   State<MainHomeScreen> createState() => _MainHomeScreenState();
@@ -224,21 +232,6 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                                     color: Color(0xFF2C3E50),
                                   ),
                                 ),
-                                SizedBox(height: 12),
-                                Text(
-                                  'Plan the materials for your home renovation, '
-                                  'send the list to hardware shops around '
-                                  'CALABARZON, and compare their quotations '
-                                  'before you spend anything.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 13,
-                                    height: 1.45,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF4A5D70),
-                                  ),
-                                ),
                               ],
                             ),
                           ),
@@ -306,9 +299,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                   ),
 
                   const SizedBox(height: 28),
-                  const _HowItWorksSection(),
-                  const SizedBox(height: 28),
-                  const _TopShopsSection(),
+                  _HardwareShopsCard(loadShops: widget.loadShops),
                   const SizedBox(height: 24),
                   const _HomeFootnote(),
                   const SizedBox(height: 40),
@@ -557,137 +548,6 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
-/// The three steps of the app, said once on the home screen so a builder
-/// who skipped the first-login tour still knows the path.
-class _HowItWorksSection extends StatelessWidget {
-  const _HowItWorksSection();
-
-  static const _steps = [
-    (
-      title: 'Estimate your materials',
-      body:
-          'Pick a room, tick the work, and enter its measurements. iConstruct '
-          'lists the materials and quantities using Philippine construction '
-          'standards.',
-    ),
-    (
-      title: 'Post for bidding',
-      body:
-          'Send the list to hardware shops. Each shop quotes privately and '
-          'never sees another shop\'s prices.',
-    ),
-    (
-      title: 'Compare and choose',
-      body:
-          'Compare quotations side by side, accept the offer that fits your '
-          'budget, then chat with the shop about stock and pickup.',
-    ),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    const darkBlue = Color(0xFF2C3E50);
-    const cream = Color(0xFFEBE0CC);
-
-    return Container(
-      // Same rule as _MainCard: 330 where it fits, shrinks on narrow phones.
-      width: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 330.0),
-      decoration: BoxDecoration(
-        color: darkBlue,
-        borderRadius: BorderRadius.circular(50),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 30,
-            offset: const Offset(0, 15),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 26),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.lightbulb_outline_rounded, color: cream, size: 28),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'How iConstruct Works',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 21,
-                    fontWeight: FontWeight.w700,
-                    color: cream,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          for (var i = 0; i < _steps.length; i++)
-            Padding(
-              padding: EdgeInsets.only(
-                bottom: i == _steps.length - 1 ? 0 : 16,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 30,
-                    height: 30,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      color: cream,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '${i + 1}',
-                      style: const TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: darkBlue,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _steps[i].title,
-                          style: const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            height: 1.3,
-                            color: cream,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          _steps[i].body,
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 12,
-                            height: 1.45,
-                            color: cream.withValues(alpha: 0.78),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 /// What the numbers on the home screen are and are not.
 class _HomeFootnote extends StatelessWidget {
   const _HomeFootnote();
@@ -732,33 +592,40 @@ String _shopInitial(String name) {
   return trimmed.isEmpty ? '?' : trimmed.characters.first.toUpperCase();
 }
 
-class _TopShopsSection extends StatefulWidget {
-  const _TopShopsSection();
+/// The hardware shops on the home screen, three to a page so the screen
+/// stays short to scroll.
+///
+/// It used to share the card with "How iConstruct Works" behind two tabs.
+/// That section was taken off the home screen; the first-login tour, which
+/// can be replayed from Profile, still walks through the steps.
+class _HardwareShopsCard extends StatefulWidget {
+  const _HardwareShopsCard({this.loadShops});
+
+  final Future<List<RankedShop>> Function()? loadShops;
 
   @override
-  State<_TopShopsSection> createState() => _TopShopsSectionState();
+  State<_HardwareShopsCard> createState() => _HardwareShopsCardState();
 }
 
-class _TopShopsSectionState extends State<_TopShopsSection> {
-  final ShopRankingService _rankingService = ShopRankingService();
-  late Future<List<RankedShop>> _shopsFuture;
+class _HardwareShopsCardState extends State<_HardwareShopsCard> {
+  static const Color _darkBlue = Color(0xFF2C3E50);
+  static const Color _cream = Color(0xFFEBE0CC);
 
-  @override
-  void initState() {
-    super.initState();
-    _shopsFuture = _rankingService.fetchRankedShops();
-  }
+  /// Shops shown on one page.
+  static const int shopsPerPage = 3;
+
+  late final Future<List<RankedShop>> _shopsFuture =
+      widget.loadShops?.call() ?? ShopRankingService().fetchRankedShops();
+
+  int _page = 0;
 
   @override
   Widget build(BuildContext context) {
-    const darkBlue = Color(0xFF2C3E50);
-    const cream = Color(0xFFEBE0CC);
-
     return Container(
       // Same rule as _MainCard: 330 where it fits, shrinks on narrow phones.
       width: (MediaQuery.sizeOf(context).width - 32).clamp(0.0, 330.0),
       decoration: BoxDecoration(
-        color: darkBlue,
+        color: _darkBlue,
         borderRadius: BorderRadius.circular(50),
         boxShadow: [
           BoxShadow(
@@ -768,242 +635,178 @@ class _TopShopsSectionState extends State<_TopShopsSection> {
           ),
         ],
       ),
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.storefront_rounded, color: cream, size: 28),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  'Hardware Shops',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 21,
-                    fontWeight: FontWeight.w700,
-                    color: cream,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TopShopsScreen(),
-                    ),
-                  );
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: cream,
-                  padding: EdgeInsets.zero,
-                  minimumSize: const Size(55, 32),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text(
-                  'View All',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
+      // A last page with fewer shops is shorter; the card eases to it.
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        alignment: Alignment.topCenter,
+        child: _buildShops(context),
+      ),
+    );
+  }
 
-          const SizedBox(height: 6),
-          Text(
-            'Shops with the best ratings from builders come first. Tap a '
-            'shop to see its storefront.',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 12,
-              height: 1.4,
-              color: cream.withValues(alpha: 0.75),
+  Widget _buildShops(BuildContext context) {
+    final noteStyle = TextStyle(
+      fontFamily: 'Poppins',
+      fontSize: 12,
+      height: 1.4,
+      color: _cream.withValues(alpha: 0.75),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Headed like "What would you like to do?" on the card above.
+        const Text(
+          'Hardware Shops',
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 19,
+            fontWeight: FontWeight.w700,
+            height: 1.25,
+            color: _cream,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Shops with the best ratings from builders come first. Tap a shop '
+          'to see its storefront.',
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 12.5,
+            height: 1.4,
+            color: _cream.withValues(alpha: 0.75),
+          ),
+        ),
+        const SizedBox(height: 18),
+        FutureBuilder<List<RankedShop>>(
+          future: _shopsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const AppSkeletonCardList(
+                count: shopsPerPage,
+                scrollable: false,
+                cardColor: Colors.white,
+                cardRadius: 18,
+                cardPadding: EdgeInsets.all(14),
+                cardMargin: EdgeInsets.only(bottom: 12),
+                padding: EdgeInsets.zero,
+                leadingCircle: true,
+                leadingSize: 34,
+                textLines: 2,
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Text('The shops could not be loaded.', style: noteStyle);
+            }
+
+            final shops = snapshot.data ?? const <RankedShop>[];
+            if (shops.isEmpty) {
+              return Text('No hardware shops are listed yet.',
+                  style: noteStyle);
+            }
+
+            final pages = (shops.length + shopsPerPage - 1) ~/ shopsPerPage;
+            final page = _page.clamp(0, pages - 1);
+            final first = page * shopsPerPage;
+            final last = (first + shopsPerPage).clamp(0, shops.length);
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = first; i < last; i++)
+                  _ShopRow(shop: shops[i], rank: i),
+                if (pages > 1)
+                  _pager(
+                    page: page,
+                    pages: pages,
+                    first: first,
+                    last: last,
+                    total: shops.length,
+                  ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TopShopsScreen(),
+                        ),
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: _cream,
+                      minimumSize: const Size(48, 40),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'View all shops',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _pager({
+    required int page,
+    required int pages,
+    required int first,
+    required int last,
+    required int total,
+  }) {
+    Widget arrow(IconData icon, String tooltip, VoidCallback? onPressed) {
+      return IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon),
+        color: _cream,
+        disabledColor: _cream.withValues(alpha: 0.3),
+        style: IconButton.styleFrom(
+          side: BorderSide(
+            color: _cream.withValues(alpha: onPressed == null ? 0.2 : 0.6),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        children: [
+          arrow(
+            Icons.chevron_left_rounded,
+            'Previous page',
+            page > 0 ? () => setState(() => _page = page - 1) : null,
+          ),
+          Expanded(
+            child: Text(
+              'Page ${page + 1} of $pages\n'
+              'Shops ${first + 1}–$last of $total',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 11.5,
+                height: 1.4,
+                color: _cream.withValues(alpha: 0.85),
+              ),
             ),
           ),
-
-          const SizedBox(height: 18),
-
-          FutureBuilder<List<RankedShop>>(
-            future: _shopsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const AppSkeletonCardList(
-                  count: 3,
-                  scrollable: false,
-                  cardColor: Colors.white,
-                  cardRadius: 18,
-                  cardPadding: EdgeInsets.all(14),
-                  cardMargin: EdgeInsets.only(bottom: 12),
-                  padding: EdgeInsets.zero,
-                  leadingCircle: true,
-                  leadingSize: 34,
-                  textLines: 2,
-                );
-              }
-
-              if (snapshot.hasError) {
-                return Text(
-                  'Error loading shops.',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    color: cream.withValues(alpha: 0.8),
-                  ),
-                );
-              }
-
-              final shops = snapshot.data ?? [];
-
-              final displayShops = shops.take(5).toList();
-
-              if (displayShops.isEmpty) {
-                return Text(
-                  'No hardware shops are listed yet.',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 13,
-                    color: cream.withValues(alpha: 0.8),
-                  ),
-                );
-              }
-
-              return Column(
-                children: displayShops.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final shop = entry.value;
-                  final isTop3 = index < 3;
-
-                  return GestureDetector(
-                    onTap: () => showShopStorefrontSheet(context, shop),
-                    child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 34,
-                          height: 34,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: isTop3 ? darkBlue : Colors.grey.shade200,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            _shopInitial(shop.shopName),
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
-                              fontWeight: FontWeight.bold,
-                              color: isTop3 ? Colors.white : darkBlue,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(width: 14),
-
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                shop.shopName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontFamily: 'Poppins',
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                  color: darkBlue,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${shop.address}, ${shop.barangay}, ${shop.city}',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 11,
-                                  color: darkBlue.withValues(alpha: 0.7),
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              ShopRatingStars(
-                                rating: shop.rating,
-                                size: 13,
-                                color: Colors.amber.shade700,
-                                emptyColor: darkBlue.withValues(alpha: 0.25),
-                                textColor: darkBlue,
-                              ),
-                              if (shop.subscriptionPlan != null &&
-                                  shop.subscriptionPlan!.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Plan: ${shop.subscriptionPlan}',
-                                  style: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.orange,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(width: 10),
-
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${shop.quotationCount}',
-                              style: TextStyle(
-                                fontFamily: 'Poppins',
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: darkBlue.withValues(alpha: 0.75),
-                              ),
-                            ),
-                            Text(
-                              shop.quotationCount == 1 ? 'quote' : 'quotes',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 10,
-                                color: darkBlue.withValues(alpha: 0.6),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Icon(
-                              Icons.chevron_right_rounded,
-                              size: 18,
-                              color: darkBlue.withValues(alpha: 0.5),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    ),
-                  );
-                }).toList(),
-              );
-            },
+          arrow(
+            Icons.chevron_right_rounded,
+            'Next page',
+            page < pages - 1 ? () => setState(() => _page = page + 1) : null,
           ),
         ],
       ),
@@ -1011,3 +814,138 @@ class _TopShopsSectionState extends State<_TopShopsSection> {
   }
 }
 
+/// One hardware shop on the home card. [rank] is its place in the whole
+/// ranking, so the top three keep their mark on every page.
+class _ShopRow extends StatelessWidget {
+  final RankedShop shop;
+  final int rank;
+
+  const _ShopRow({required this.shop, required this.rank});
+
+  @override
+  Widget build(BuildContext context) {
+    const darkBlue = Color(0xFF2C3E50);
+    final isTop3 = rank < 3;
+
+    return GestureDetector(
+      onTap: () => showShopStorefrontSheet(context, shop),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isTop3 ? darkBlue : Colors.grey.shade200,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                _shopInitial(shop.shopName),
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.bold,
+                  color: isTop3 ? Colors.white : darkBlue,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    shop.shopName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: darkBlue,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${shop.address}, ${shop.barangay}, ${shop.city}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 11,
+                      color: darkBlue.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  ShopRatingStars(
+                    rating: shop.rating,
+                    size: 13,
+                    color: Colors.amber.shade700,
+                    emptyColor: darkBlue.withValues(alpha: 0.25),
+                    textColor: darkBlue,
+                  ),
+                  if (shop.subscriptionPlan != null &&
+                      shop.subscriptionPlan!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Plan: ${shop.subscriptionPlan}',
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '${shop.quotationCount}',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: darkBlue.withValues(alpha: 0.75),
+                  ),
+                ),
+                Text(
+                  shop.quotationCount == 1 ? 'quote' : 'quotes',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 10,
+                    color: darkBlue.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: darkBlue.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

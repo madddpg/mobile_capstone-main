@@ -115,14 +115,20 @@ class OffsetPanelShell extends StatelessWidget {
                     clipBehavior: Clip.none,
                     children: [
                       const CreamBackdrop(),
-                      CreamHeaderBand(child: header),
-                      if (extent == OffsetPanelExtent.scrollBody)
+                      if (extent != OffsetPanelExtent.scrollBody)
+                        CreamHeaderBand(child: header),
+                      if (extent == OffsetPanelExtent.scrollBody) ...[
                         _buildScrollBody(
                           context,
                           showNav: showNav && !keyboardOpen,
                           keyboardInset: 0,
-                        )
-                      else
+                        ),
+                        // Above the scroll view, not under it. The scroll view
+                        // fills the screen and takes every tap in its top
+                        // padding, so the header's back arrow and avatar on
+                        // the Review Bill of Materials screen did nothing.
+                        CreamHeaderBand(child: header),
+                      ] else
                         _buildOffsetPanel(context, bottom: bottomClearance),
                       if (overlay != null) overlay!,
                       if (showNav && !keyboardOpen)

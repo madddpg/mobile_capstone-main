@@ -20,6 +20,32 @@ class UserProvider extends ChangeNotifier {
 
   String? _fcmBoundUid;
 
+  /// The one way to sign out of the app.
+  ///
+  /// This device's push token is removed from users/{uid} first, while the
+  /// session can still write that document. Removing it after sign-out, as
+  /// the auth listener used to, was always refused by the rules' owner check,
+  /// so the token stayed on the profile.
+  ///
+  /// The removal gets [detachTimeout] at most. Offline, a Firestore write
+  /// can wait a long time for the server, and the Log out button must not
+  /// wait with it; the write is then sent the next time this account signs
+  /// in here. [auth] and [detachDevice] are for tests.
+  static Future<void> signOut({
+    FirebaseAuth? auth,
+    Future<void> Function()? detachDevice,
+    Duration detachTimeout = const Duration(seconds: 5),
+  }) async {
+    try {
+      await (detachDevice ?? FCMService().detachFromUser)()
+          .timeout(detachTimeout);
+    } catch (e) {
+      // A detach that fails or times out must never keep the user signed in.
+      debugPrint('Push token not detached before sign-out: $e');
+    }
+    await (auth ?? FirebaseAuth.instance).signOut();
+  }
+
   void _initListener() {
     _auth.authStateChanges().listen((User? user) async {
       if (user != null) {
@@ -31,12 +57,17 @@ class UserProvider extends ChangeNotifier {
           await FCMService().initFCM(user.uid);
         }
       } else {
-        // Drop this device's push token from the account that just signed out.
-        await FCMService().detachFromUser();
+        // Signed out: clear local state only. The token was detached before
+        // sign-out by [signOut]; nothing can write users/{uid} from here.
         _fcmBoundUid = null;
         _userSubscription?.cancel();
         _currentUser = null;
         notifyListeners();
+        // A session that ended without [signOut] (expired or revoked) still
+        // has its token on this device. Delete it locally so the next account
+        // here does not get this one's pushes.
+        final fcm = FCMService();
+        if (fcm.isBound) await fcm.releaseDevice();
       }
     });
   }

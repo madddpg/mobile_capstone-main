@@ -10,15 +10,30 @@ class UserAvatar extends StatelessWidget {
   final VoidCallback? onTap;
   final bool hasBorder;
 
+  /// What a tap does, read out by screen readers. Defaults to "Profile",
+  /// where the header avatars lead; it used to be an unlabeled button.
+  final String? semanticLabel;
+
   const UserAvatar({
     super.key,
     this.size = 36.0,
     this.onTap,
     this.hasBorder = false,
+    this.semanticLabel,
   });
 
   @override
   Widget build(BuildContext context) {
+    final avatar = _buildAvatar(context);
+    if (onTap == null) return avatar;
+    return Semantics(
+      button: true,
+      label: semanticLabel ?? 'Profile',
+      child: avatar,
+    );
+  }
+
+  Widget _buildAvatar(BuildContext context) {
     const Color darkBlue = Color(0xFF2C3E50);
     const Color creamBg = Color(0xFFEDE4D4);
 

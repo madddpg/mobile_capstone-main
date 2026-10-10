@@ -74,7 +74,7 @@ List<HomeGuideStep> homeGuideSteps({String? firstName}) {
       title: 'Compare and choose',
       body:
           'Offers arrive here to compare side by side. Take a whole quotation, '
-          'or untick the lines you would rather buy elsewhere. Shop ratings '
+          'or deselect the lines you would rather buy elsewhere. Shop ratings '
           'come only from builders who actually bought from them.',
       nextLabel: 'Next',
     ),

@@ -182,7 +182,7 @@ void main() {
     expect(find.byType(OutlinedButton), findsNothing);
 
     expect(find.text('Already have an account?'), findsOneWidget);
-    final login = tester.getRect(find.widgetWithText(TextButton, 'Login'));
+    final login = tester.getRect(find.widgetWithText(TextButton, 'Log in'));
     expect(login.top, greaterThan(started.bottom));
     // The question and its link are centred together under the pill.
     final question = tester.getRect(find.text('Already have an account?'));

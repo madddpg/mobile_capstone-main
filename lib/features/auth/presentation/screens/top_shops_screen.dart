@@ -200,7 +200,7 @@ class _TopShopsScreenState extends State<TopShopsScreen> {
                           ),
                         ),
                         Text(
-                          'quotes',
+                          shop.quotationCount == 1 ? 'quote' : 'quotes',
                           style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 11,

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import '../../../core/services/fcm_service.dart';
+import '../../../core/state/user_state/user_provider.dart';
 import '../../../firebase_options.dart';
 import 'auth_login_error.dart';
 
@@ -250,7 +251,7 @@ class EmailService {
 
       await user.reload();
       if (user.emailVerified) {
-        await _auth.signOut();
+        await UserProvider.signOut(auth: _auth);
         throw const EmailApiException(
           'This email already has an account. Please sign in.',
         );
@@ -274,12 +275,12 @@ class EmailService {
         isVerified: true,
       );
 
-      await _auth.signOut();
+      await UserProvider.signOut(auth: _auth);
     } on EmailApiException {
-      await _auth.signOut();
+      await UserProvider.signOut(auth: _auth);
       rethrow;
     } catch (e) {
-      await _auth.signOut();
+      await UserProvider.signOut(auth: _auth);
       throw EmailApiException('Could not finish registration. $e');
     }
   }
@@ -472,7 +473,7 @@ class EmailService {
       final authVerified = credential.user?.emailVerified ?? false;
       if (!profileVerified && !authVerified) {
         debugPrint('Login blocked: email not verified for $uid');
-        await _auth.signOut();
+        await UserProvider.signOut(auth: _auth);
         try {
           await sendOtp(email: trimmedEmail);
         } catch (e) {
@@ -530,7 +531,7 @@ class EmailService {
     }
   }
 
-  Future<void> logout() => _auth.signOut();
+  Future<void> logout() => UserProvider.signOut(auth: _auth);
 
   Future<void> reloadCurrentUser() async {
     await _auth.currentUser?.reload();

@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/features/project_creation/data/ai_material_consultant_service.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
+import 'package:iconstruct/features/project_creation/screens/ai_consultation_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/ai_recommendations_screen.dart';
 
 /// The AI picks work from the project's catalogue instead of naming
@@ -29,6 +30,27 @@ class _FakeService extends AiMaterialConsultantService {
     required String scope,
     required String description,
     required WorkCatalogue catalogue,
+  }) async =>
+      result;
+}
+
+/// A chat that always answers [result].
+class _FakeChat extends AiMaterialConsultantService {
+  _FakeChat(this.result);
+
+  final AiConsultResult result;
+
+  @override
+  Future<AiConsultResult> consult({
+    required String projectType,
+    required String userMessage,
+    String style = '',
+    double areaSqm = 0,
+    String? scope,
+    List<String> ideaLog = const [],
+    List<String> selectedMaterials = const [],
+    String? projectNotes,
+    WorkCatalogue? catalogue,
   }) async =>
       result;
 }
@@ -102,6 +124,96 @@ void main() {
         'suggestions': ['Ceramic floor tiles 600x600', 'Interior latex paint'],
       }, _bathroom);
       expect(ids, containsAll(['retile_floor', 'repaint']));
+    });
+
+    test('a reply names work, never its id', () {
+      // Word for word what the AI answered on the emulator.
+      const reply = 'Cracked floor tiles point to retile_floor, and a leaking '
+          'faucet suggests supply_lines or plumbing updates. You may also '
+          'want to consider waterproof_floor to protect the area.';
+      expect(
+        AiMaterialConsultantService.namesForIds(reply, _bathroom),
+        'Cracked floor tiles point to “Retile the floor”, and a leaking '
+        'faucet suggests “Replace the water supply lines” or plumbing '
+        'updates. You may also want to consider “Waterproof the floor” to '
+        'protect the area.',
+      );
+    });
+
+    test('an id in quotes or code marks, or capitalised, is still named', () {
+      expect(
+        AiMaterialConsultantService.namesForIds(
+            'Try `tile_walls` and "Retile_Floor".', _bathroom),
+        'Try “Tile the walls” and “Retile the floor”.',
+      );
+    });
+
+    test('plain words that are also ids stay words', () {
+      const reply = 'You may want to repaint the walls after retiling.';
+      expect(AiMaterialConsultantService.namesForIds(reply, _bathroom), reply);
+    });
+
+    test('a reply with no catalogue is left as it is', () {
+      expect(AiMaterialConsultantService.namesForIds('retile_floor', null),
+          'retile_floor');
+    });
+  });
+
+  group('the chat suggestions sheet', () {
+    setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
+
+    // On the emulator, "Add to my list" after choosing two picks was logged
+    // as "Skip suggestions": the picks lived inside the sheet's builder,
+    // which runs again whenever the screen's metrics change.
+    testWidgets('keeps the picks when the screen changes under it',
+        (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.625;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: AIConsultationScreen(
+          projectName: 'Bathroom Renovation',
+          service: _FakeChat(const AiConsultResult(
+            success: true,
+            inScope: true,
+            reply: 'Retiling and a new shower fit what you describe.',
+            suggestions: [],
+            suggestedWork: [
+              'retile_floor',
+              'replace_shower',
+              'waterproof_floor',
+            ],
+          )),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.byType(TextField), 'Cracked floor tiles and a broken shower.');
+      await tester.tap(find.byIcon(Icons.send_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('Suggested work'), findsOneWidget);
+
+      await tester.tap(find.text('Retile the floor'));
+      await tester.pump();
+      await tester.tap(find.text('Replace the shower'));
+      await tester.pump();
+      expect(find.text('Add (2)'), findsOneWidget);
+
+      // What the keyboard closing, a rotation or TalkBack starting does.
+      tester.platformDispatcher.textScaleFactorTestValue = 1.1;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpAndSettle();
+      expect(find.text('Add (2)'), findsOneWidget);
+
+      await tester.tap(find.text('Add (2)'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Added 2 pieces of work to your list (2 so far)'),
+        findsOneWidget,
+      );
+      expect(find.text('Build my BOM (2)'), findsOneWidget);
+      expect(find.textContaining('Skip suggestions'), findsNothing);
     });
   });
 
