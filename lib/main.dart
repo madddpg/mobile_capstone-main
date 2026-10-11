@@ -13,7 +13,10 @@ import 'package:iconstruct/core/services/fcm_service.dart';
 import 'package:iconstruct/core/state/user_state/user_provider.dart';
 import 'firebase_options.dart';
 import 'package:iconstruct/core/theme/app_theme.dart';
+import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/offline_banner.dart';
+import 'package:iconstruct/core/widgets/status_bar.dart';
+import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/display_screen.dart';
 
 Future<void> main() async {
@@ -48,6 +51,8 @@ Future<void> main() async {
       runApp(_BootstrapErrorApp(error: e));
       return;
     }
+
+    UserProvider.onSessionEnded = _returnToSignIn;
 
     runApp(
       MultiProvider(
@@ -104,6 +109,29 @@ class _BootstrapErrorApp extends StatelessWidget {
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+/// Firebase ended the session by itself: it expired, was revoked, or the
+/// account was removed. Starting with a stale session on a phone left the
+/// builder on home with every request refused, and no way back to sign-in
+/// short of reinstalling. Back to sign-in, saying why.
+void _returnToSignIn() {
+  final navigator = navigatorKey.currentState;
+  if (navigator == null) return;
+  navigator.pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const LoginScreen()),
+    (_) => false,
+  );
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+    showAppMessage(
+      context,
+      const SnackBar(
+        content: Text('Your session has ended. Please log in again.'),
+      ),
+    );
+  });
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -118,8 +146,17 @@ class MyApp extends StatelessWidget {
       // Scales text from the screen width (times the phone's font setting,
       // capped) and centers a phone-width column on tablets. See AppScale.
       builder: (context, child) {
-        return ResponsiveFrame(
-          child: OfflineBannerHost(child: child ?? const SizedBox.shrink()),
+        // Dark status bar icons unless a screen asks for light ones: without
+        // a default, a cream screen kept the light icons of a navy one.
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: darkStatusBar,
+          child: ResponsiveFrame(
+            // Above the navigator, so a message shows over any sheet or
+            // dialog.
+            child: AppMessageHost(
+              child: OfflineBannerHost(child: child ?? const SizedBox.shrink()),
+            ),
+          ),
         );
       },
       home: const DisplayScreen(),

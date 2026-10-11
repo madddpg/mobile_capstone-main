@@ -4,6 +4,7 @@ import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/register_screen.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/main_display.dart';
+import 'package:iconstruct/core/widgets/status_bar.dart';
 
 class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});
@@ -58,7 +59,12 @@ class _LandingScreenState extends State<LandingScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      LightStatusBar(child: _buildScreen(context));
+
+  /// The screen itself. Its top is navy, so [build] gives it light status
+  /// bar icons.
+  Widget _buildScreen(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
     return Scaffold(

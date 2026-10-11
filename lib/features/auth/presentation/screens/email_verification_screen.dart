@@ -9,6 +9,7 @@ import 'package:iconstruct/core/theme/app_theme.dart';
 import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/keyboard_form.dart';
+import 'package:iconstruct/core/widgets/status_bar.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   final String email;
@@ -162,7 +163,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      LightStatusBar(child: _buildScreen(context));
+
+  /// The screen itself. Its top is navy, so [build] gives it light status
+  /// bar icons.
+  Widget _buildScreen(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: Container(

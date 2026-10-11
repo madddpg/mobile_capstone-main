@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/features/project_creation/data/material_sources.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
 import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
@@ -268,11 +269,13 @@ class _MaterialIdSheet extends StatelessWidget {
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: _orderLine));
               if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Order line copied'),
-                  duration: Duration(seconds: 2),
-                ),
+              // Through the app's messages, which show above this sheet. A
+              // plain SnackBar landed on the page underneath, hidden.
+              showAppMessage(
+                context,
+                const SnackBar(content: Text('Order line copied')),
+                kind: AppMessageKind.success,
+                duration: const Duration(seconds: 2),
               );
             },
             icon: const Icon(Icons.copy_rounded, size: 18, color: _kCream),

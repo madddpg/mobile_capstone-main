@@ -20,6 +20,16 @@ class UserProvider extends ChangeNotifier {
 
   String? _fcmBoundUid;
 
+  /// Tells a session Firebase ended by itself from a sign-out that was asked
+  /// for through [signOut].
+  static final SessionEndWatch sessionWatch = SessionEndWatch();
+
+  /// Runs when Firebase ends a session by itself: expired, revoked, or the
+  /// account removed. The app sets it to return to sign-in. Without it the
+  /// builder stayed on the open screen with every request refused: home
+  /// said the shops could not be loaded, and Profile was a dead end.
+  static VoidCallback? onSessionEnded;
+
   /// The one way to sign out of the app.
   ///
   /// This device's push token is removed from users/{uid} first, while the
@@ -43,12 +53,14 @@ class UserProvider extends ChangeNotifier {
       // A detach that fails or times out must never keep the user signed in.
       debugPrint('Push token not detached before sign-out: $e');
     }
+    sessionWatch.signOutRequested();
     await (auth ?? FirebaseAuth.instance).signOut();
   }
 
   void _initListener() {
     _auth.authStateChanges().listen((User? user) async {
       if (user != null) {
+        sessionWatch.sessionEnded(signedIn: true);
         _subscribeToUserData(user.uid);
         // Register the device token once per signed-in uid (authStateChanges
         // also fires on token refresh / app resume).
@@ -59,10 +71,12 @@ class UserProvider extends ChangeNotifier {
       } else {
         // Signed out: clear local state only. The token was detached before
         // sign-out by [signOut]; nothing can write users/{uid} from here.
+        final ended = sessionWatch.sessionEnded(signedIn: false);
         _fcmBoundUid = null;
         _userSubscription?.cancel();
         _currentUser = null;
         notifyListeners();
+        if (ended) onSessionEnded?.call();
         // A session that ended without [signOut] (expired or revoked) still
         // has its token on this device. Delete it locally so the next account
         // here does not get this one's pushes.
@@ -100,5 +114,29 @@ class UserProvider extends ChangeNotifier {
   void dispose() {
     _userSubscription?.cancel();
     super.dispose();
+  }
+}
+
+/// Tells a session that Firebase ended on its own (expired, revoked, or the
+/// account removed) from a sign-out the builder asked for.
+class SessionEndWatch {
+  bool _signedIn = false;
+  bool _signOutRequested = false;
+
+  /// Called by [UserProvider.signOut] just before it signs out.
+  void signOutRequested() => _signOutRequested = true;
+
+  /// Takes every sign-in state in turn. True, once, when a signed-in session
+  /// ends without a sign-out having been asked for.
+  bool sessionEnded({required bool signedIn}) {
+    if (signedIn) {
+      _signedIn = true;
+      _signOutRequested = false;
+      return false;
+    }
+    final ended = _signedIn && !_signOutRequested;
+    _signedIn = false;
+    _signOutRequested = false;
+    return ended;
   }
 }

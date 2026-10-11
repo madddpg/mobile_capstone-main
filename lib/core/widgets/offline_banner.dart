@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:iconstruct/core/widgets/status_bar.dart';
 
 /// Soft top banner when the device has no usable network.
 ///
@@ -29,8 +30,8 @@ class _OfflineBannerHostState extends State<OfflineBannerHost> {
   }
 
   void _onChange(List<ConnectivityResult> results) {
-    final offline = results.isEmpty ||
-        results.every((r) => r == ConnectivityResult.none);
+    final offline =
+        results.isEmpty || results.every((r) => r == ConnectivityResult.none);
     if (offline != _offline && mounted) {
       setState(() => _offline = offline);
     }
@@ -48,40 +49,54 @@ class _OfflineBannerHostState extends State<OfflineBannerHost> {
       child: Column(
         children: [
           if (_offline)
-            Material(
-              color: const Color(0xFF5C4033),
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.wifi_off_rounded,
-                        color: Color(0xFFF1E7D6),
-                        size: 18,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          "You're offline. Changes will save when you're back online.",
-                          style: GoogleFonts.poppins(
-                            color: const Color(0xFFF1E7D6),
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                            height: 1.3,
+            // Light icons: the banner sits under the status bar, and the dark
+            // ones of the cream screens were hard to see on its brown.
+            LightStatusBar(
+              child: Material(
+                color: const Color(0xFF5C4033),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.wifi_off_rounded,
+                          color: Color(0xFFF1E7D6),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            "You're offline. Changes will save when you're back online.",
+                            style: GoogleFonts.poppins(
+                              color: const Color(0xFFF1E7D6),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                              height: 1.3,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          Expanded(child: widget.child),
+          // The banner already covers the status bar, so the screens under
+          // it must not leave room for the status bar again: they did, and a
+          // band of empty space pushed every screen down. Always wrapped, so
+          // the navigator below keeps its place when the connection changes.
+          Expanded(
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: _offline,
+              child: widget.child,
+            ),
+          ),
         ],
       ),
     );

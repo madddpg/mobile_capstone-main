@@ -54,8 +54,11 @@ List<HomeGuideStep> homeGuideSteps({String? firstName}) {
       target: HomeGuideTarget.startEstimate,
       title: 'Start an estimate',
       body:
-          'Name your project, then pick your scope: Full, Half or Partial. '
-          'Quantities scale from your floor area using Philippine '
+          // In the order the screens ask, and sized the way the app now
+          // sizes: from the measured room, not the floor area alone.
+          'Choose the room, the kind of work and how much of it: Full, Half '
+          'or Partial. Then name the estimate and measure the room; '
+          'quantities are sized from your measurements using Philippine '
           'construction standards. Tap any material to see what it looks like '
           'and exactly what to ask for at the counter.',
       nextLabel: 'Next',

@@ -109,6 +109,50 @@ void main() {
     expect(find.byTooltip('Next page'), findsNothing);
   });
 
+  testWidgets('scrolled content never shows behind the status bar',
+      (tester) async {
+    tester.view.padding = const FakeViewPadding(top: 47 * 3);
+    await _pumpHome(tester, _shops(3));
+    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+
+    // What is painted at the top of the screen is the cream band, not a card.
+    final band = find.byWidgetPredicate(
+        (w) => w is ColoredBox && w.color == const Color(0xFFEBE0CC));
+    expect(band, findsOneWidget);
+    expect(tester.getRect(band), const Rect.fromLTWH(0, 0, 390, 47));
+    expect(tester.hitTestOnBinding(const Offset(195, 20)).path.any(
+        (entry) => entry.target == tester.renderObject(band)), isTrue);
+  });
+
+  testWidgets('shops that fail to load can be tried again', (tester) async {
+    // It was a dead end ("The shops could not be loaded."): only restarting
+    // the app retried.
+    var calls = 0;
+    tester.view.physicalSize = const Size(390, 2400) * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => UserProvider(),
+        child: MaterialApp(
+          home: MainHomeScreen(loadShops: () async {
+            if (++calls == 1) throw StateError('offline');
+            return _shops(2);
+          }),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('could not be loaded'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Try again'));
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+    expect(find.text('Hardware 1'), findsOneWidget);
+    expect(calls, 2);
+  });
+
   testWidgets('How iConstruct Works is no longer on the home screen',
       (tester) async {
     await _pumpHome(tester, _shops(4));

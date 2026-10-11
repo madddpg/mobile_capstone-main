@@ -400,7 +400,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           'Enter at least one outlet, switch or light for a wiring job.',
         if ([..._doors, ..._windows].any((row) => row.isIncomplete))
           'Enter the width and height of each custom door or window size, '
-              'between 0.30 and 3.00 m.',
+              'between 0.30 and 3.00\u00A0m.',
       ];
 
   void _continue() {

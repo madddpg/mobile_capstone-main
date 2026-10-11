@@ -107,6 +107,48 @@ void main() {
     });
   });
 
+  group('SessionEndWatch', () {
+    // A stale session on a phone was signed out by Firebase a moment after
+    // the app opened home, and the builder was left there with every request
+    // refused. An ended session now returns to sign-in; a Log out does not
+    // need it, since it navigates itself.
+    test('a session Firebase ends by itself is reported, once', () {
+      final watch = SessionEndWatch();
+      expect(watch.sessionEnded(signedIn: true), isFalse);
+      expect(watch.sessionEnded(signedIn: false), isTrue);
+      expect(watch.sessionEnded(signedIn: false), isFalse);
+    });
+
+    test('a sign-out that was asked for is not', () {
+      final watch = SessionEndWatch();
+      watch.sessionEnded(signedIn: true);
+      watch.signOutRequested();
+      expect(watch.sessionEnded(signedIn: false), isFalse);
+    });
+
+    test('starting signed out is not an ended session', () {
+      expect(SessionEndWatch().sessionEnded(signedIn: false), isFalse);
+    });
+
+    test('a request does not outlive the next sign-in', () {
+      // A sign-out that never completed must not hide a later real end.
+      final watch = SessionEndWatch();
+      watch.signOutRequested();
+      watch.sessionEnded(signedIn: true);
+      expect(watch.sessionEnded(signedIn: false), isTrue);
+    });
+
+    test('UserProvider.signOut marks its sign-out as asked for', () async {
+      final watch = UserProvider.sessionWatch;
+      watch.sessionEnded(signedIn: true);
+      await UserProvider.signOut(
+        auth: _FakeAuth(<String>[]),
+        detachDevice: () async {},
+      );
+      expect(watch.sessionEnded(signedIn: false), isFalse);
+    });
+  });
+
   test('every sign-out in the app goes through UserProvider.signOut', () {
     // A direct FirebaseAuth sign-out skips the token detach.
     final direct = RegExp(r'(FirebaseAuth\.instance|\b_?auth)\s*\.signOut\(');

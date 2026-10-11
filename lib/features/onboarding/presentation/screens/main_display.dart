@@ -25,7 +25,7 @@ class _MainDisplayScreenState extends State<MainDisplayScreen>
       imagePath: 'assets/images/display 1.jpg',
       title: 'Estimate\nMaterials',
       subtitle:
-          'Describe the renovation you have in mind and get a material list that scales to your floor area.',
+          'Describe the renovation you have in mind and get a material list sized from the room you measure.',
     ),
     _Slide(
       imagePath: 'assets/images/display 2.jpg',

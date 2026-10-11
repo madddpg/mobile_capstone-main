@@ -308,6 +308,16 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
             ),
           ),
 
+          // A cream band behind the status bar. Scrolled content used to
+          // slide under it, leaving the dark clock and icons over navy cards.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: MediaQuery.paddingOf(context).top,
+            child: const ColoredBox(color: _cream),
+          ),
+
           const OffsetPillNav(activeTab: OffsetNavTab.home),
 
           if (_guideVisible && _guideSteps.isNotEmpty)
@@ -614,7 +624,9 @@ class _HardwareShopsCardState extends State<_HardwareShopsCard> {
   /// Shops shown on one page.
   static const int shopsPerPage = 3;
 
-  late final Future<List<RankedShop>> _shopsFuture =
+  late Future<List<RankedShop>> _shopsFuture = _loadShops();
+
+  Future<List<RankedShop>> _loadShops() =>
       widget.loadShops?.call() ?? ShopRankingService().fetchRankedShops();
 
   int _page = 0;
@@ -698,7 +710,31 @@ class _HardwareShopsCardState extends State<_HardwareShopsCard> {
             }
 
             if (snapshot.hasError) {
-              return Text('The shops could not be loaded.', style: noteStyle);
+              // With a way to retry. It was a dead end: the only fix was to
+              // restart the app.
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'The shops could not be loaded. Check your connection, '
+                    'then try again.',
+                    style: noteStyle,
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => setState(() {
+                      _shopsFuture = _loadShops();
+                    }),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _cream,
+                      side: BorderSide(color: _cream.withValues(alpha: 0.6)),
+                      shape: const StadiumBorder(),
+                    ),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Try again'),
+                  ),
+                ],
+              );
             }
 
             final shops = snapshot.data ?? const <RankedShop>[];

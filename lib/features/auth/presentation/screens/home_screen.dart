@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/features/project_creation/screens/select_renovation_type_screen.dart';
+import 'package:iconstruct/core/widgets/status_bar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -90,7 +91,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      LightStatusBar(child: _buildScreen(context));
+
+  /// The screen itself. Its top is navy, so [build] gives it light status
+  /// bar icons.
+  Widget _buildScreen(BuildContext context) {
     final canSubmit = _selected.isNotEmpty;
 
     return Scaffold(

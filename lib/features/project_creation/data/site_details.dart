@@ -405,21 +405,21 @@ class SiteDetails {
             'rectangle.');
       }
       if (shape.wallRunsM.any((m) => m < 0.3 || m > 30)) {
-        out.add('Enter each wall length between 0.3 and 30 m.');
+        out.add('Enter each wall length between 0.3 and 30\u00A0m.');
       }
       if (shape.floorSqm < 0.5 || shape.floorSqm > 500) {
         out.add('Enter a floor area between 0.5 and 500 sq.m.');
       }
     } else {
       if (lengthM < 0.5 || lengthM > 30) {
-        out.add('Enter a room length between 0.5 and 30 m.');
+        out.add('Enter a room length between 0.5 and 30\u00A0m.');
       }
       if (widthM < 0.5 || widthM > 30) {
-        out.add('Enter a room width between 0.5 and 30 m.');
+        out.add('Enter a room width between 0.5 and 30\u00A0m.');
       }
     }
     if (job.hasWalls && (heightM < 2.0 || heightM > 6.0)) {
-      out.add('Enter a ceiling height between 2.0 and 6.0 m.');
+      out.add('Enter a ceiling height between 2.0 and 6.0\u00A0m.');
     }
     final whole = partial;
     if (whole != null) {
@@ -427,10 +427,10 @@ class SiteDetails {
         out.add('Name the part being worked on, such as "shower area".');
       }
       if (whole.totalLengthM < 0.5 || whole.totalLengthM > 30) {
-        out.add('Enter a total length between 0.5 and 30 m for the whole space.');
+        out.add('Enter a total length between 0.5 and 30\u00A0m for the whole space.');
       }
       if (whole.totalWidthM < 0.5 || whole.totalWidthM > 30) {
-        out.add('Enter a total width between 0.5 and 30 m for the whole space.');
+        out.add('Enter a total width between 0.5 and 30\u00A0m for the whole space.');
       }
       // A part bigger than the space it sits in means one of the two was
       // mistyped, and the quantities would be sized from the wrong one.

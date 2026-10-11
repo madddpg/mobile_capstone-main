@@ -5,6 +5,7 @@ import 'package:iconstruct/features/auth/presentation/screens/forgot_password_ot
 import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/keyboard_form.dart';
+import 'package:iconstruct/core/widgets/status_bar.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -70,7 +71,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      LightStatusBar(child: _buildScreen(context));
+
+  /// The screen itself. Its top is navy, so [build] gives it light status
+  /// bar icons.
+  Widget _buildScreen(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: Container(

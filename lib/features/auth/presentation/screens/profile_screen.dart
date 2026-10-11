@@ -204,7 +204,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 final currentUserModel = userProvider.currentUser;
 
                 if (user == null) {
-                  return const Center(child: Text('User not logged in.'));
+                  // Readable, and with a way out. It was dark text on the dark
+                  // panel ("User not logged in."), with no back button and no
+                  // way to sign in again.
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'You are signed out.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              color: _cream,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Log in again to see your profile and estimates.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              height: 1.4,
+                              color: _cream.withAlpha(215),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          FilledButton(
+                            onPressed: () =>
+                                Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (_) => const LoginScreen(),
+                              ),
+                              (_) => false,
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _cream,
+                              foregroundColor: _darkBlue,
+                              minimumSize: const Size(160, 48),
+                              shape: const StadiumBorder(),
+                            ),
+                            child: Text(
+                              'Log in',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
                 }
 
                 if (currentUserModel == null) {

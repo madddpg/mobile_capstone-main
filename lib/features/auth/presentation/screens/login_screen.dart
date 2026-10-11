@@ -7,6 +7,7 @@ import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/landing_screen.dart';
 import 'package:iconstruct/features/auth/presentation/widgets/otp_dialog.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/widgets/status_bar.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -114,7 +115,12 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      LightStatusBar(child: _buildScreen(context));
+
+  /// The screen itself. Its top is navy, so [build] gives it light status
+  /// bar icons.
+  Widget _buildScreen(BuildContext context) {
     return RootBackFallback(
       fallback: (_) => const LandingScreen(),
       child: _buildScaffold(context),
