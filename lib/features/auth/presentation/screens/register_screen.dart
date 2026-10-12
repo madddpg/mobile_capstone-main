@@ -9,6 +9,7 @@ import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/keyboard_form.dart';
 import 'package:iconstruct/core/widgets/status_bar.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -184,12 +185,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       debugPrint('Registration started');
 
+      PerfLog.begin('register');
       await _emailService.register(
         firstName: firstName,
         lastName: lastName,
         email: email,
         password: password,
       );
+      PerfLog.response('register');
 
       if (!mounted) return;
 

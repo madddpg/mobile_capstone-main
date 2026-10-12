@@ -7,6 +7,7 @@ import 'package:iconstruct/features/project_creation/data/renovation_coverage.da
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/screens/select_planning_method_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 /// Names the estimate, then opens the AI or template choice.
 class CreateProjectScreen extends StatefulWidget {
@@ -41,6 +42,13 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
   final _nameController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    PerfLog.screenShown('planning');
+    PerfLog.contentReady('planning');
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     super.dispose();
@@ -67,8 +75,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
     return GlitchedFlowShell(
       title: 'Name Your\nProject',
       subtitle: '${widget.types.label} · ${widget.renovationType}',
-      instruction:
-          'Name the estimate, then choose how to plan it.',
+      instruction: 'Name the estimate, then choose how to plan it.',
       onBack: () => const LeaveWarning.exitEstimate(),
       onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(

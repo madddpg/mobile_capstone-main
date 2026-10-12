@@ -28,6 +28,7 @@ import 'package:iconstruct/features/project_creation/widgets/bom_share_sheet.dar
 import 'package:iconstruct/features/project_creation/widgets/material_id_sheet.dart';
 import 'package:iconstruct/features/project_creation/widgets/material_swatch.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 class MaterialEstimatorScreen extends StatefulWidget {
   final String projectName;
@@ -129,8 +130,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
   /// re-post (creating a duplicate `projectPosts` doc) before it is disposed.
   bool _postedThisSession = false;
 
-  late final String _projectScopeLabel = widget.existingProject?.projectScope ??
-      widget.scope.label;
+  late final String _projectScopeLabel =
+      widget.existingProject?.projectScope ?? widget.scope.label;
 
   /// A reopened estimate keeps the coverage it was saved with. An estimate
   /// saved before coverage existed reads as Full, which is what it described.
@@ -481,8 +482,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
             _areaIsMeasured
                 ? 'Project Area (sqm) — measured from the room:'
                 : _detailsLocked
-                    ? 'Project Area (sqm):'
-                    : 'Project Area (sqm) — optional:',
+                ? 'Project Area (sqm):'
+                : 'Project Area (sqm) — optional:',
           ),
           _buildTextField(
             '0.00',
@@ -506,7 +507,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
                 : 'Budget Preference — optional:',
           ),
           _buildDropdownField(
-            readOnly: _alreadyPosted ||
+            readOnly:
+                _alreadyPosted ||
                 (widget.lockEstimateDetails &&
                     (widget.aiBudget?.trim().isNotEmpty ?? false)),
           ),
@@ -683,10 +685,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
                 : 'Not set',
           ),
           const SizedBox(height: 8),
-          _buildSummaryRow(
-            'Budget preference:',
-            _selectedBudget ?? 'Not set',
-          ),
+          _buildSummaryRow('Budget preference:', _selectedBudget ?? 'Not set'),
           const SizedBox(height: 14),
           const Divider(color: Color(0xFFEDE4D4), thickness: 1),
           const SizedBox(height: 14),
@@ -709,9 +708,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => PostedProjectDetailsScreen(
-                        postId: postId,
-                      ),
+                      builder: (context) =>
+                          PostedProjectDetailsScreen(postId: postId),
                     ),
                   );
                 },
@@ -764,8 +762,9 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEDE4D4),
                   foregroundColor: const Color(0xFF2C3E50),
-                  disabledBackgroundColor:
-                      const Color(0xFFEDE4D4).withValues(alpha: 0.4),
+                  disabledBackgroundColor: const Color(
+                    0xFFEDE4D4,
+                  ).withValues(alpha: 0.4),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),
@@ -808,25 +807,24 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed:
-                    (_materialCount == 0 || _busy) ? null : _saveProject,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFEDE4D4),
-                side: const BorderSide(color: Color(0xFFEDE4D4)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
+                onPressed: (_materialCount == 0 || _busy) ? null : _saveProject,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFEDE4D4),
+                  side: const BorderSide(color: Color(0xFFEDE4D4)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: Text(
-                'Save Draft',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
+                child: Text(
+                  'Save Draft',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -934,7 +932,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (mounted) {
-        showAppMessage(context,
+        showAppMessage(
+          context,
           const SnackBar(content: Text('Please log in to save projects')),
         );
       }
@@ -957,7 +956,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
     if (_projectName.trim().isEmpty) {
       if (mounted) {
-        showAppMessage(context, 
+        showAppMessage(
+          context,
           const SnackBar(content: Text('Please enter an Estimate Name')),
         );
       }
@@ -1004,15 +1004,15 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
       final savedRef = widget.existingProject != null
           ? FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .collection('saved_projects')
-              .doc(widget.existingProject!.id)
+                .collection('users')
+                .doc(user.uid)
+                .collection('saved_projects')
+                .doc(widget.existingProject!.id)
           : FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .collection('saved_projects')
-              .doc();
+                .collection('users')
+                .doc(user.uid)
+                .collection('saved_projects')
+                .doc();
 
       await savedRef.set(projectData, SetOptions(merge: true));
       _savedAs = _signature();
@@ -1032,7 +1032,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showAppMessage(context,
+        showAppMessage(
+          context,
           SnackBar(
             content: Text(firestoreUserMessage(e, action: 'save this draft')),
             duration: const Duration(seconds: 6),
@@ -1107,7 +1108,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (mounted) {
-        showAppMessage(context,
+        showAppMessage(
+          context,
           const SnackBar(content: Text('Please log in to post projects')),
         );
       }
@@ -1116,7 +1118,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
     if (_alreadyPosted) {
       if (mounted) {
-        showAppMessage(context, 
+        showAppMessage(
+          context,
           const SnackBar(
             content: Text(
               'This estimate is already posted. Start a new plan to canvass another project.',
@@ -1129,7 +1132,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
     if (_projectName.trim().isEmpty) {
       if (mounted) {
-        showAppMessage(context, 
+        showAppMessage(
+          context,
           const SnackBar(content: Text('Please enter an Estimate Name')),
         );
       }
@@ -1140,7 +1144,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
     if (materialsList.isEmpty) {
       if (mounted) {
-        showAppMessage(context,
+        showAppMessage(
+          context,
           const SnackBar(
             content: Text('Cannot post a project without materials'),
           ),
@@ -1151,7 +1156,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
     if (_hasZeroQtyLine) {
       if (mounted) {
-        showAppMessage(context,
+        showAppMessage(
+          context,
           const SnackBar(
             content: Text(
               'Set a quantity greater than 0 on every material before requesting quotations.',
@@ -1162,6 +1168,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
       return;
     }
 
+    PerfLog.begin('post_project');
     setState(() => _busy = true);
     try {
       // Fresh ID token before security-rule checks on the batch write.
@@ -1263,6 +1270,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
       batch.set(newPostRef, projectPostData);
 
       await batch.commit();
+      PerfLog.response('post_project');
       _postedThisSession = true;
 
       ActiveProjectState.instance.clear();
@@ -1286,10 +1294,12 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           ),
           (route) => route.isFirst,
         );
+        PerfLog.contentReady('post_project');
       }
     } catch (e) {
       if (mounted) {
-        showAppMessage(context,
+        showAppMessage(
+          context,
           SnackBar(
             content: Text(
               firestoreUserMessage(e, action: 'request supplier quotations'),
@@ -1517,7 +1527,6 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
             },
     );
   }
-
 }
 
 class SelectedMaterialCard extends StatelessWidget {

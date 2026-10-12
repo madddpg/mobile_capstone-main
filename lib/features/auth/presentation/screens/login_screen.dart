@@ -4,6 +4,7 @@ import 'package:iconstruct/features/auth/data/email_service.dart';
 import 'package:iconstruct/features/auth/data/auth_login_error.dart';
 import 'package:iconstruct/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:iconstruct/core/navigation/app_nav.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/landing_screen.dart';
 import 'package:iconstruct/features/auth/presentation/widgets/otp_dialog.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
@@ -26,6 +27,14 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   String? _emailError;
   String? _passwordError;
+
+  @override
+  void initState() {
+    super.initState();
+    // Sign-in opens after a verified registration.
+    PerfLog.screenShown('verify');
+    PerfLog.contentReady('verify');
+  }
 
   @override
   void dispose() {
@@ -68,6 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _validatePassword(password);
     if (_emailError != null || _passwordError != null) return;
 
+    PerfLog.begin('login');
     setState(() => _loading = true);
 
     try {
@@ -75,6 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: email,
         password: password,
       );
+      PerfLog.response('login');
       final uid = credential.user?.uid;
 
       if (!mounted) return;

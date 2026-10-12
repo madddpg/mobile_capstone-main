@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 
+import 'package:iconstruct/core/perf/perf_log.dart';
 import 'package:iconstruct/core/navigation/planning_nav.dart';
 import 'package:iconstruct/core/state/onboarding_preferences.dart';
 import 'package:iconstruct/core/state/user_state/user_provider.dart';
@@ -56,6 +57,7 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
   @override
   void initState() {
     super.initState();
+    PerfLog.screenShown('login');
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStartGuide());
   }
 
@@ -627,7 +629,8 @@ class _HardwareShopsCardState extends State<_HardwareShopsCard> {
   late Future<List<RankedShop>> _shopsFuture = _loadShops();
 
   Future<List<RankedShop>> _loadShops() =>
-      widget.loadShops?.call() ?? ShopRankingService().fetchRankedShops();
+      (widget.loadShops?.call() ?? ShopRankingService().fetchRankedShops())
+          .whenComplete(() => PerfLog.contentReady('login'));
 
   int _page = 0;
 
@@ -739,8 +742,10 @@ class _HardwareShopsCardState extends State<_HardwareShopsCard> {
 
             final shops = snapshot.data ?? const <RankedShop>[];
             if (shops.isEmpty) {
-              return Text('No hardware shops are listed yet.',
-                  style: noteStyle);
+              return Text(
+                'No hardware shops are listed yet.',
+                style: noteStyle,
+              );
             }
 
             final pages = (shops.length + shopsPerPage - 1) ~/ shopsPerPage;

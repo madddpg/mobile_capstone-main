@@ -15,6 +15,7 @@ import 'package:iconstruct/features/project_creation/data/renovation_scope.dart'
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/data/site_details.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 /// After a template is chosen, collect what its quantities are sized from.
 ///
@@ -85,15 +86,15 @@ class _OpeningCount {
   int count;
 
   _OpeningCount.preset(Opening this.preset, this.use, this.count)
-      : widthController = null,
-        heightController = null;
+    : widthController = null,
+      heightController = null;
 
   _OpeningCount.custom()
-      : preset = null,
-        use = '',
-        count = 1,
-        widthController = TextEditingController(),
-        heightController = TextEditingController();
+    : preset = null,
+      use = '',
+      count = 1,
+      widthController = TextEditingController(),
+      heightController = TextEditingController();
 
   static bool _sensible(double? metres) =>
       metres != null && metres >= 0.3 && metres <= 3.0;
@@ -179,10 +180,12 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   /// cannot show them. Such a job keeps the template's own rates rather than
   /// taking counts the builder was never offered, which would read as zero
   /// devices and empty the wiring out of the list.
-  late final bool _needsFunctionalCounts = widget.types.includesFunctional &&
+  late final bool _needsFunctionalCounts =
+      widget.types.includesFunctional &&
       _job != null &&
-      widget.template.items
-          .any((i) => classifyMaterial(i) == MaterialKind.electrical);
+      widget.template.items.any(
+        (i) => classifyMaterial(i) == MaterialKind.electrical,
+      );
 
   /// Whether the list carries a line of the given kind. A list built from
   /// ticked work is only asked about the work ticked: no wall-tile height
@@ -192,20 +195,27 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   bool _asks(bool Function(RenovationTemplateItem) test) =>
       !widget.template.isFromWorkItems || widget.template.items.any(test);
 
-  late final bool _asksWallTiles =
-      _asks((i) => classifyMaterial(i) == MaterialKind.wallTile);
-  late final bool _asksFloor = _asks((i) =>
-      classifyMaterial(i) == MaterialKind.floorTile || isFloorFinishGoods(i));
-  late final bool _asksPaint =
-      _asks((i) => kPaintKinds.contains(classifyMaterial(i)));
+  late final bool _asksWallTiles = _asks(
+    (i) => classifyMaterial(i) == MaterialKind.wallTile,
+  );
+  late final bool _asksFloor = _asks(
+    (i) =>
+        classifyMaterial(i) == MaterialKind.floorTile || isFloorFinishGoods(i),
+  );
+  late final bool _asksPaint = _asks(
+    (i) => kPaintKinds.contains(classifyMaterial(i)),
+  );
 
   /// Doors and windows change the tiled and painted wall and the new CHB, and
   /// doorways shorten the skirting.
-  late final bool _asksOpenings = _asksWallTiles ||
+  late final bool _asksOpenings =
+      _asksWallTiles ||
       _asksPaint ||
-      _asks((i) =>
-          classifyMaterial(i) == MaterialKind.chbBlock ||
-          i.name.toLowerCase().contains('skirting'));
+      _asks(
+        (i) =>
+            classifyMaterial(i) == MaterialKind.chbBlock ||
+            i.name.toLowerCase().contains('skirting'),
+      );
 
   /// The counts as entered, or `null` when this job wires nothing and its
   /// quantities keep the template's own rates.
@@ -221,6 +231,8 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   void initState() {
     super.initState();
     final job = _job;
+    PerfLog.screenShown('template_area');
+    PerfLog.contentReady('template_area');
     final defaults = job == null ? null : SiteDetails.defaultsFor(job);
 
     int countOf(List<Opening>? openings, Opening size) => (openings ?? const [])
@@ -233,14 +245,21 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     _doors = [
       for (var i = 0; i < kDoorSizes.length; i++)
         _OpeningCount.preset(
-            kDoorSizes[i], _doorUses[i], countOf(defaults?.doors, kDoorSizes[i])),
+          kDoorSizes[i],
+          _doorUses[i],
+          countOf(defaults?.doors, kDoorSizes[i]),
+        ),
     ];
     _windows = [
       for (var i = 0; i < kWindowSizes.length; i++)
-        _OpeningCount.preset(kWindowSizes[i], _windowUses[i],
-            countOf(defaults?.windows, kWindowSizes[i])),
+        _OpeningCount.preset(
+          kWindowSizes[i],
+          _windowUses[i],
+          countOf(defaults?.windows, kWindowSizes[i]),
+        ),
     ];
-    _wallTiles = widget.hints.wallTileHeight ??
+    _wallTiles =
+        widget.hints.wallTileHeight ??
         defaults?.wallTileHeight ??
         WallTileHeight.none;
     // Tiling the walls was ticked, so "no wall tiles" is not an answer here.
@@ -362,9 +381,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   /// How far round the room the entered walls reach, so the builder can check
   /// it against what they paced out.
   double get _wallPerimeter => _wallRuns.fold(0.0, (sum, run) {
-        final metres = _parseMetres(run.text) ?? 0;
-        return sum + (metres > 0 ? metres : 0);
-      });
+    final metres = _parseMetres(run.text) ?? 0;
+    return sum + (metres > 0 ? metres : 0);
+  });
 
   /// The room as walked wall by wall, when it is not a rectangle.
   IrregularRoom? get _irregularRoom {
@@ -394,14 +413,14 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   }
 
   List<String> _problems(SiteDetails details) => [
-        ...details.problems(),
-        // A wiring job that installs nothing has no materials to quote.
-        if (_needsFunctionalCounts && (_counts?.isEmpty ?? false))
-          'Enter at least one outlet, switch or light for a wiring job.',
-        if ([..._doors, ..._windows].any((row) => row.isIncomplete))
-          'Enter the width and height of each custom door or window size, '
-              'between 0.30 and 3.00\u00A0m.',
-      ];
+    ...details.problems(),
+    // A wiring job that installs nothing has no materials to quote.
+    if (_needsFunctionalCounts && (_counts?.isEmpty ?? false))
+      'Enter at least one outlet, switch or light for a wiring job.',
+    if ([..._doors, ..._windows].any((row) => row.isIncomplete))
+      'Enter the width and height of each custom door or window size, '
+          'between 0.30 and 3.00\u00A0m.',
+  ];
 
   void _continue() {
     FocusScope.of(context).unfocus();
@@ -425,6 +444,7 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   }
 
   void _openEstimate(double area, SiteTakeoff? takeoff) {
+    PerfLog.begin('estimator');
     final counts = _counts;
     final scaled = BomQuantityEstimator.scaleTemplate(
       template: widget.template,
@@ -438,8 +458,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
     // chips to swap one pick for another.
     final scaledItems =
         widget.template.id == BomQuantityEstimator.consultationTemplateId
-            ? BomQuantityEstimator.fixedList(scaled)
-            : scaled;
+        ? BomQuantityEstimator.fixedList(scaled)
+        : scaled;
+    PerfLog.response('estimator');
 
     Navigator.push(
       context,
@@ -592,10 +613,10 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       instruction: job == null
           ? 'Enter the total area in square meters.'
           : _finishes
-              ? 'Enter the room size. Quantities use these measurements.'
-              : _needsFunctionalCounts
-                  ? 'Enter the room size and how many devices you need.'
-                  : 'Enter the room size.',
+          ? 'Enter the room size. Quantities use these measurements.'
+          : _needsFunctionalCounts
+          ? 'Enter the room size and how many devices you need.'
+          : 'Enter the room size.',
       onBack: _backWarning,
       onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
@@ -611,7 +632,10 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           children: [
             _buildTypeRow(),
             const SizedBox(height: 18),
-            if (job == null) ..._buildAreaSection() else ..._buildRoomSection(job),
+            if (job == null)
+              ..._buildAreaSection()
+            else
+              ..._buildRoomSection(job),
             const SizedBox(height: 18),
             _buildStandardsNote(),
           ],
@@ -633,41 +657,42 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
 
   Widget _buildTypeRow() {
     return Row(
-        children: [
-          // Expanded so the label gives way to the help link on a narrow
-          // screen instead of pushing it past the panel edge.
-          Expanded(
-            child: _label(
-                '${widget.types.label} renovation · '
-                '${widget.template.items.length} '
-                'material${widget.template.items.length == 1 ? '' : 's'}'),
+      children: [
+        // Expanded so the label gives way to the help link on a narrow
+        // screen instead of pushing it past the panel edge.
+        Expanded(
+          child: _label(
+            '${widget.types.label} renovation · '
+            '${widget.template.items.length} '
+            'material${widget.template.items.length == 1 ? '' : 's'}',
           ),
-          const SizedBox(width: 8),
-          InkWell(
-            onTap: _showHowEstimationWorksDialog,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.help_outline_rounded,
-                  size: 14,
-                  color: Color(0xFF8FB2D4),
+        ),
+        const SizedBox(width: 8),
+        InkWell(
+          onTap: _showHowEstimationWorksDialog,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.help_outline_rounded,
+                size: 14,
+                color: Color(0xFF8FB2D4),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'How it works',
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF8FB2D4),
+                  decoration: TextDecoration.underline,
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  'How it works',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF8FB2D4),
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      );
+        ),
+      ],
+    );
   }
 
   List<Widget> _buildAreaSection() {
@@ -746,8 +771,10 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       ),
       if (widget.coverage.isHalf) ...[
         const SizedBox(height: 8),
-        _hint('Half: enter the whole area. The materials are sized for half '
-            'of it.'),
+        _hint(
+          'Half: enter the whole area. The materials are sized for half '
+          'of it.',
+        ),
       ],
     ];
   }
@@ -797,12 +824,18 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
             children: [
               Expanded(
                 child: _metresField(
-                    _totalLengthController, 'Whole length', 'e.g. 4.0'),
+                  _totalLengthController,
+                  'Whole length',
+                  'e.g. 4.0',
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: _metresField(
-                    _totalWidthController, 'Whole width', 'e.g. 3.0'),
+                  _totalWidthController,
+                  'Whole width',
+                  'e.g. 3.0',
+                ),
               ),
             ],
           ),
@@ -814,17 +847,21 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         const SizedBox(height: 18),
       ],
       if (widget.coverage.isHalf) ...[
-        _hint('Half: measure the whole room. Every surface below is sized at '
-            'half of it.'),
+        _hint(
+          'Half: measure the whole room. Every surface below is sized at '
+          'half of it.',
+        ),
         const SizedBox(height: 10),
       ],
-      _label(job.hasWalls
-          ? (_isPortion && _asksPortion
-              ? 'The part: length, width and ceiling height *'
-              : 'Room size: length, width and ceiling height *')
-          : (_isPortion && _asksPortion
-              ? 'The part: length and width *'
-              : 'Room size: length and width *')),
+      _label(
+        job.hasWalls
+            ? (_isPortion && _asksPortion
+                  ? 'The part: length, width and ceiling height *'
+                  : 'Room size: length, width and ceiling height *')
+            : (_isPortion && _asksPortion
+                  ? 'The part: length and width *'
+                  : 'Room size: length and width *'),
+      ),
       const SizedBox(height: 4),
       // One room per estimate is still the rule. The shape of that room is no
       // longer forced into a rectangle: an L-shaped room is measured wall by
@@ -865,16 +902,20 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
               children: [
                 Expanded(
                   child: _metresField(
-                      _wallRuns[i], 'Wall ${i + 1}', 'e.g. 3.0',
-                      dense: true),
+                    _wallRuns[i],
+                    'Wall ${i + 1}',
+                    'e.g. 3.0',
+                    dense: true,
+                  ),
                 ),
                 if (_wallRuns.length > 3)
                   IconButton(
                     tooltip: 'Remove wall ${i + 1}',
                     onPressed: () => setState(() {
                       final removed = _wallRuns.removeAt(i);
-                      WidgetsBinding.instance
-                          .addPostFrameCallback((_) => removed.dispose());
+                      WidgetsBinding.instance.addPostFrameCallback(
+                        (_) => removed.dispose(),
+                      );
                     }),
                     icon: const Icon(Icons.close_rounded, size: 16),
                     color: GlitchedFlowShell.cream,
@@ -889,8 +930,10 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
         ),
         if (_wallPerimeter > 0) ...[
           const SizedBox(height: 4),
-          _hint('${_wallRuns.length} walls, '
-              '${_wallPerimeter.toStringAsFixed(2)} m around.'),
+          _hint(
+            '${_wallRuns.length} walls, '
+            '${_wallPerimeter.toStringAsFixed(2)} m around.',
+          ),
         ],
         if (job.hasWalls) ...[
           const SizedBox(height: 10),
@@ -909,74 +952,87 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
           'from the floor area. Set one to 0 to leave it out of the list.',
         ),
         const SizedBox(height: 10),
-        _deviceRow('Convenience outlets', 'outlet', _outlets,
-            (value) => setState(() => _outlets = value)),
-        _deviceRow('Light switches', 'switch', _switches,
-            (value) => setState(() => _switches = value)),
-        _deviceRow('Ceiling lights', 'light', _lights,
-            (value) => setState(() => _lights = value)),
+        _deviceRow(
+          'Convenience outlets',
+          'outlet',
+          _outlets,
+          (value) => setState(() => _outlets = value),
+        ),
+        _deviceRow(
+          'Light switches',
+          'switch',
+          _switches,
+          (value) => setState(() => _switches = value),
+        ),
+        _deviceRow(
+          'Ceiling lights',
+          'light',
+          _lights,
+          (value) => setState(() => _lights = value),
+        ),
       ],
       if (_finishes) ...[
-      if (_asksOpenings) ...[
-        const SizedBox(height: 18),
-        _label(job.hasWalls ? 'Doors' : 'Doorways (skirting stops at these)'),
-        const SizedBox(height: 6),
-        ..._openingRows(_doors, 'door'),
-        _addSizeButton(
-          'Add another door size',
-          () => setState(() => _doors.add(_OpeningCount.custom())),
-        ),
-      ],
-      if (job.hasWalls && _asksOpenings) ...[
+        if (_asksOpenings) ...[
+          const SizedBox(height: 18),
+          _label(job.hasWalls ? 'Doors' : 'Doorways (skirting stops at these)'),
+          const SizedBox(height: 6),
+          ..._openingRows(_doors, 'door'),
+          _addSizeButton(
+            'Add another door size',
+            () => setState(() => _doors.add(_OpeningCount.custom())),
+          ),
+        ],
+        if (job.hasWalls && _asksOpenings) ...[
+          const SizedBox(height: 12),
+          _label('Windows'),
+          const SizedBox(height: 6),
+          ..._openingRows(_windows, 'window'),
+          _addSizeButton(
+            'Add another window size',
+            () => setState(() => _windows.add(_OpeningCount.custom())),
+          ),
+        ],
+        if (job.offersWallTiles && _asksWallTiles) ...[
+          const SizedBox(height: 12),
+          _label('Wall tiles'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in wallTileOptions)
+                _choiceChip(
+                  label: option.label,
+                  selected: _wallTiles == option,
+                  onTap: () => setState(() => _wallTiles = option),
+                ),
+            ],
+          ),
+        ],
+        if (job == RoomJob.kitchen) ...[
+          const SizedBox(height: 16),
+          _label('Counter length'),
+          const SizedBox(height: 8),
+          _metresField(_counterController, 'Counter', 'e.g. 2.4'),
+          const SizedBox(height: 4),
+          _hint('Sizes the backsplash and the countertop.'),
+        ],
         const SizedBox(height: 12),
-        _label('Windows'),
-        const SizedBox(height: 6),
-        ..._openingRows(_windows, 'window'),
-        _addSizeButton(
-          'Add another window size',
-          () => setState(() => _windows.add(_OpeningCount.custom())),
-        ),
-      ],
-      if (job.offersWallTiles && _asksWallTiles) ...[
-        const SizedBox(height: 12),
-        _label('Wall tiles'),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final option in wallTileOptions)
-              _choiceChip(
-                label: option.label,
-                selected: _wallTiles == option,
-                onTap: () => setState(() => _wallTiles = option),
-              ),
-          ],
-        ),
-      ],
-      if (job == RoomJob.kitchen) ...[
-        const SizedBox(height: 16),
-        _label('Counter length'),
-        const SizedBox(height: 8),
-        _metresField(_counterController, 'Counter', 'e.g. 2.4'),
-        const SizedBox(height: 4),
-        _hint('Sizes the backsplash and the countertop.'),
-      ],
-      const SizedBox(height: 12),
-      if (job.hasFloor && _asksFloor)
-        _switchRow(
-          title: 'Remove the old floor tiles',
-          subtitle: 'Adds cement and sand to level the floor for the new tiles',
-          value: _removeOldTiles,
-          onChanged: (v) => setState(() => _removeOldTiles = v),
-        ),
-      if (job.hasWalls && _asksPaint)
-        _switchRow(
-          title: 'Paint the ceiling',
-          subtitle: 'Adds the ceiling to the paint area',
-          value: _paintCeiling,
-          onChanged: (v) => setState(() => _paintCeiling = v),
-        ),
+        if (job.hasFloor && _asksFloor)
+          _switchRow(
+            title: 'Remove the old floor tiles',
+            subtitle:
+                'Adds cement and sand to level the floor for the new tiles',
+            value: _removeOldTiles,
+            onChanged: (v) => setState(() => _removeOldTiles = v),
+          ),
+        if (job.hasWalls && _asksPaint)
+          _switchRow(
+            title: 'Paint the ceiling',
+            subtitle: 'Adds the ceiling to the paint area',
+            value: _paintCeiling,
+            onChanged: (v) => setState(() => _paintCeiling = v),
+          ),
       ],
       const SizedBox(height: 12),
       _buildMeasurementGuide(details),
@@ -1048,9 +1104,9 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
               shape != null
                   ? 'Enter the floor area and each wall to see the total.'
                   : job.hasWalls
-                      ? 'Enter the length, width and height to see the total '
-                          'area.'
-                      : 'Enter the length and width to see the total area.',
+                  ? 'Enter the length, width and height to see the total '
+                        'area.'
+                  : 'Enter the length and width to see the total area.',
               style: bodyStyle,
             )
           else ...[
@@ -1060,8 +1116,8 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
               shape != null
                   ? 'Total floor area: ${PhRenovationRates.areaText(floor)} sq.m'
                   : 'Total floor area: ${m(details.lengthM)} × '
-                      '${m(details.widthM)} = '
-                      '${PhRenovationRates.areaText(floor)} sq.m',
+                        '${m(details.widthM)} = '
+                        '${PhRenovationRates.areaText(floor)} sq.m',
               style: bodyStyle.copyWith(
                 fontWeight: FontWeight.w700,
                 color: GlitchedFlowShell.cream,
@@ -1133,8 +1189,10 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide.none,
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
           ),
         ),
       ],
@@ -1195,13 +1253,13 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
   Widget _roomSizeFields({required bool withHeight}) {
     const gap = 10.0;
     Widget pair(Widget left, Widget right) => Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: left),
-            const SizedBox(width: gap),
-            Expanded(child: right),
-          ],
-        );
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: left),
+        const SizedBox(width: gap),
+        Expanded(child: right),
+      ],
+    );
     final length = _metresField(_lengthController, 'Length', 'e.g. 3.0');
     final width = _metresField(_widthController, 'Width', 'e.g. 2.5');
     if (!withHeight) return pair(length, width);
@@ -1298,10 +1356,10 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       color: const Color(0xFFE0D7C9),
     );
     Widget stepper(int i) => _CountStepper(
-          count: rows[i].count,
-          noun: noun,
-          onChanged: (value) => setState(() => rows[i].count = value),
-        );
+      count: rows[i].count,
+      noun: noun,
+      onChanged: (value) => setState(() => rows[i].count = value),
+    );
     return [
       for (var i = 0; i < rows.length; i++)
         Padding(
@@ -1332,8 +1390,11 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
                       children: [
                         Expanded(
                           child: _metresField(
-                              rows[i].widthController!, 'Width', '0.80',
-                              dense: true),
+                            rows[i].widthController!,
+                            'Width',
+                            '0.80',
+                            dense: true,
+                          ),
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(4, 0, 4, 15),
@@ -1341,8 +1402,11 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
                         ),
                         Expanded(
                           child: _metresField(
-                              rows[i].heightController!, 'Height', '2.10',
-                              dense: true),
+                            rows[i].heightController!,
+                            'Height',
+                            '2.10',
+                            dense: true,
+                          ),
                         ),
                         Padding(
                           padding: const EdgeInsets.only(bottom: 6),
@@ -1353,12 +1417,15 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
                               // Its fields are still on screen until this
                               // rebuild.
                               WidgetsBinding.instance.addPostFrameCallback(
-                                  (_) => removed.dispose());
+                                (_) => removed.dispose(),
+                              );
                             }),
                             visualDensity: VisualDensity.compact,
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
-                                minWidth: 36, minHeight: 36),
+                              minWidth: 36,
+                              minHeight: 36,
+                            ),
                             icon: const Icon(
                               Icons.close_rounded,
                               size: 18,
@@ -1372,7 +1439,10 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: Text('How many of this size', style: labelStyle),
+                          child: Text(
+                            'How many of this size',
+                            style: labelStyle,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         stepper(i),
@@ -1555,8 +1625,11 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.verified_user_outlined,
-              size: 20, color: Color(0xFF8FB2D4)),
+          const Icon(
+            Icons.verified_user_outlined,
+            size: 20,
+            color: Color(0xFF8FB2D4),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -1572,7 +1645,6 @@ class _TemplateAreaScreenState extends State<TemplateAreaScreen> {
       ),
     );
   }
-
 }
 
 /// A − n + counter for doors or windows of one size.
@@ -1622,8 +1694,11 @@ class _CountStepper extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          step(Icons.remove_rounded, 'One less $noun',
-              count > 0 ? () => onChanged(count - 1) : null),
+          step(
+            Icons.remove_rounded,
+            'One less $noun',
+            count > 0 ? () => onChanged(count - 1) : null,
+          ),
           SizedBox(
             width: 24,
             child: Text(
@@ -1637,8 +1712,11 @@ class _CountStepper extends StatelessWidget {
               ),
             ),
           ),
-          step(Icons.add_rounded, 'One more $noun',
-              count < _max ? () => onChanged(count + 1) : null),
+          step(
+            Icons.add_rounded,
+            'One more $noun',
+            count < _max ? () => onChanged(count + 1) : null,
+          ),
         ],
       ),
     );

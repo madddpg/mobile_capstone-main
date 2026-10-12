@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/features/auth/data/email_service.dart';
 import 'package:iconstruct/features/auth/presentation/screens/forgot_password_otp_screen.dart';
-import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/keyboard_form.dart';
 import 'package:iconstruct/core/widgets/status_bar.dart';
@@ -74,6 +73,52 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) =>
       LightStatusBar(child: _buildScreen(context));
 
+  /// The compact, shadowed button used on Login, so both screens match.
+  Widget _sendCodeButton() {
+    return ConstrainedBox(
+      // Minimum size, not a fixed one, so a scaled-up label is not cropped.
+      constraints: const BoxConstraints(minWidth: 164, minHeight: 48),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFF26394D),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x4F000000),
+              offset: Offset(0, 10),
+              blurRadius: 18,
+            ),
+          ],
+        ),
+        child: TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+          ),
+          onPressed: _loading ? null : _sendCode,
+          child: _loading
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(Colors.white),
+                  ),
+                )
+              : Text(
+                  'Send Code',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
   /// The screen itself. Its top is navy, so [build] gives it light status
   /// bar icons.
   Widget _buildScreen(BuildContext context) {
@@ -111,55 +156,54 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     onPressed: () => Navigator.of(context).maybePop(),
                   ),
                 ),
+                // Form block centered in the remaining space, as on Login.
                 Expanded(
-                  child: KeyboardForm(
-                    alignFieldsAboveAction: true,
-                    action: AppPrimaryButton(
-                      label: 'Send Code',
-                      loading: _loading,
-                      onPressed: _loading ? null : _sendCode,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Forgot Password?',
-                          style: GoogleFonts.poppins(
-                            fontSize: 32,
-                            height: 1.1,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFFF1E7D6),
-                            shadows: const [
-                              Shadow(
-                                color: Color(0x5C000000),
-                                offset: Offset(0, 5),
-                                blurRadius: 10,
-                              ),
-                            ],
+                  child: Center(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Forgot Password?',
+                            style: GoogleFonts.poppins(
+                              fontSize: 32,
+                              height: 1.1,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFFF1E7D6),
+                              shadows: const [
+                                Shadow(
+                                  color: Color(0x5C000000),
+                                  offset: Offset(0, 5),
+                                  blurRadius: 10,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "Enter your email and we'll send you a verification code.",
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            fontStyle: FontStyle.italic,
-                            color: const Color(0xFFEADFD0),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Enter your email and we'll send you a verification code.",
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              fontStyle: FontStyle.italic,
+                              color: const Color(0xFFEADFD0),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 36),
-                        _ForgotField(
-                          label: 'Email Address',
-                          controller: _emailController,
-                          errorText: _emailError,
-                          onChanged: _validateEmail,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => _sendCode(),
-                        ),
-                      ],
+                          const SizedBox(height: 36),
+                          _ForgotField(
+                            label: 'Email Address',
+                            controller: _emailController,
+                            errorText: _emailError,
+                            onChanged: _validateEmail,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _sendCode(),
+                          ),
+                          const SizedBox(height: 44),
+                          Center(child: _sendCodeButton()),
+                        ],
+                      ),
                     ),
                   ),
                 ),

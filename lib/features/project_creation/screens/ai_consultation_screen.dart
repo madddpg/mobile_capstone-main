@@ -13,6 +13,7 @@ import 'package:iconstruct/features/project_creation/data/renovation_coverage.da
 import 'package:iconstruct/features/project_creation/data/renovation_scope.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/screens/select_work_items_screen.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 class ChatMessage {
   final String text;
@@ -102,6 +103,8 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
   @override
   void initState() {
     super.initState();
+    PerfLog.screenShown('ai_open');
+    PerfLog.contentReady('ai_open');
     _startConversation();
   }
 
@@ -205,6 +208,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       _showBomChip = true;
     });
 
+    PerfLog.begin('ai_reply');
     final result = await _aiService.consult(
       projectType: widget.projectName,
       userMessage: input,
@@ -215,6 +219,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
       projectNotes: widget.projectNotes,
       catalogue: _catalogue,
     );
+    PerfLog.response('ai_reply');
 
     if (!mounted) return;
     setState(() => _isTyping = false);
@@ -225,6 +230,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
         '${reason.isEmpty ? AiMaterialConsultantService.unreachableMessage : reason} '
         '${AiMaterialConsultantService.buildMyBomHint}',
       );
+      PerfLog.contentReady('ai_reply');
       return;
     }
 
@@ -237,6 +243,7 @@ class _AIConsultationScreenState extends State<AIConsultationScreen> {
     setState(() {
       _messages.add(ChatMessage(text: reply, isUser: false));
     });
+    PerfLog.contentReady('ai_reply');
     _scrollToBottom();
 
     // Work already on the list is not suggested again.

@@ -14,6 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/layout/app_scale.dart';
 import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/keyboard_form.dart';
+import 'package:iconstruct/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/landing_screen.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/main_display.dart';
@@ -159,6 +160,33 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('forgot password matches login: centered form, compact button', (
+    tester,
+  ) async {
+    await _setPhone(tester, keyboard: false);
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => ResponsiveFrame(child: child!),
+        home: const ForgotPasswordScreen(),
+      ),
+    );
+    await tester.pump();
+
+    final title = tester.getRect(find.text('Forgot Password?'));
+    final field = tester.getRect(find.byType(EditableText));
+    final button = tester.getRect(find.widgetWithText(TextButton, 'Send Code'));
+
+    expect(button.width, greaterThanOrEqualTo(164));
+    expect(button.width, lessThan(_phone.width * 0.6));
+    expect((button.center.dx - _phone.width / 2).abs(), lessThan(1));
+    expect(button.top, greaterThan(field.bottom + 24));
+    // Centered in the space under the back button, not pinned to the bottom.
+    expect(title.top, greaterThan(120));
+    expect(button.bottom, lessThan(_phone.height - 150));
+    expect(find.byType(ElevatedButton), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('landing keeps its Get Started pill and inline Login link', (
     tester,
   ) async {
@@ -171,7 +199,10 @@ void main() {
     // full-width form button, and Login as a link after the question.
     final started = tester.getRect(
       find
-          .ancestor(of: find.text('Get Started'), matching: find.byType(InkWell))
+          .ancestor(
+            of: find.text('Get Started'),
+            matching: find.byType(InkWell),
+          )
           .first,
     );
     expect(started.height, greaterThanOrEqualTo(AppButtons.minHeight));
@@ -195,9 +226,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
 
-    final next = tester.getSize(find.widgetWithText(ElevatedButton, 'Next'));
-    expect(next.height, greaterThanOrEqualTo(AppButtons.minHeight));
-    expect(next.width, greaterThan(_phone.width * 0.7));
+    // The intro moves on with a round arrow at the bottom right, not a
+    // full-width Next bar.
+    expect(find.widgetWithText(ElevatedButton, 'Next'), findsNothing);
+    final arrow = tester.getRect(find.byIcon(Icons.arrow_forward_rounded));
+    expect(arrow.center.dx, greaterThan(_phone.width * 0.8));
+    expect(arrow.center.dy, greaterThan(_phone.height * 0.8));
+    expect(find.bySemanticsLabel('Next slide'), findsOneWidget);
     await _shoot(tester, 'intro-carousel');
   });
 

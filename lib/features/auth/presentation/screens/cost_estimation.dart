@@ -21,6 +21,7 @@ import 'package:iconstruct/features/project_creation/data/site_details.dart';
 import 'package:iconstruct/features/project_creation/widgets/material_id_sheet.dart';
 import 'package:iconstruct/features/project_creation/widgets/material_swatch.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 class CostEstimationScreen extends StatefulWidget {
   final String projectName;
@@ -117,8 +118,9 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
     if (template == null || !template.isFromWorkItems) {
       return const <ExcludedWork>[];
     }
-    final catalogue =
-        RenovationTemplatesCatalog.workCatalogueFor(template.renovationType);
+    final catalogue = RenovationTemplatesCatalog.workCatalogueFor(
+      template.renovationType,
+    );
     return [
       for (final item in catalogue.leftOut(template.workItemIds.toSet()))
         ExcludedWork(name: item.label, category: 'Work'),
@@ -126,23 +128,26 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   }();
 
   List<ExcludedWork> get _excludedWork => [
-        ..._workLeftOut,
-        for (final item in _excludedItems)
-          ExcludedWork(
-            name: item.name,
-            category: item.category,
-            unit: item.unit,
-            size: item.size,
-            quantity: item.defaultQuantity,
-          ),
-      ];
+    ..._workLeftOut,
+    for (final item in _excludedItems)
+      ExcludedWork(
+        name: item.name,
+        category: item.category,
+        unit: item.unit,
+        size: item.size,
+        quantity: item.defaultQuantity,
+      ),
+  ];
 
   @override
   void initState() {
     super.initState();
+    PerfLog.screenShown('estimator');
 
     final template = widget.template;
     if (template != null) _seedFromTemplate(template);
+    // The material list is built synchronously above.
+    PerfLog.contentReady('estimator');
   }
 
   void _seedFromTemplate(RenovationTemplate template) {
@@ -255,8 +260,7 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
     final parts = [
       if (_typedQty.isNotEmpty)
         count(_typedQty.length, 'quantity you typed', 'quantities you typed'),
-      if (_swaps > 0)
-        count(_swaps, 'size change', 'size changes'),
+      if (_swaps > 0) count(_swaps, 'size change', 'size changes'),
       if (_excludedItems.isNotEmpty)
         count(_excludedItems.length, 'removed item', 'removed items'),
     ];
@@ -310,8 +314,10 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   void _resyncWiring() {
     final counts = _counts;
     if (counts == null) return;
-    final settled =
-        BomQuantityEstimator.requantifyWiring(_templateItems, counts);
+    final settled = BomQuantityEstimator.requantifyWiring(
+      _templateItems,
+      counts,
+    );
     for (var i = 0; i < settled.length; i++) {
       final next = settled[i];
       if (identical(next, _templateItems[i])) continue;
@@ -338,7 +344,9 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFFEDE4D4).withValues(alpha: 0.45)),
+          border: Border.all(
+            color: const Color(0xFFEDE4D4).withValues(alpha: 0.45),
+          ),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
@@ -482,8 +490,8 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
     final titleText = templateName != null && templateName.isNotEmpty
         ? templateName
         : (widget.projectName.contains('\n')
-            ? widget.projectName
-            : widget.projectName.replaceFirst(' ', '\n'));
+              ? widget.projectName
+              : widget.projectName.replaceFirst(' ', '\n'));
 
     return ProgressGuard(
       onBack: _backWarning,
@@ -492,8 +500,9 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
         activeNav: OffsetNavTab.estimate,
         panelColor: IConstructPanel.navy,
         header: OffsetPanelHeaders.backAndAvatar(context),
-        contentPadding: IConstructPanel.contentPaddingOf(context)
-            .copyWith(bottom: 20),
+        contentPadding: IConstructPanel.contentPaddingOf(
+          context,
+        ).copyWith(bottom: 20),
         body: _buildTemplateBomBody(context, titleText),
       ),
     );
@@ -508,7 +517,9 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   /// measured, what its quantities were scaled from.
   String _introLine() {
     final isAi = widget.template?.id == 'ai_consultation_bom';
-    final list = isAi ? 'Here is your AI material list' : 'Here is your material list';
+    final list = isAi
+        ? 'Here is your AI material list'
+        : 'Here is your material list';
     if (widget.takeoff != null) return '$list.';
     return isAi
         ? '$list, scaled from the area and the work you chose.'
@@ -643,127 +654,125 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
                     if (_startsSection(index))
                       _SectionLabel(bomSectionOf(item).label),
                     _AddedMaterialItem(
-                            title: selected.materialName,
-                            category: item.category,
-                            subtitle: [
-                              item.category,
-                              if ((selected.size ?? item.size ?? '').trim().isNotEmpty)
-                                (selected.size ?? item.size!).trim(),
-                              selected.unit,
-                            ].where((s) => s.isNotEmpty).join(' • '),
-                            unit: selected.unit,
-                            qtyController: selected.qtyController,
-                            availableSizes: item.availableSizes,
-                            selectedSize: selected.size ?? item.size,
-                            formulaString: BomQuantityEstimator.getFormulaString(
-                              item: item,
-                              areaSqm: widget.projectAreaSqm ?? 1.0,
-                              currentQty: selected.quantity,
-                              bom: _templateItems,
-                              takeoff: widget.takeoff,
-                              counts: _counts,
-                            ),
-                            onSizeChanged: item.availableSizes.isEmpty
-                                ? null
-                                : (newSize) async {
-                                    if (newSize == null || newSize.isEmpty) return;
-                                    final result = BomQuantityEstimator.recalculateForSize(
-                                      item: item,
-                                      newSize: newSize,
-                                      areaSqm: widget.projectAreaSqm ?? 1.0,
-                                      takeoff: widget.takeoff,
-                                      counts: _counts,
-                                    );
-                                    final proceed = await _confirmRecalculation(
-                                      change: 'Changing the size to $newSize',
-                                      index: index,
-                                      replacement: item.copyWith(
-                                        size: newSize,
-                                        defaultQuantity: result.newQty,
-                                      ),
-                                    );
-                                    if (!proceed || !mounted) return;
-                                    if (index >= _selectedProducts.length ||
-                                        !identical(
-                                          _selectedProducts[index],
-                                          selected,
-                                        )) {
-                                      return;
-                                    }
-                                    setState(() {
-                                      _edited = true;
-                                      _swaps++;
-                                      _typedQty.remove(selected);
-                                      selected.size = newSize;
-                                      selected.quantity = result.newQty;
-                                      selected.qtyController.text =
-                                          _formatQty(result.newQty);
-                                      _templateItems[index] = item.copyWith(
-                                        size: newSize,
-                                        defaultQuantity: result.newQty,
-                                      );
-                                      if (BomQuantityEstimator.affectsTileSetting(item)) {
-                                        _resyncTileSetting();
-                                      }
-                                    });
-                                  },
-                            onChanged: (val) {
-                              final clean = postedLineQuantity(
-                                stored: selected.quantity,
-                                typedText: val,
-                              );
-                              setState(() {
-                                _edited = true;
-                                _typedQty.add(selected);
-                                selected.quantity = clean;
-                                if (index < _templateItems.length) {
-                                  _templateItems[index] =
-                                      _templateItems[index].copyWith(
-                                    defaultQuantity: clean,
+                      title: selected.materialName,
+                      category: item.category,
+                      subtitle: [
+                        item.category,
+                        if ((selected.size ?? item.size ?? '')
+                            .trim()
+                            .isNotEmpty)
+                          (selected.size ?? item.size!).trim(),
+                        selected.unit,
+                      ].where((s) => s.isNotEmpty).join(' • '),
+                      unit: selected.unit,
+                      qtyController: selected.qtyController,
+                      availableSizes: item.availableSizes,
+                      selectedSize: selected.size ?? item.size,
+                      formulaString: BomQuantityEstimator.getFormulaString(
+                        item: item,
+                        areaSqm: widget.projectAreaSqm ?? 1.0,
+                        currentQty: selected.quantity,
+                        bom: _templateItems,
+                        takeoff: widget.takeoff,
+                        counts: _counts,
+                      ),
+                      onSizeChanged: item.availableSizes.isEmpty
+                          ? null
+                          : (newSize) async {
+                              if (newSize == null || newSize.isEmpty) return;
+                              final result =
+                                  BomQuantityEstimator.recalculateForSize(
+                                    item: item,
+                                    newSize: newSize,
+                                    areaSqm: widget.projectAreaSqm ?? 1.0,
+                                    takeoff: widget.takeoff,
+                                    counts: _counts,
                                   );
-                                  final counts = _counts;
-                                  final next = counts == null
-                                      ? null
-                                      : BomQuantityEstimator.countsAfterEdit(
-                                          _templateItems[index],
-                                          clean,
-                                          counts,
-                                        );
-                                  if (next != null) {
-                                    _counts = next;
-                                    _resyncWiring();
-                                  }
-                                }
-                              });
-                            },
-                            onRemove: () {
+                              final proceed = await _confirmRecalculation(
+                                change: 'Changing the size to $newSize',
+                                index: index,
+                                replacement: item.copyWith(
+                                  size: newSize,
+                                  defaultQuantity: result.newQty,
+                                ),
+                              );
+                              if (!proceed || !mounted) return;
+                              if (index >= _selectedProducts.length ||
+                                  !identical(
+                                    _selectedProducts[index],
+                                    selected,
+                                  )) {
+                                return;
+                              }
                               setState(() {
                                 _edited = true;
-                                final dropped = _templateItems.removeAt(index);
-                                final removed =
-                                    _selectedProducts.removeAt(index);
-                                // Keep the quantity the builder is looking at,
-                                // not the template's, so the excluded line says
-                                // what it would actually have cost them.
-                                _excludedItems.insert(
-                                  0,
-                                  dropped.copyWith(
-                                    defaultQuantity: removed.quantity,
-                                  ),
+                                _swaps++;
+                                _typedQty.remove(selected);
+                                selected.size = newSize;
+                                selected.quantity = result.newQty;
+                                selected.qtyController.text = _formatQty(
+                                  result.newQty,
                                 );
-                                _typedQty.remove(removed);
-                                removed.qtyController.dispose();
-                                if (BomQuantityEstimator.affectsTileSetting(item)) {
+                                _templateItems[index] = item.copyWith(
+                                  size: newSize,
+                                  defaultQuantity: result.newQty,
+                                );
+                                if (BomQuantityEstimator.affectsTileSetting(
+                                  item,
+                                )) {
                                   _resyncTileSetting();
                                 }
                               });
                             },
+                      onChanged: (val) {
+                        final clean = postedLineQuantity(
+                          stored: selected.quantity,
+                          typedText: val,
+                        );
+                        setState(() {
+                          _edited = true;
+                          _typedQty.add(selected);
+                          selected.quantity = clean;
+                          if (index < _templateItems.length) {
+                            _templateItems[index] = _templateItems[index]
+                                .copyWith(defaultQuantity: clean);
+                            final counts = _counts;
+                            final next = counts == null
+                                ? null
+                                : BomQuantityEstimator.countsAfterEdit(
+                                    _templateItems[index],
+                                    clean,
+                                    counts,
+                                  );
+                            if (next != null) {
+                              _counts = next;
+                              _resyncWiring();
+                            }
+                          }
+                        });
+                      },
+                      onRemove: () {
+                        setState(() {
+                          _edited = true;
+                          final dropped = _templateItems.removeAt(index);
+                          final removed = _selectedProducts.removeAt(index);
+                          // Keep the quantity the builder is looking at,
+                          // not the template's, so the excluded line says
+                          // what it would actually have cost them.
+                          _excludedItems.insert(
+                            0,
+                            dropped.copyWith(defaultQuantity: removed.quantity),
+                          );
+                          _typedQty.remove(removed);
+                          removed.qtyController.dispose();
+                          if (BomQuantityEstimator.affectsTileSetting(item)) {
+                            _resyncTileSetting();
+                          }
+                        });
+                      },
                     ),
                     const SizedBox(height: 12),
-                    const Divider(
-                      color: Color(0xFFEDE4D4),
-                      thickness: 1,
-                    ),
+                    const Divider(color: Color(0xFFEDE4D4), thickness: 1),
                   ],
                 ),
               );
@@ -778,8 +787,9 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEDE4D4),
               foregroundColor: const Color(0xFF1E3042),
-              disabledBackgroundColor:
-                  const Color(0xFFEDE4D4).withValues(alpha: 0.4),
+              disabledBackgroundColor: const Color(
+                0xFFEDE4D4,
+              ).withValues(alpha: 0.4),
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
               minimumSize: const Size(0, 40),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -809,7 +819,8 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
   void _goToEstimator() {
     _commitTypedQuantities();
     if (_selectedProducts.isEmpty) {
-      showAppMessage(context,
+      showAppMessage(
+        context,
         const SnackBar(
           content: Text('Add or keep at least one material before estimating.'),
         ),
@@ -821,7 +832,8 @@ class _CostEstimationScreenState extends State<CostEstimationScreen> {
         context,
         const SnackBar(
           content: Text(
-              'Every line needs a quantity greater than 0 before you can estimate.'),
+            'Every line needs a quantity greater than 0 before you can estimate.',
+          ),
         ),
       );
       return;
@@ -959,7 +971,8 @@ class _AddedMaterialItemState extends State<_AddedMaterialItem> {
                       category: widget.category,
                       unit: widget.unit,
                       quantity:
-                          double.tryParse(widget.qtyController.text.trim()) ?? 0,
+                          double.tryParse(widget.qtyController.text.trim()) ??
+                          0,
                       size: widget.selectedSize,
                     ),
                     child: MaterialSwatch(
@@ -1081,7 +1094,8 @@ class _AddedMaterialItemState extends State<_AddedMaterialItem> {
             ],
           ),
 
-          if (widget.availableSizes.isNotEmpty && widget.onSizeChanged != null) ...[
+          if (widget.availableSizes.isNotEmpty &&
+              widget.onSizeChanged != null) ...[
             const SizedBox(height: 8),
             Row(
               children: [
@@ -1107,7 +1121,8 @@ class _AddedMaterialItemState extends State<_AddedMaterialItem> {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: widget.availableSizes.contains(widget.selectedSize)
+                        value:
+                            widget.availableSizes.contains(widget.selectedSize)
                             ? widget.selectedSize
                             : widget.availableSizes.first,
                         isExpanded: true,
@@ -1125,10 +1140,7 @@ class _AddedMaterialItemState extends State<_AddedMaterialItem> {
                         items: widget.availableSizes.map((size) {
                           return DropdownMenuItem<String>(
                             value: size,
-                            child: Text(
-                              size,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            child: Text(size, overflow: TextOverflow.ellipsis),
                           );
                         }).toList(),
                         onChanged: widget.onSizeChanged,
@@ -1140,7 +1152,8 @@ class _AddedMaterialItemState extends State<_AddedMaterialItem> {
             ),
           ],
 
-          if (widget.formulaString != null && widget.formulaString!.isNotEmpty) ...[
+          if (widget.formulaString != null &&
+              widget.formulaString!.isNotEmpty) ...[
             const SizedBox(height: 6),
             InkWell(
               onTap: () => setState(() => _showFormula = !_showFormula),

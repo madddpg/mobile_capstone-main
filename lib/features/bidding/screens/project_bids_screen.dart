@@ -31,6 +31,7 @@ import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.da
 import 'package:iconstruct/features/bidding/widgets/line_selection_sheet.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
 import 'package:iconstruct/features/chat/screens/chat_thread_screen.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 /// The builder's side-by-side view of the quotations on one posted estimate.
 ///
@@ -81,6 +82,12 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
 
   String get postId => widget.postId;
   String get projectName => widget.projectName;
+
+  @override
+  void initState() {
+    super.initState();
+    PerfLog.screenShown('quotations');
+  }
 
   // Opened once. A stream made inside build is replaced on every rebuild,
   // which drops the screen to its loading spinner and tears down the shop
@@ -224,7 +231,7 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                   bom.isEmpty
                       ? 'Compare quotations'
                       : 'Compare quotations · ${bom.length} '
-                          'material${bom.length == 1 ? '' : 's'} requested',
+                            'material${bom.length == 1 ? '' : 's'} requested',
                   style: GoogleFonts.poppins(
                     color: AppColors.cream.withValues(alpha: 0.72),
                     fontSize: 13,
@@ -247,6 +254,9 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const _QuotationSkeletonList();
                     }
+                    // First delivery only; later snapshots print nothing.
+                    PerfLog.response('quotations');
+                    PerfLog.contentReady('quotations');
                     if (snapshot.hasError) {
                       return const _PanelMessage('Could not load quotations.');
                     }

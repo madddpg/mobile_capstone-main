@@ -9,6 +9,7 @@ import 'package:iconstruct/core/theme/app_theme.dart';
 import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/keyboard_form.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 class OtpDialog extends StatefulWidget {
   final String email;
@@ -56,6 +57,8 @@ class _OtpDialogState extends State<OtpDialog> {
     _otpControllers = List.generate(6, (_) => TextEditingController());
     _otpFocusNodes = List.generate(6, (_) => FocusNode());
     _startCountdown();
+    PerfLog.screenShown('register');
+    PerfLog.contentReady('register');
   }
 
   void _startCountdown() {
@@ -135,6 +138,7 @@ class _OtpDialogState extends State<OtpDialog> {
       setState(() => _errorMessage = 'Please enter the complete 6-digit code.');
       return;
     }
+    PerfLog.begin('verify');
     setState(() {
       _checkingVerification = true;
       _errorMessage = null;
@@ -170,6 +174,7 @@ class _OtpDialogState extends State<OtpDialog> {
         if (!mounted) return;
       }
 
+      PerfLog.response('verify');
       showAppMessage(
         context,
         const SnackBar(content: Text('Verification successful. Please login.')),

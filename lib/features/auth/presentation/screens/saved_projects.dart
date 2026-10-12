@@ -15,6 +15,7 @@ import 'package:iconstruct/features/project_creation/data/project_lifecycle.dart
 import 'package:iconstruct/features/project_creation/widgets/bom_share_sheet.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 /// How [SavedProjectsScreen] focuses the list for different home entry points.
 enum SavedProjectsFocus {
@@ -535,6 +536,7 @@ class ProjectCard extends StatelessWidget {
       return;
     }
 
+    PerfLog.begin('post_project');
     // Show loading
     showDialog(
       context: context,
@@ -581,6 +583,7 @@ class ProjectCard extends StatelessWidget {
       }, SetOptions(merge: true));
 
       await batch.commit();
+      PerfLog.response('post_project');
 
       ActiveProjectState.instance.clear();
 
@@ -593,6 +596,7 @@ class ProjectCard extends StatelessWidget {
           ),
           kind: AppMessageKind.success,
         );
+        PerfLog.contentReady('post_project');
       }
     } catch (e) {
       if (context.mounted) {
@@ -781,6 +785,7 @@ class ProjectCard extends StatelessWidget {
             const SnackBar(content: Text('This project is not posted yet.')),
           );
         } else {
+          PerfLog.begin('quotations');
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -1110,8 +1115,11 @@ class ProjectCard extends StatelessWidget {
 
             // 4. Key Project Summary
             Text(
-              summaryLine(project.materialCount, project.projectArea,
-                  project.costLevel),
+              summaryLine(
+                project.materialCount,
+                project.projectArea,
+                project.costLevel,
+              ),
               style: const TextStyle(
                 color: textDark,
                 fontSize: 14,

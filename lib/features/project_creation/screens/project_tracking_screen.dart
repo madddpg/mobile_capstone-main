@@ -13,6 +13,7 @@ import 'package:iconstruct/features/project_creation/data/project_status_service
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 /// True when the posted estimate still has a material the selected shop
 /// did not price. No selected quotation counts as unquoted when the estimate
@@ -31,8 +32,10 @@ bool _selectedQuoteLeavesGaps(
 
   for (final doc in quotes) {
     if (doc.id != selectedId) continue;
-    return unquotedBomItems(bom, BidQuote.fromMap(doc.id, doc.data()))
-        .isNotEmpty;
+    return unquotedBomItems(
+      bom,
+      BidQuote.fromMap(doc.id, doc.data()),
+    ).isNotEmpty;
   }
   return true;
 }
@@ -247,7 +250,8 @@ class _TrackingCard extends StatelessWidget {
             final storedStage = ProjectLifecycle.stageIndex(project.status);
             var stage = storedStage;
             final quotesReady = quoteSnap.hasData && !quoteSnap.hasError;
-            final quotes = quoteSnap.data?.docs ??
+            final quotes =
+                quoteSnap.data?.docs ??
                 <QueryDocumentSnapshot<Map<String, dynamic>>>[];
             final bidCount = quotesReady ? quotes.length : 0;
 
@@ -263,14 +267,16 @@ class _TrackingCard extends StatelessWidget {
             final selectedId = (post?['selectedQuotationId'] ?? '')
                 .toString()
                 .trim();
-            final hasUnquoted = quotesReady &&
-                _selectedQuoteLeavesGaps(post, quotes);
+            final hasUnquoted =
+                quotesReady && _selectedQuoteLeavesGaps(post, quotes);
             final status = ProjectLifecycle.statusForStage(stage);
-            final showComplete = quotesReady &&
+            final showComplete =
+                quotesReady &&
                 bidCount > 0 &&
                 selectedId.isNotEmpty &&
                 ProjectLifecycle.canMarkComplete(status);
-            final showReopen = quotesReady &&
+            final showReopen =
+                quotesReady &&
                 stage == ProjectLifecycle.stageCompleted &&
                 hasUnquoted;
 
@@ -440,10 +446,8 @@ class _TrackingCard extends StatelessWidget {
                 _CompleteAction(
                   label: 'Mark planning complete',
                   icon: Icons.task_alt_rounded,
-                  onPressed: () => _confirmComplete(
-                    context,
-                    hasUnquoted: hasUnquoted,
-                  ),
+                  onPressed: () =>
+                      _confirmComplete(context, hasUnquoted: hasUnquoted),
                 ),
               ] else if (showReopen) ...[
                 const SizedBox(height: 12),
@@ -585,6 +589,7 @@ class _TrackingCard extends StatelessWidget {
   void _openProject(BuildContext context, int stage) {
     final postId = project.postId;
     if (stage >= ProjectLifecycle.stageWaiting && postId != null) {
+      PerfLog.begin('quotations');
       Navigator.push(
         context,
         MaterialPageRoute(

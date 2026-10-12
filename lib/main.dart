@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:iconstruct/core/firebase/app_check_gate.dart';
 import 'package:iconstruct/core/layout/app_scale.dart';
 import 'package:iconstruct/core/navigation/app_nav.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 import 'package:iconstruct/core/services/fcm_service.dart';
 import 'package:iconstruct/core/state/user_state/user_provider.dart';
 import 'firebase_options.dart';
@@ -20,49 +21,57 @@ import 'package:iconstruct/features/auth/presentation/screens/login_screen.dart'
 import 'package:iconstruct/features/onboarding/presentation/screens/display_screen.dart';
 
 Future<void> main() async {
-  runZonedGuarded<Future<void>>(() async {
-    WidgetsFlutterBinding.ensureInitialized();
+  runZonedGuarded<Future<void>>(
+    () async {
+      PerfLog.begin('app_launch');
+      WidgetsFlutterBinding.ensureInitialized();
 
-    // Every screen is laid out for a portrait phone — the offset panels and
-    // proportional insets assume it. Lock rotation so a landscape flip cannot
-    // break those layouts.
-    await SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
+      // Every screen is laid out for a portrait phone — the offset panels and
+      // proportional insets assume it. Lock rotation so a landscape flip cannot
+      // break those layouts.
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
 
-    // Route framework errors somewhere visible instead of only the console.
-    FlutterError.onError = (details) {
-      FlutterError.presentError(details);
-      debugPrint('FlutterError: ${details.exceptionAsString()}');
-    };
+      // Route framework errors somewhere visible instead of only the console.
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+        debugPrint('FlutterError: ${details.exceptionAsString()}');
+      };
 
-    try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
+      try {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+
+        // Required so bid pushes still deliver when the app is backgrounded/killed.
+        FirebaseMessaging.onBackgroundMessage(
+          firebaseMessagingBackgroundHandler,
+        );
+
+        await AppCheckGate.activate();
+      } catch (e, st) {
+        debugPrint('Bootstrap failed: $e\n$st');
+        runApp(_BootstrapErrorApp(error: e));
+        return;
+      }
+
+      UserProvider.onSessionEnded = _returnToSignIn;
+
+      runApp(
+        MultiProvider(
+          providers: [ChangeNotifierProvider(create: (_) => UserProvider())],
+          child: const MyApp(),
+        ),
       );
-
-      // Required so bid pushes still deliver when the app is backgrounded/killed.
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-      await AppCheckGate.activate();
-    } catch (e, st) {
-      debugPrint('Bootstrap failed: $e\n$st');
-      runApp(_BootstrapErrorApp(error: e));
-      return;
-    }
-
-    UserProvider.onSessionEnded = _returnToSignIn;
-
-    runApp(
-      MultiProvider(
-        providers: [ChangeNotifierProvider(create: (_) => UserProvider())],
-        child: const MyApp(),
-      ),
-    );
-  }, (error, stack) {
-    debugPrint('Uncaught zone error: $error\n$stack');
-  });
+      PerfLog.screenShown('app_launch');
+      PerfLog.contentReady('app_launch');
+    },
+    (error, stack) {
+      debugPrint('Uncaught zone error: $error\n$stack');
+    },
+  );
 }
 
 /// Shown only when Firebase / App Check initialisation throws — otherwise the

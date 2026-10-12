@@ -8,6 +8,7 @@ import 'package:iconstruct/features/project_creation/data/renovation_scope.dart'
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/screens/template_area_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 /// The builder ticks the work the job includes, and the materials list is
 /// built from those ticks.
@@ -59,7 +60,8 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
     RenovationScope.functional: Color(0xFF8FB2D4),
   };
 
-  late final Set<String> _selected = widget.recommended?.keys.toSet() ??
+  late final Set<String> _selected =
+      widget.recommended?.keys.toSet() ??
       widget.catalogue.startingSelection(widget.types);
 
   /// What the list opened with, to tell whether the builder changed it.
@@ -91,7 +93,8 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
   WorkCatalogue get _catalogue => widget.catalogue;
 
   bool get _hasStructural => _selected.any(
-      (id) => _catalogue.byId(id)?.scope == RenovationScope.structural);
+    (id) => _catalogue.byId(id)?.scope == RenovationScope.structural,
+  );
 
   void _toggle(String id) {
     setState(() {
@@ -110,6 +113,7 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
   void _continue() {
     if (_selected.isEmpty) return;
     final types = _catalogue.typesOf(_selected);
+    PerfLog.begin('template_area');
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TemplateAreaScreen(
@@ -128,24 +132,24 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
   }
 
   Text _heading(String text) => Text(
-        text,
-        style: GoogleFonts.poppins(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.1,
-          color: const Color(0xFF8FB2D4),
-        ),
-      );
+    text,
+    style: GoogleFonts.poppins(
+      fontSize: 10.5,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 1.1,
+      color: const Color(0xFF8FB2D4),
+    ),
+  );
 
   Text _note(String text, {Color color = const Color(0xFFE0D7C9)}) => Text(
-        text,
-        style: GoogleFonts.poppins(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-          color: color,
-          height: 1.35,
-        ),
-      );
+    text,
+    style: GoogleFonts.poppins(
+      fontSize: 11.5,
+      fontWeight: FontWeight.w600,
+      color: color,
+      height: 1.35,
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {

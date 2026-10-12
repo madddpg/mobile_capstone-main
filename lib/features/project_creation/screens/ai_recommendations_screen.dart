@@ -11,6 +11,7 @@ import 'package:iconstruct/features/project_creation/screens/ai_consultation_scr
 import 'package:iconstruct/features/project_creation/screens/select_work_items_screen.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 /// The AI reads the builder's description and picks the work it calls for.
 ///
@@ -114,6 +115,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
   }
 
   void _openChat() {
+    PerfLog.begin('ai_open');
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -134,8 +136,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
     return GlitchedFlowShell(
       title: 'Recommended\nWork',
       subtitle: '${widget.types.label} · ${widget.projectName}',
-      instruction:
-          'Change any pick before you continue.',
+      instruction: 'Change any pick before you continue.',
       // Back returns to the description, which is still there, so there is
       // nothing to warn about. This used to ask "Leave this estimate?" and
       // say the choices made so far would be cleared, which they were not.
@@ -191,11 +192,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
         // The checklist needs no model and no network beyond Firestore, so it
         // is the way through when the AI is busy — not a consolation prize.
         // Named as the message names it, and as the chat names it.
-        _outlined(
-          'Build my BOM',
-          Icons.checklist_rounded,
-          _openChecklist,
-        ),
+        _outlined('Build my BOM', Icons.checklist_rounded, _openChecklist),
         const SizedBox(height: 10),
         _outlined(
           'Chat with the AI instead',

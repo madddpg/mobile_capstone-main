@@ -11,6 +11,7 @@ import 'package:iconstruct/features/project_creation/screens/ai_consultation_scr
 import 'package:iconstruct/features/project_creation/screens/ai_recommendations_screen.dart';
 import 'package:iconstruct/features/project_creation/screens/select_work_items_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 enum PlanningMethod { ai, template }
 
@@ -68,16 +69,16 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
   }
 
   String get _example => switch (widget.scope) {
-        RenovationScope.cosmetic =>
-          'e.g. Repaint the walls off-white and replace the old floor tiles '
-              'with 600x600 matte tiles.',
-        RenovationScope.structural =>
-          'e.g. Remove the wall between the kitchen and dining area and extend '
-              'the room by 2 metres.',
-        RenovationScope.functional =>
-          'e.g. Replace the old G.I. water pipes with PPR and add two outlets '
-              'near the counter.',
-      };
+    RenovationScope.cosmetic =>
+      'e.g. Repaint the walls off-white and replace the old floor tiles '
+          'with 600x600 matte tiles.',
+    RenovationScope.structural =>
+      'e.g. Remove the wall between the kitchen and dining area and extend '
+          'the room by 2 metres.',
+    RenovationScope.functional =>
+      'e.g. Replace the old G.I. water pipes with PPR and add two outlets '
+          'near the counter.',
+  };
 
   void _continue() {
     FocusScope.of(context).unfocus();
@@ -113,8 +114,9 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => SelectWorkItemsScreen(
-          catalogue:
-              RenovationTemplatesCatalog.workCatalogueFor(widget.projectName),
+          catalogue: RenovationTemplatesCatalog.workCatalogueFor(
+            widget.projectName,
+          ),
           projectName: widget.projectName,
           customProjectName: widget.customProjectName,
           projectNotes: _description.isEmpty ? null : _description,
@@ -132,8 +134,9 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => SelectWorkItemsScreen(
-          catalogue:
-              RenovationTemplatesCatalog.workCatalogueFor(widget.projectName),
+          catalogue: RenovationTemplatesCatalog.workCatalogueFor(
+            widget.projectName,
+          ),
           projectName: widget.projectName,
           customProjectName: widget.customProjectName,
           projectNotes: _description.isEmpty ? null : _description,
@@ -147,6 +150,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
 
   void _openChat() {
     FocusScope.of(context).unfocus();
+    PerfLog.begin('ai_open');
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -191,10 +195,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
       label: Text(
         label,
         textAlign: TextAlign.center,
-        style: GoogleFonts.poppins(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -279,10 +280,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            'Prices and labour are not covered here.',
-            style: hintStyle,
-          ),
+          Text('Prices and labour are not covered here.', style: hintStyle),
         ],
       ),
     );

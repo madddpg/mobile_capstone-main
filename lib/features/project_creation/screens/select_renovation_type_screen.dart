@@ -7,6 +7,7 @@ import 'package:iconstruct/features/project_creation/data/renovation_scope.dart'
 import 'package:iconstruct/features/project_creation/data/renovation_templates.dart';
 import 'package:iconstruct/features/project_creation/screens/create_project_screen.dart';
 import 'package:iconstruct/features/project_creation/widgets/glitched_flow_shell.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 /// Second step of a new estimate: how much of the space, and what kind of work.
 ///
@@ -39,8 +40,9 @@ class _SelectRenovationTypeScreenState
     RenovationScope.functional: Color(0xFF8FB2D4),
   };
 
-  late final String _type =
-      RenovationTemplatesCatalog.normalizeType(widget.renovationType);
+  late final String _type = RenovationTemplatesCatalog.normalizeType(
+    widget.renovationType,
+  );
 
   /// Whole space unless the builder says otherwise — the common case, and what
   /// every estimate saved before this question existed described.
@@ -62,6 +64,7 @@ class _SelectRenovationTypeScreenState
   void _continue() {
     if (_selected.isEmpty) return;
     final types = RenovationTypes(_selected);
+    PerfLog.begin('planning');
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CreateProjectScreen(
@@ -81,8 +84,7 @@ class _SelectRenovationTypeScreenState
     return GlitchedFlowShell(
       title: 'Type of\nRenovation',
       subtitle: _type,
-      instruction:
-          'Select every kind of work this job includes.',
+      instruction: 'Select every kind of work this job includes.',
       onBack: () => const LeaveWarning.exitEstimate(),
       onExit: () => const LeaveWarning.exitEstimate(),
       trailingAction: GlitchedPillButton(
@@ -136,24 +138,31 @@ class _SelectRenovationTypeScreenState
             ),
           ),
           const SizedBox(height: 8),
-          for (var index = 0;
-              index < RenovationScope.values.length;
-              index++) ...[
+          for (
+            var index = 0;
+            index < RenovationScope.values.length;
+            index++
+          ) ...[
             if (index > 0) const SizedBox(height: 12),
-            Builder(builder: (context) {
-              final scope = RenovationScope.values[index];
-              final offered = RenovationTemplatesCatalog.offers(_type, scope);
-              return _TypeTile(
-                scope: scope,
-                icon: _icons[scope]!,
-                accent: _accents[scope]!,
-                selected: _selected.contains(scope),
-                unavailableReason: offered
-                    ? null
-                    : RenovationTemplatesCatalog.unavailableReason(_type, scope),
-                onTap: offered ? () => _toggle(scope) : null,
-              );
-            }),
+            Builder(
+              builder: (context) {
+                final scope = RenovationScope.values[index];
+                final offered = RenovationTemplatesCatalog.offers(_type, scope);
+                return _TypeTile(
+                  scope: scope,
+                  icon: _icons[scope]!,
+                  accent: _accents[scope]!,
+                  selected: _selected.contains(scope),
+                  unavailableReason: offered
+                      ? null
+                      : RenovationTemplatesCatalog.unavailableReason(
+                          _type,
+                          scope,
+                        ),
+                  onTap: offered ? () => _toggle(scope) : null,
+                );
+              },
+            ),
           ],
           if (_selected.contains(RenovationScope.structural)) ...[
             const SizedBox(height: 14),
@@ -258,73 +267,73 @@ class _TypeTile extends StatelessWidget {
     return Semantics(
       checked: enabled ? selected : null,
       child: Opacity(
-      opacity: enabled ? 1 : 0.45,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(22),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
-              color: selected ? accent.withValues(alpha: 0.10) : null,
-              border: Border.all(
-                color: selected
-                    ? accent
-                    : const Color(0xFF648DB6).withValues(alpha: 0.85),
-                width: selected ? 1.8 : 1.2,
+        opacity: enabled ? 1 : 0.45,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(22),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                color: selected ? accent.withValues(alpha: 0.10) : null,
+                border: Border.all(
+                  color: selected
+                      ? accent
+                      : const Color(0xFF648DB6).withValues(alpha: 0.85),
+                  width: selected ? 1.8 : 1.2,
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(icon, color: accent, size: 26),
                   ),
-                  child: Icon(icon, color: accent, size: 26),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        scope.label,
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          scope.label,
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        unavailableReason ?? scope.description,
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          color: const Color(0xFFE0D7C9),
-                          height: 1.35,
+                        const SizedBox(height: 2),
+                        Text(
+                          unavailableReason ?? scope.description,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: const Color(0xFFE0D7C9),
+                            height: 1.35,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                if (enabled)
-                  Icon(
-                    selected
-                        ? Icons.check_circle_rounded
-                        : Icons.radio_button_unchecked_rounded,
-                    color: selected ? accent : Colors.white54,
-                    size: 24,
-                  ),
-              ],
+                  if (enabled)
+                    Icon(
+                      selected
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      color: selected ? accent : Colors.white54,
+                      size: 24,
+                    ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }

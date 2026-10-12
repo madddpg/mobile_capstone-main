@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:iconstruct/core/state/onboarding_preferences.dart';
-import 'package:iconstruct/core/widgets/app_buttons.dart';
 import 'package:iconstruct/core/widgets/app_image.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/landing_screen.dart';
 
@@ -164,25 +163,34 @@ class _MainDisplayScreenState extends State<MainDisplayScreen>
                           ),
                           child: _SlideText(slide: _slides[_index]),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
+                        // Dots on the left, the round arrow on the right.
                         Row(
-                          children: List.generate(_slides.length, (i) {
-                            final active = i == _index;
-                            return Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              width: active ? 42 : 20,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: active
-                                    ? _accentBlue
-                                    : _dotGrey.withValues(alpha: 0.6),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            );
-                          }),
+                          children: [
+                            ...List.generate(_slides.length, (i) {
+                              final active = i == _index;
+                              return Container(
+                                margin: const EdgeInsets.only(right: 8),
+                                width: active ? 42 : 20,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: active
+                                      ? _accentBlue
+                                      : _dotGrey.withValues(alpha: 0.6),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              );
+                            }),
+                            const Spacer(),
+                            _RoundIconButton(
+                              icon: Icons.arrow_forward_rounded,
+                              semanticLabel: _index < _slides.length - 1
+                                  ? 'Next slide'
+                                  : 'Get started',
+                              onPressed: _handleNext,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                        AppPrimaryButton(label: 'Next', onPressed: _handleNext),
                       ],
                     ),
                   ),

@@ -6,6 +6,7 @@ import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
 import 'package:iconstruct/features/bidding/screens/project_bids_screen.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
+import 'package:iconstruct/core/perf/perf_log.dart';
 
 class QuotationsScreen extends StatefulWidget {
   final String postId;
@@ -44,6 +45,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
 
     if (!context.mounted) return;
 
+    PerfLog.begin('quotations');
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -64,10 +66,9 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
         return;
       }
       if (_shortlistedIds.length >= _maxShortlist) {
-        showAppMessage(context, 
-          const SnackBar(
-            content: Text('Shortlist up to 3 shops to compare.'),
-          ),
+        showAppMessage(
+          context,
+          const SnackBar(content: Text('Shortlist up to 3 shops to compare.')),
         );
         return;
       }
@@ -156,8 +157,9 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                              color: QuotationsScreen.navyColor
-                                  .withValues(alpha: 0.12),
+                              color: QuotationsScreen.navyColor.withValues(
+                                alpha: 0.12,
+                              ),
                             ),
                           ),
                           child: Column(
@@ -180,7 +182,8 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                                     style: GoogleFonts.poppins(
                                       fontWeight: FontWeight.w800,
                                       fontSize: 16,
-                                      color: tags.contains(
+                                      color:
+                                          tags.contains(
                                             BidHighlight.lowestTotal,
                                           )
                                           ? const Color(0xFF2E7D32)
@@ -265,8 +268,7 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
             .doc(widget.postId)
             .snapshots(),
         builder: (context, postSnap) {
-          final postData =
-              postSnap.data?.data() as Map<String, dynamic>? ?? {};
+          final postData = postSnap.data?.data() as Map<String, dynamic>? ?? {};
           final bom = parseQuotedLines(postData);
 
           return StreamBuilder<QuerySnapshot>(
@@ -276,345 +278,353 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                 .collection('quotations')
                 .snapshots(),
             builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const AppSkeletonCardList(
-              count: 4,
-              cardColor: Colors.white,
-              cardRadius: 16,
-              cardPadding: EdgeInsets.all(18),
-              padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
-              textLines: 3,
-              statusPill: true,
-            );
-          }
+              if (!snapshot.hasData) {
+                return const AppSkeletonCardList(
+                  count: 4,
+                  cardColor: Colors.white,
+                  cardRadius: 16,
+                  cardPadding: EdgeInsets.all(18),
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  textLines: 3,
+                  statusPill: true,
+                );
+              }
 
-          final docs = snapshot.data!.docs;
+              final docs = snapshot.data!.docs;
 
-          if (docs.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.inventory_2_outlined,
-                      size: 80,
-                      color: QuotationsScreen.navyColor.withValues(alpha: 0.5),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No quotations yet',
-                      style: GoogleFonts.poppins(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: QuotationsScreen.navyColor,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Shops appear here after they send a quotation.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        color: Colors.black54,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          final quotes = docs
-              .map(
-                (doc) => BidQuote.fromMap(
-                  doc.id,
-                  doc.data() as Map<String, dynamic>,
-                ),
-              )
-              .toList()
-            ..sort(
-              (a, b) => a.estimatedTotal.compareTo(b.estimatedTotal),
-            );
-          final comparison = BidComparison.fromQuotes(quotes);
-          final advice = canvassAdvice(bom, quotes);
-          final summary = [
-            if (advice.headline.isNotEmpty) advice.headline,
-            if (advice.detail.isNotEmpty) advice.detail,
-            ...comparison.summaryLines().skip(quotes.length > 1 ? 1 : 0),
-          ];
-          final canCompare = _shortlistedIds.length >= 2;
-
-          return Column(
-            children: [
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  itemCount: _canvassByMaterial
-                      ? 1 + (bom.isEmpty ? 1 : bom.length)
-                      : quotes.length + 1,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 14),
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _BidSummaryCard(
-                            lines: summary,
-                            quoteCount: quotes.length,
+              if (docs.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 80,
+                          color: QuotationsScreen.navyColor.withValues(
+                            alpha: 0.5,
                           ),
-                          if (quotes.length > 1 && !_canvassByMaterial) ...[
-                            const SizedBox(height: 10),
-                            Text(
-                              'Pin up to 3 shops, then compare side by side.',
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No quotations yet',
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: QuotationsScreen.navyColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Shops appear here after they send a quotation.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            color: Colors.black54,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              final quotes =
+                  docs
+                      .map(
+                        (doc) => BidQuote.fromMap(
+                          doc.id,
+                          doc.data() as Map<String, dynamic>,
+                        ),
+                      )
+                      .toList()
+                    ..sort(
+                      (a, b) => a.estimatedTotal.compareTo(b.estimatedTotal),
+                    );
+              final comparison = BidComparison.fromQuotes(quotes);
+              final advice = canvassAdvice(bom, quotes);
+              final summary = [
+                if (advice.headline.isNotEmpty) advice.headline,
+                if (advice.detail.isNotEmpty) advice.detail,
+                ...comparison.summaryLines().skip(quotes.length > 1 ? 1 : 0),
+              ];
+              final canCompare = _shortlistedIds.length >= 2;
+
+              return Column(
+                children: [
+                  Expanded(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      itemCount: _canvassByMaterial
+                          ? 1 + (bom.isEmpty ? 1 : bom.length)
+                          : quotes.length + 1,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 14),
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _BidSummaryCard(
+                                lines: summary,
+                                quoteCount: quotes.length,
+                              ),
+                              if (quotes.length > 1 && !_canvassByMaterial) ...[
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Pin up to 3 shops, then compare side by side.',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                              if (bom.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _CanvassModeToggle(
+                                  byMaterial: _canvassByMaterial,
+                                  onChanged: (value) {
+                                    setState(() => _canvassByMaterial = value);
+                                  },
+                                ),
+                                if (_canvassByMaterial) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Compare each shop’s offered price for the same item.',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ],
+                          );
+                        }
+
+                        if (_canvassByMaterial) {
+                          if (bom.isEmpty) {
+                            return Text(
+                              'This estimate has no material list to canvass yet.',
                               style: GoogleFonts.poppins(
-                                fontSize: 12,
+                                fontSize: 13,
                                 color: Colors.black54,
                               ),
-                            ),
-                          ],
-                          if (bom.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            _CanvassModeToggle(
-                              byMaterial: _canvassByMaterial,
-                              onChanged: (value) {
-                                setState(() => _canvassByMaterial = value);
-                              },
-                            ),
-                            if (_canvassByMaterial) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                'Compare each shop’s offered price for the same item.',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ],
-                      );
-                    }
+                            );
+                          }
+                          return _MaterialCanvassCard(
+                            item: bom[index - 1],
+                            quotes: quotes,
+                          );
+                        }
 
-                    if (_canvassByMaterial) {
-                      if (bom.isEmpty) {
-                        return Text(
-                          'This estimate has no material list to canvass yet.',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            color: Colors.black54,
-                          ),
-                        );
-                      }
-                      return _MaterialCanvassCard(
-                        item: bom[index - 1],
-                        quotes: quotes,
-                      );
-                    }
+                        final quote = quotes[index - 1];
+                        final tags = comparison.highlightsFor(quote.id);
+                        final isStandout = tags.isNotEmpty;
+                        final pinned = _shortlistedIds.contains(quote.id);
 
-                    final quote = quotes[index - 1];
-                    final tags = comparison.highlightsFor(quote.id);
-                    final isStandout = tags.isNotEmpty;
-                    final pinned = _shortlistedIds.contains(quote.id);
-
-                    return Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: pinned
-                            ? Border.all(
-                                color: const Color(0xFF2C3E50),
-                                width: 1.8,
-                              )
-                            : isStandout
+                        return Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: pinned
                                 ? Border.all(
-                                    color: const Color(0xFF2C3E50)
-                                        .withValues(alpha: 0.35),
+                                    color: const Color(0xFF2C3E50),
+                                    width: 1.8,
+                                  )
+                                : isStandout
+                                ? Border.all(
+                                    color: const Color(
+                                      0xFF2C3E50,
+                                    ).withValues(alpha: 0.35),
                                     width: 1.5,
                                   )
                                 : null,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              if (tags.isNotEmpty)
-                                Expanded(
-                                  child: Wrap(
-                                    spacing: 6,
-                                    runSpacing: 6,
-                                    children: [
-                                      for (final tag in tags)
-                                        _HighlightChip(tag: tag),
-                                    ],
-                                  ),
-                                )
-                              else
-                                const Spacer(),
-                              IconButton(
-                                tooltip: pinned
-                                    ? 'Remove from shortlist'
-                                    : 'Add to shortlist',
-                                onPressed: () => _toggleShortlist(quote.id),
-                                icon: Icon(
-                                  pinned
-                                      ? Icons.push_pin
-                                      : Icons.push_pin_outlined,
-                                  color: pinned
-                                      ? QuotationsScreen.navyColor
-                                      : Colors.black45,
-                                ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
                               ),
                             ],
                           ),
-                          if (tags.isNotEmpty) const SizedBox(height: 4),
-                          Row(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: Text(
-                                  quote.shopName,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.bold,
-                                    color: QuotationsScreen.navyColor,
-                                  ),
-                                ),
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
+                              Row(
                                 children: [
-                                  Text(
-                                    _money(quote.estimatedTotal),
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w800,
-                                      color: tags.contains(
-                                            BidHighlight.lowestTotal,
-                                          )
-                                          ? const Color(0xFF2E7D32)
-                                          : QuotationsScreen.navyColor,
+                                  if (tags.isNotEmpty)
+                                    Expanded(
+                                      child: Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: [
+                                          for (final tag in tags)
+                                            _HighlightChip(tag: tag),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    const Spacer(),
+                                  IconButton(
+                                    tooltip: pinned
+                                        ? 'Remove from shortlist'
+                                        : 'Add to shortlist',
+                                    onPressed: () => _toggleShortlist(quote.id),
+                                    icon: Icon(
+                                      pinned
+                                          ? Icons.push_pin
+                                          : Icons.push_pin_outlined,
+                                      color: pinned
+                                          ? QuotationsScreen.navyColor
+                                          : Colors.black45,
                                     ),
                                   ),
                                 ],
                               ),
+                              if (tags.isNotEmpty) const SizedBox(height: 4),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      quote.shopName,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold,
+                                        color: QuotationsScreen.navyColor,
+                                      ),
+                                    ),
+                                  ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        _money(quote.estimatedTotal),
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w800,
+                                          color:
+                                              tags.contains(
+                                                BidHighlight.lowestTotal,
+                                              )
+                                              ? const Color(0xFF2E7D32)
+                                              : QuotationsScreen.navyColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              if (quote.message.trim().isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  quote.message,
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.black54,
+                                    height: 1.4,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 14),
+                              const Divider(height: 1),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildSubDetail(
+                                      Icons.timer_outlined,
+                                      quote.leadTimeRaw.isEmpty
+                                          ? 'Lead: N/A'
+                                          : quote.leadTimeRaw,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (quote.materialsCovered > 0) ...[
+                                const SizedBox(height: 8),
+                                _buildSubDetail(
+                                  Icons.inventory_2_outlined,
+                                  '${quote.materialsCovered} material'
+                                  '${quote.materialsCovered == 1 ? '' : 's'} listed',
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              _QuoteLineItems(quote: quote),
+                              const SizedBox(height: 14),
+                              SizedBox(
+                                width: double.infinity,
+                                child: TextButton(
+                                  onPressed: () => _openFullDetails(context),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: QuotationsScreen.navyColor,
+                                    backgroundColor: QuotationsScreen.bgCream,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'View full details',
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
-                          if (quote.message.trim().isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              quote.message,
+                        );
+                      },
+                    ),
+                  ),
+                  if (quotes.length > 1)
+                    SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        // Minimum height, not fixed: the label wraps and grows
+                        // with the text scale.
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            minWidth: double.infinity,
+                            minHeight: 48,
+                          ),
+                          child: ElevatedButton.icon(
+                            onPressed: canCompare
+                                ? () => _openCompare(quotes)
+                                : null,
+                            icon: const Icon(Icons.compare_arrows_rounded),
+                            label: Text(
+                              canCompare
+                                  ? 'Compare shortlist (${_shortlistedIds.length})'
+                                  : 'Pin 2–3 shops to compare',
                               style: GoogleFonts.poppins(
-                                color: Colors.black54,
-                                height: 1.4,
-                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ],
-                          const SizedBox(height: 14),
-                          const Divider(height: 1),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildSubDetail(
-                                  Icons.timer_outlined,
-                                  quote.leadTimeRaw.isEmpty
-                                      ? 'Lead: N/A'
-                                      : quote.leadTimeRaw,
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (quote.materialsCovered > 0) ...[
-                            const SizedBox(height: 8),
-                            _buildSubDetail(
-                              Icons.inventory_2_outlined,
-                              '${quote.materialsCovered} material'
-                              '${quote.materialsCovered == 1 ? '' : 's'} listed',
-                            ),
-                          ],
-                          const SizedBox(height: 12),
-                          _QuoteLineItems(quote: quote),
-                          const SizedBox(height: 14),
-                          SizedBox(
-                            width: double.infinity,
-                            child: TextButton(
-                              onPressed: () => _openFullDetails(context),
-                              style: TextButton.styleFrom(
-                                foregroundColor: QuotationsScreen.navyColor,
-                                backgroundColor: QuotationsScreen.bgCream,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              child: Text(
-                                'View full details',
-                                style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: QuotationsScreen.navyColor,
+                              foregroundColor: const Color(0xFFEDE4D4),
+                              disabledBackgroundColor: QuotationsScreen
+                                  .navyColor
+                                  .withValues(alpha: 0.35),
+                              disabledForegroundColor: const Color(
+                                0xFFEDE4D4,
+                              ).withValues(alpha: 0.7),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-              if (quotes.length > 1)
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    // Minimum height, not fixed: the label wraps and grows
-                    // with the text scale.
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minWidth: double.infinity,
-                        minHeight: 48,
-                      ),
-                      child: ElevatedButton.icon(
-                        onPressed:
-                            canCompare ? () => _openCompare(quotes) : null,
-                        icon: const Icon(Icons.compare_arrows_rounded),
-                        label: Text(
-                          canCompare
-                              ? 'Compare shortlist (${_shortlistedIds.length})'
-                              : 'Pin 2–3 shops to compare',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: QuotationsScreen.navyColor,
-                          foregroundColor: const Color(0xFFEDE4D4),
-                          disabledBackgroundColor:
-                              QuotationsScreen.navyColor.withValues(alpha: 0.35),
-                          disabledForegroundColor:
-                              const Color(0xFFEDE4D4).withValues(alpha: 0.7),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-            ],
-          );
+                ],
+              );
             },
           );
         },
@@ -647,10 +657,7 @@ class _CanvassModeToggle extends StatelessWidget {
   final bool byMaterial;
   final ValueChanged<bool> onChanged;
 
-  const _CanvassModeToggle({
-    required this.byMaterial,
-    required this.onChanged,
-  });
+  const _CanvassModeToggle({required this.byMaterial, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -758,7 +765,8 @@ class _QuoteLineItems extends StatelessWidget {
                           line.size.trim().isNotEmpty)
                         Text(
                           [
-                            if (line.quantityLabel.isNotEmpty) line.quantityLabel,
+                            if (line.quantityLabel.isNotEmpty)
+                              line.quantityLabel,
                             if (line.size.trim().isNotEmpty)
                               'Size: ${line.size}',
                           ].join(' · '),
@@ -814,10 +822,7 @@ class _MaterialCanvassCard extends StatelessWidget {
   final QuotedLine item;
   final List<BidQuote> quotes;
 
-  const _MaterialCanvassCard({
-    required this.item,
-    required this.quotes,
-  });
+  const _MaterialCanvassCard({required this.item, required this.quotes});
 
   @override
   Widget build(BuildContext context) {
@@ -854,10 +859,7 @@ class _MaterialCanvassCard extends StatelessWidget {
                 if (item.quantityLabel.isNotEmpty) item.quantityLabel,
                 if (item.size.trim().isNotEmpty) 'Size: ${item.size}',
               ].join(' · '),
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: Colors.black54,
-              ),
+              style: GoogleFonts.poppins(fontSize: 12, color: Colors.black54),
             ),
           ],
           const SizedBox(height: 12),
@@ -931,9 +933,7 @@ class _MaterialCanvassCard extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: isLowest
-                        ? const Color(0xFF2E7D32)
-                        : Colors.black54,
+                    color: isLowest ? const Color(0xFF2E7D32) : Colors.black54,
                   ),
                 ),
             ],
@@ -1044,20 +1044,20 @@ class _HighlightChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (:label, :bg, :fg) = switch (tag) {
       BidHighlight.lowestTotal => (
-          label: 'Lowest total',
-          bg: const Color(0xFFD1FAE5),
-          fg: const Color(0xFF065F46),
-        ),
+        label: 'Lowest total',
+        bg: const Color(0xFFD1FAE5),
+        fg: const Color(0xFF065F46),
+      ),
       BidHighlight.fastestLead => (
-          label: 'Fastest lead',
-          bg: const Color(0xFFDBEAFE),
-          fg: const Color(0xFF1E3A8A),
-        ),
+        label: 'Fastest lead',
+        bg: const Color(0xFFDBEAFE),
+        fg: const Color(0xFF1E3A8A),
+      ),
       BidHighlight.mostComplete => (
-          label: 'Most complete',
-          bg: const Color(0xFFFEF3C7),
-          fg: const Color(0xFF92400E),
-        ),
+        label: 'Most complete',
+        bg: const Color(0xFFFEF3C7),
+        fg: const Color(0xFF92400E),
+      ),
     };
 
     return Container(
