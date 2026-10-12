@@ -5,6 +5,7 @@ import 'package:iconstruct/features/auth/data/auth_login_error.dart';
 import 'package:iconstruct/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/core/perf/perf_log.dart';
+import 'package:iconstruct/core/validation/password_policy.dart';
 import 'package:iconstruct/features/onboarding/presentation/screens/landing_screen.dart';
 import 'package:iconstruct/features/auth/presentation/widgets/otp_dialog.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
@@ -61,8 +62,10 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       if (value.isEmpty) {
         _passwordError = 'Password is required';
-      } else if (value.length < 6) {
-        _passwordError = 'Password must be at least 6 characters';
+      } else if (value.length < PasswordPolicy.minLength) {
+        // Same minimum as registration, so both screens say the same thing.
+        _passwordError =
+            'Password must be at least ${PasswordPolicy.minLength} characters';
       } else {
         _passwordError = null;
       }

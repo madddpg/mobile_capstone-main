@@ -1,9 +1,10 @@
 /// Single source of truth for password strength across registration, reset and
 /// change-password.
 ///
-/// Only applies to screens where a password is *chosen*. Sign-in must keep
-/// accepting existing passwords so accounts created under the old 6-character
-/// rule are not locked out.
+/// [validate] applies to screens where a password is *chosen*. Sign-in checks
+/// only [minLength], so login and registration state the same minimum; an
+/// account still on an old 6- or 7-character password signs in again through
+/// Forgot Password.
 class PasswordPolicy {
   const PasswordPolicy._();
 
