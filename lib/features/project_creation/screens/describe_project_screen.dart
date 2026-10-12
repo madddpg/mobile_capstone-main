@@ -94,6 +94,7 @@ class _DescribeProjectScreenState extends State<DescribeProjectScreen> {
         );
         return;
       }
+      PerfLog.begin('ai_recommend');
       Navigator.push(
         context,
         MaterialPageRoute(

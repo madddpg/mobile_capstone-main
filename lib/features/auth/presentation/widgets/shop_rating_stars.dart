@@ -54,8 +54,8 @@ class ShopRatingStars extends StatelessWidget {
               fill >= 0.75
                   ? Icons.star_rounded
                   : fill >= 0.25
-                      ? Icons.star_half_rounded
-                      : Icons.star_outline_rounded,
+                  ? Icons.star_half_rounded
+                  : Icons.star_outline_rounded,
               size: size,
               color: fill >= 0.25 ? color : emptyColor,
             ),

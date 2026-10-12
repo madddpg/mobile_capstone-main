@@ -50,11 +50,9 @@ String callableUserMessage(
       return usableDetail ??
           'No verification code was found. Request a new one.';
     case 'deadline-exceeded':
-      return usableDetail ??
-          'This code has expired. Please request a new one.';
+      return usableDetail ?? 'This code has expired. Please request a new one.';
     case 'resource-exhausted':
-      return usableDetail ??
-          'Too many attempts. Please request a new code.';
+      return usableDetail ?? 'Too many attempts. Please request a new code.';
     case 'failed-precondition':
       return usableDetail ??
           'Please wait a moment before requesting another code.';

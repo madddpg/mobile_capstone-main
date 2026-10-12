@@ -71,6 +71,13 @@ class _SelectWorkItemsScreenState extends State<SelectWorkItemsScreen> {
 
   bool get _fromAi => widget.recommended != null;
 
+  @override
+  void initState() {
+    super.initState();
+    // The ticked checklist is on screen: the AI recommendation is done.
+    if (widget.recommended != null) PerfLog.contentReady('ai_recommend');
+  }
+
   LeaveWarning? _backWarning() {
     final changed =
         _selected.length != _opened.length || !_selected.containsAll(_opened);

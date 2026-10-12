@@ -57,8 +57,8 @@ class RankedShop {
     this.phone = '',
     this.rating = ShopRating.none,
   }) : documentId = (documentId == null || documentId.trim().isEmpty)
-            ? uid
-            : documentId.trim();
+           ? uid
+           : documentId.trim();
 
   /// Ids that may be stored as `selectedShopId` on a posted estimate.
   List<String> get shopIds {
@@ -113,13 +113,15 @@ class RankedShop {
       city: asString(data['city']),
       phone: asString(data['phone']),
       subscriptionPlan: asStringOrNull(data['subscriptionPlan']),
-      quotationCount: asInt(firstOf(data, const [
-        'quotationCount',
-        'quotationsCount',
-        'totalQuotations',
-        'completedQuotations',
-        'quotesSubmitted',
-      ])),
+      quotationCount: asInt(
+        firstOf(data, const [
+          'quotationCount',
+          'quotationsCount',
+          'totalQuotations',
+          'completedQuotations',
+          'quotesSubmitted',
+        ]),
+      ),
     );
   }
 

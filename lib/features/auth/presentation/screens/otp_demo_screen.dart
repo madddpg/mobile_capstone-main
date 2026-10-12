@@ -36,7 +36,10 @@ class _OtpDemoScreenState extends State<OtpDemoScreen> {
       showAppMessage(context, SnackBar(content: Text(e.message)));
     } catch (_) {
       if (!mounted) return;
-      showAppMessage(context, const SnackBar(content: Text('Something went wrong.')));
+      showAppMessage(
+        context,
+        const SnackBar(content: Text('Something went wrong.')),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }

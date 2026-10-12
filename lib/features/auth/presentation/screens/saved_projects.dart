@@ -16,6 +16,7 @@ import 'package:iconstruct/features/project_creation/widgets/bom_share_sheet.dar
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/perf/perf_log.dart';
+import 'package:iconstruct/features/bidding/data/project_post_payload.dart';
 
 /// How [SavedProjectsScreen] focuses the list for different home entry points.
 enum SavedProjectsFocus {
@@ -564,7 +565,7 @@ class ProjectCard extends StatelessWidget {
         'projectId': project.id,
         'projectName': project.projectName,
         'projectType': project.projectType,
-        'materials': project.materials,
+        'materials': withPhotoKeys(project.materials),
         'materialsCount': project.materialCount,
         'totalAreaSqm': project.projectArea,
         'budget': project.costLevel,

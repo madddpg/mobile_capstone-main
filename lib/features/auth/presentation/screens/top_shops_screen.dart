@@ -92,126 +92,126 @@ class _TopShopsScreenState extends State<TopShopsScreen> {
               return GestureDetector(
                 onTap: () => showShopStorefrontSheet(context, shop),
                 child: Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    // Rank Indicator
-                    Container(
-                      width: 32,
-                      height: 32,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isTop3 ? darkBlue : Colors.grey.shade200,
-                        shape: BoxShape.circle,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-                      child: Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontWeight: FontWeight.bold,
-                          color: isTop3 ? Colors.white : darkBlue,
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Rank Indicator
+                      Container(
+                        width: 32,
+                        height: 32,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: isTop3 ? darkBlue : Colors.grey.shade200,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.bold,
+                            color: isTop3 ? Colors.white : darkBlue,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    // Shop details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(width: 16),
+                      // Shop details
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              shop.shopName,
+                              style: const TextStyle(
+                                fontFamily: 'Poppins',
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: darkBlue,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${shop.address}, ${shop.barangay}, ${shop.city}',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                color: darkBlue.withValues(alpha: 0.7),
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 5),
+                            ShopRatingStars(
+                              rating: shop.rating,
+                              size: 14,
+                              color: Colors.amber.shade700,
+                              emptyColor: darkBlue.withValues(alpha: 0.25),
+                              textColor: darkBlue,
+                            ),
+                            if (shop.hasStorefront) ...[
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Tap to see what they supply',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: darkBlue,
+                                ),
+                              ),
+                            ],
+                            if (shop.subscriptionPlan != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Plan: ${shop.subscriptionPlan}',
+                                style: const TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      // Quotation count
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            shop.shopName,
+                            '${shop.quotationCount}',
                             style: const TextStyle(
                               fontFamily: 'Poppins',
-                              fontSize: 16,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color: darkBlue,
                             ),
                           ),
-                          const SizedBox(height: 4),
                           Text(
-                            '${shop.address}, ${shop.barangay}, ${shop.city}',
+                            shop.quotationCount == 1 ? 'quote' : 'quotes',
                             style: TextStyle(
                               fontFamily: 'Inter',
-                              fontSize: 12,
-                              color: darkBlue.withValues(alpha: 0.7),
+                              fontSize: 11,
+                              color: darkBlue.withValues(alpha: 0.6),
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 5),
-                          ShopRatingStars(
-                            rating: shop.rating,
-                            size: 14,
-                            color: Colors.amber.shade700,
-                            emptyColor: darkBlue.withValues(alpha: 0.25),
-                            textColor: darkBlue,
-                          ),
-                          if (shop.hasStorefront) ...[
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Tap to see what they supply',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: darkBlue,
-                              ),
-                            ),
-                          ],
-                          if (shop.subscriptionPlan != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'Plan: ${shop.subscriptionPlan}',
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.orange,
-                              ),
-                            ),
-                          ],
                         ],
                       ),
-                    ),
-                    // Quotation count
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '${shop.quotationCount}',
-                          style: const TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: darkBlue,
-                          ),
-                        ),
-                        Text(
-                          shop.quotationCount == 1 ? 'quote' : 'quotes',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 11,
-                            color: darkBlue.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
               );
             },
           );

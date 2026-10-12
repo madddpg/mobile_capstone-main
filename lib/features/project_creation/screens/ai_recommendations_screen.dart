@@ -68,6 +68,7 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
   @override
   void initState() {
     super.initState();
+    PerfLog.screenShown('ai_recommend');
     _load();
   }
 
@@ -82,12 +83,14 @@ class _AiRecommendationsScreenState extends State<AiRecommendationsScreen> {
       description: widget.description,
       catalogue: _catalogue,
     );
+    PerfLog.response('ai_recommend');
     if (!mounted) return;
     if (!result.success) {
       setState(() {
         _loading = false;
         _error = result.errorMessage;
       });
+      PerfLog.contentReady('ai_recommend');
       return;
     }
     _openChecklist({for (final pick in result.picks) pick.id: pick.reason});

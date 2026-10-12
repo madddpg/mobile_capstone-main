@@ -12,16 +12,18 @@ import 'package:iconstruct/features/bidding/data/shop_confirmation.dart';
 /// document and should not be trusted to calculate their own supplier's score.
 class ShopRatingService {
   ShopRatingService({FirebaseFirestore? firestore, FirebaseAuth? auth})
-      : _db = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+    : _db = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
   String? get _uid => _auth.currentUser?.uid;
 
-  DocumentReference<Map<String, dynamic>> _ratingRef(String shopId, String uid) =>
-      _db.collection('shops').doc(shopId).collection('ratings').doc(uid);
+  DocumentReference<Map<String, dynamic>> _ratingRef(
+    String shopId,
+    String uid,
+  ) => _db.collection('shops').doc(shopId).collection('ratings').doc(uid);
 
   /// This builder's own rating of a shop, if they have left one.
   Future<ShopRatingDraft?> myRating(String shopId) async {
@@ -86,7 +88,10 @@ class ShopRatingService {
     Iterable<String> shopIds,
   ) async {
     final uid = _uid;
-    final ids = shopIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet();
+    final ids = shopIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
     if (uid == null || ids.isEmpty) return const [];
 
     try {
@@ -111,19 +116,20 @@ class ShopRatingService {
         snapDocs.map((d) => _shopConfirmed(d.id, d.data())),
       );
 
-      final rows = [
-        for (var i = 0; i < snapDocs.length; i++)
-          if (confirmed[i]) snapDocs[i],
-      ].map((d) {
-        final data = d.data();
-        final title = (data['projectName'] ?? data['projectTitle'] ?? '')
-            .toString()
-            .trim();
-        return (
-          postId: d.id,
-          title: title.isEmpty ? 'Untitled estimate' : title,
-        );
-      }).toList();
+      final rows =
+          [
+            for (var i = 0; i < snapDocs.length; i++)
+              if (confirmed[i]) snapDocs[i],
+          ].map((d) {
+            final data = d.data();
+            final title = (data['projectName'] ?? data['projectTitle'] ?? '')
+                .toString()
+                .trim();
+            return (
+              postId: d.id,
+              title: title.isEmpty ? 'Untitled estimate' : title,
+            );
+          }).toList();
 
       return rows;
     } catch (_) {

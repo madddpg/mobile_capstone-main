@@ -6,6 +6,8 @@
 /// the contract in one place, away from the screen, is what makes it testable.
 library;
 
+import 'package:iconstruct/features/project_creation/data/material_visual.dart';
+
 /// The quantity a hardware shop should be asked for on one material line.
 ///
 /// The text the builder typed is the quantity, including after they clear a
@@ -13,10 +15,7 @@ library;
 /// number. An explicit 0, or text that is not a number, stays 0 so the post
 /// can be refused. When there is no text field (a saved line being read back),
 /// the stored number is used.
-double postedLineQuantity({
-  required double stored,
-  String? typedText,
-}) {
+double postedLineQuantity({required double stored, String? typedText}) {
   if (typedText != null) {
     final typed = double.tryParse(typedText.trim());
     if (typed != null && typed.isFinite && typed > 0) return typed;
@@ -87,11 +86,7 @@ List<String> legacyMaterialNames(List<dynamic> raw) {
 ///
 /// Falls back to the part of the email before the @ rather than to "Unknown":
 /// a shop replying to a person wants something to call them.
-String ownerDisplayName({
-  String? firstName,
-  String? lastName,
-  String? email,
-}) {
+String ownerDisplayName({String? firstName, String? lastName, String? email}) {
   final full = [
     (firstName ?? '').trim(),
     (lastName ?? '').trim(),
@@ -102,6 +97,34 @@ String ownerDisplayName({
   final at = address.indexOf('@');
   if (at > 0) return address.substring(0, at);
   return 'Builder';
+}
+
+/// [lines] with a `photoKey` on each material the app has a photo of.
+///
+/// The photos are bundled in the app at
+/// `assets/images/materials/<photoKey>.jpg`; the shop dashboard keeps the same
+/// files and shows `<photoKey>.jpg` next to the line. Which photo fits which
+/// material is decided here, by the app's own matching, so the dashboard does
+/// not need a second copy of it. Lines without a photo, plain-text lines from
+/// old estimates, and lines that already carry a key are left unchanged.
+List<dynamic> withPhotoKeys(List<dynamic> lines) {
+  return [
+    for (final line in lines)
+      if (line is Map) _withPhotoKey(Map<String, dynamic>.from(line)) else line,
+  ];
+}
+
+Map<String, dynamic> _withPhotoKey(Map<String, dynamic> line) {
+  if (line.containsKey('photoKey')) return line;
+  final name = (line['name'] ?? '').toString().trim();
+  if (name.isEmpty) return line;
+  final key = MaterialVisual.forItem(
+    name: name,
+    category: (line['category'] ?? '').toString(),
+    unit: (line['unit'] ?? '').toString(),
+  ).assetKey;
+  if (!kBundledMaterialPhotos.contains(key)) return line;
+  return {...line, 'photoKey': key};
 }
 
 /// The fields every posted estimate carries, without the server timestamps and
@@ -147,7 +170,7 @@ Map<String, dynamic> projectPostFields({
     if (renovationTypes.isNotEmpty) 'renovationTypes': renovationTypes,
     if (coverage.trim().isNotEmpty) 'coverage': coverage.trim(),
     'ownerName': ownerName.trim(),
-    'materials': materials,
+    'materials': withPhotoKeys(materials),
     'materialsCount': materials.length,
     'totalAreaSqm': totalAreaSqm,
     'budget': budget,

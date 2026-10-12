@@ -104,13 +104,13 @@ class _RateShopSheetState extends State<_RateShopSheet> {
   /// Plain words for each score, so the meaning of three stars is not left to
   /// the builder to guess.
   static String _starMeaning(int stars) => switch (stars) {
-        1 => 'Poor — I would not order from them again',
-        2 => 'Below what I expected',
-        3 => 'Fine — the order was filled',
-        4 => 'Good — I would order again',
-        5 => 'Excellent — I would recommend them',
-        _ => 'Tap a star to rate this shop',
-      };
+    1 => 'Poor — I would not order from them again',
+    2 => 'Below what I expected',
+    3 => 'Fine — the order was filled',
+    4 => 'Good — I would order again',
+    5 => 'Excellent — I would recommend them',
+    _ => 'Tap a star to rate this shop',
+  };
 
   Future<void> _save() async {
     if (_stars < 1 || _saving) return;
@@ -290,8 +290,9 @@ class _RateShopSheetState extends State<_RateShopSheet> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.cream,
                         foregroundColor: IConstructPanel.navy,
-                        disabledBackgroundColor:
-                            AppColors.cream.withValues(alpha: 0.35),
+                        disabledBackgroundColor: AppColors.cream.withValues(
+                          alpha: 0.35,
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(28),
@@ -307,8 +308,8 @@ class _RateShopSheetState extends State<_RateShopSheet> {
                               _stars < 1
                                   ? 'Pick a star rating'
                                   : widget.existing == null
-                                      ? 'Submit rating'
-                                      : 'Update rating',
+                                  ? 'Submit rating'
+                                  : 'Update rating',
                               style: GoogleFonts.poppins(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,

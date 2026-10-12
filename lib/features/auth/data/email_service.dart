@@ -174,11 +174,9 @@ class EmailService {
       debugPrint('================ REGISTRATION FLOW ================');
       debugPrint('Sending OTP before creating Auth user: $trimmedEmail');
 
-      await _invokeAuthCallable(
-        'sendEmailOtp',
-        {'email': trimmedEmail},
-        action: 'send the code',
-      );
+      await _invokeAuthCallable('sendEmailOtp', {
+        'email': trimmedEmail,
+      }, action: 'send the code');
 
       debugPrint('OTP send success (account not created yet)');
       debugPrint('================ REGISTRATION OTP SENT ================');
@@ -259,10 +257,7 @@ class EmailService {
 
       await _invokeAuthCallable(
         'finalizeEmailOtpRegistration',
-        {
-          'email': trimmedEmail,
-          'verificationToken': verificationToken,
-        },
+        {'email': trimmedEmail, 'verificationToken': verificationToken},
         action: 'finish registration',
         withIdToken: true,
       );
@@ -295,18 +290,15 @@ class EmailService {
   }) async {
     final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
 
-    await userRef.set(
-      {
-        'firebaseUid': uid,
-        'firstName': firstName,
-        'lastName': lastName,
-        'email': email,
-        'isVerified': isVerified,
-        'created_at': FieldValue.serverTimestamp(),
-        'verified_at': isVerified ? FieldValue.serverTimestamp() : null,
-      },
-      SetOptions(merge: true),
-    );
+    await userRef.set({
+      'firebaseUid': uid,
+      'firstName': firstName,
+      'lastName': lastName,
+      'email': email,
+      'isVerified': isVerified,
+      'created_at': FieldValue.serverTimestamp(),
+      'verified_at': isVerified ? FieldValue.serverTimestamp() : null,
+    }, SetOptions(merge: true));
   }
 
   Future<EmailOtpVerificationResult> verifyOtp({
@@ -325,14 +317,10 @@ class EmailService {
     }
 
     try {
-      final data = await _invokeAuthCallable(
-        'confirmBuilderEmailOtp',
-        {
-          'email': trimmedEmail,
-          'otp': trimmedOtp,
-        },
-        action: 'verify the code',
-      );
+      final data = await _invokeAuthCallable('confirmBuilderEmailOtp', {
+        'email': trimmedEmail,
+        'otp': trimmedOtp,
+      }, action: 'verify the code');
 
       // confirmBuilderEmailOtp marks the account verified server-side. The
       // client is signed out at this point, so it cannot write users/{uid}.
@@ -361,14 +349,10 @@ class EmailService {
 
     try {
       if (isPasswordReset) {
-        await _invokeAuthCallable(
-          'sendEmailOtp',
-          {
-            'email': trimmedEmail,
-            'purpose': 'password_reset',
-          },
-          action: 'send the code',
-        );
+        await _invokeAuthCallable('sendEmailOtp', {
+          'email': trimmedEmail,
+          'purpose': 'password_reset',
+        }, action: 'send the code');
 
         return const EmailSendOtpResult(
           success: true,
@@ -376,11 +360,9 @@ class EmailService {
         );
       }
 
-      await _invokeAuthCallable(
-        'sendEmailOtp',
-        {'email': trimmedEmail},
-        action: 'send the code',
-      );
+      await _invokeAuthCallable('sendEmailOtp', {
+        'email': trimmedEmail,
+      }, action: 'send the code');
 
       return const EmailSendOtpResult(
         success: true,
@@ -512,18 +494,14 @@ class EmailService {
     }
 
     try {
-      await _invokeAuthCallable(
-        'resetPasswordWithToken',
-        {
-          'email': trimmedEmail,
-          // The callable reads `verificationToken`; `token` is kept only for
-          // backward compatibility with an older deployment.
-          'verificationToken': verificationToken,
-          'token': verificationToken,
-          'newPassword': newPassword,
-        },
-        action: 'reset your password',
-      );
+      await _invokeAuthCallable('resetPasswordWithToken', {
+        'email': trimmedEmail,
+        // The callable reads `verificationToken`; `token` is kept only for
+        // backward compatibility with an older deployment.
+        'verificationToken': verificationToken,
+        'token': verificationToken,
+        'newPassword': newPassword,
+      }, action: 'reset your password');
     } on EmailApiException {
       rethrow;
     } catch (e) {

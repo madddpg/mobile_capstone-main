@@ -50,29 +50,32 @@ class ShopRankingService {
       // and silently returned an empty list. The web dashboard is expected to
       // maintain one of these counters on the shop doc; absent that, shops sort
       // by name so the list is at least stable and populated.
-      final rankedShops = shopsQuery.docs
-          .map((doc) => RankedShop.fromMap(doc.id, doc.data()))
-          .toList()
-        // Rated shops first, best first. A builder choosing who to canvass
-        // cares what other builders thought, not how many quotes a shop has
-        // fired off. Unrated shops keep their place below rather than being
-        // hidden, otherwise a new shop could never earn its first rating.
-        ..sort((a, b) {
-          if (a.rating.hasRatings != b.rating.hasRatings) {
-            return a.rating.hasRatings ? -1 : 1;
-          }
-          final byRating = b.rating.average.compareTo(a.rating.average);
-          if (byRating != 0) return byRating;
+      final rankedShops =
+          shopsQuery.docs
+              .map((doc) => RankedShop.fromMap(doc.id, doc.data()))
+              .toList()
+            // Rated shops first, best first. A builder choosing who to canvass
+            // cares what other builders thought, not how many quotes a shop has
+            // fired off. Unrated shops keep their place below rather than being
+            // hidden, otherwise a new shop could never earn its first rating.
+            ..sort((a, b) {
+              if (a.rating.hasRatings != b.rating.hasRatings) {
+                return a.rating.hasRatings ? -1 : 1;
+              }
+              final byRating = b.rating.average.compareTo(a.rating.average);
+              if (byRating != 0) return byRating;
 
-          // Same score: more ratings is the more trustworthy one.
-          final byVolume = b.rating.count.compareTo(a.rating.count);
-          if (byVolume != 0) return byVolume;
+              // Same score: more ratings is the more trustworthy one.
+              final byVolume = b.rating.count.compareTo(a.rating.count);
+              if (byVolume != 0) return byVolume;
 
-          final byQuotes = b.quotationCount.compareTo(a.quotationCount);
-          return byQuotes != 0
-              ? byQuotes
-              : a.shopName.toLowerCase().compareTo(b.shopName.toLowerCase());
-        });
+              final byQuotes = b.quotationCount.compareTo(a.quotationCount);
+              return byQuotes != 0
+                  ? byQuotes
+                  : a.shopName.toLowerCase().compareTo(
+                      b.shopName.toLowerCase(),
+                    );
+            });
 
       _cache = rankedShops;
       _cachedAt = now;
@@ -109,17 +112,19 @@ class ShopRankingService {
       }
     }
 
-    await Future.wait(missing.map((id) async {
-      try {
-        final snap = await _firestore.collection('shops').doc(id).get();
-        if (!snap.exists) return;
-        final shop = RankedShop.fromMap(snap.id, snap.data() ?? {});
-        _byId[id] = shop;
-        found[id] = shop;
-      } catch (e) {
-        debugPrint('ShopRankingService: could not read shop $id: $e');
-      }
-    }));
+    await Future.wait(
+      missing.map((id) async {
+        try {
+          final snap = await _firestore.collection('shops').doc(id).get();
+          if (!snap.exists) return;
+          final shop = RankedShop.fromMap(snap.id, snap.data() ?? {});
+          _byId[id] = shop;
+          found[id] = shop;
+        } catch (e) {
+          debugPrint('ShopRankingService: could not read shop $id: $e');
+        }
+      }),
+    );
 
     return found;
   }

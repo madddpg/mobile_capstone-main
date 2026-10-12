@@ -93,8 +93,8 @@ class ShopRatingDraft {
   bool get isValid => stars >= 1 && stars <= 5 && postId.trim().isNotEmpty;
 
   Map<String, dynamic> toMap() => {
-        'stars': stars,
-        'comment': comment.trim(),
-        'postId': postId.trim(),
-      };
+    'stars': stars,
+    'comment': comment.trim(),
+    'postId': postId.trim(),
+  };
 }

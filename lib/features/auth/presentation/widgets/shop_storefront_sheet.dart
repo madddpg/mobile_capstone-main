@@ -67,9 +67,11 @@ class _StorefrontSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final location = [shop.address, shop.barangay, shop.city]
-        .where((s) => s.trim().isNotEmpty)
-        .join(', ');
+    final location = [
+      shop.address,
+      shop.barangay,
+      shop.city,
+    ].where((s) => s.trim().isNotEmpty).join(', ');
 
     return Container(
       constraints: BoxConstraints(
@@ -237,14 +239,14 @@ class _StorefrontSheet extends StatelessWidget {
   }
 
   Widget _heading(String text) => Text(
-        text.toUpperCase(),
-        style: GoogleFonts.poppins(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.1,
-          color: AppColors.cream.withValues(alpha: 0.65),
-        ),
-      );
+    text.toUpperCase(),
+    style: GoogleFonts.poppins(
+      fontSize: 10.5,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 1.1,
+      color: AppColors.cream.withValues(alpha: 0.65),
+    ),
+  );
 
   Widget _row(IconData icon, String label, String value) {
     return Padding(

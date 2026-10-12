@@ -51,10 +51,7 @@ class AccountFormShell extends StatelessWidget {
     final rounded = BorderRadius.circular(16);
     return InputDecoration(
       hintText: hint,
-      hintStyle: GoogleFonts.poppins(
-        color: Colors.grey.shade500,
-        fontSize: 14,
-      ),
+      hintStyle: GoogleFonts.poppins(color: Colors.grey.shade500, fontSize: 14),
       filled: true,
       fillColor: Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
@@ -149,9 +146,7 @@ class AccountFormShell extends StatelessWidget {
               child: DecoratedBox(
                 decoration: const BoxDecoration(
                   color: cream,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(40),
-                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
                 ),
                 child: SafeArea(
                   top: false,

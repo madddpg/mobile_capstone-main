@@ -236,11 +236,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           FilledButton(
                             onPressed: () =>
                                 Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                builder: (_) => const LoginScreen(),
-                              ),
-                              (_) => false,
-                            ),
+                                  MaterialPageRoute(
+                                    builder: (_) => const LoginScreen(),
+                                  ),
+                                  (_) => false,
+                                ),
                             style: FilledButton.styleFrom(
                               backgroundColor: _cream,
                               foregroundColor: _darkBlue,
