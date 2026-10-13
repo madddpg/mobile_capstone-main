@@ -87,7 +87,9 @@ class _BomShareSheetState extends State<_BomShareSheet> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Share material list',
+              data.isSupplierPicked
+                  ? 'Share quotation summary'
+                  : 'Share material list',
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
@@ -96,11 +98,13 @@ class _BomShareSheetState extends State<_BomShareSheet> {
             ),
             const SizedBox(height: 6),
             Text(
-              '${data.materials.length} '
-              'material${data.materials.length == 1 ? '' : 's'} · prices left '
-              'blank for the '
-              'shop to fill in. Useful for shops that quote in person or over '
-              'chat.',
+              data.isSupplierPicked
+                  ? '${data.materials.length} material${data.materials.length == 1 ? '' : 's'} · includes accepted unit prices, amounts, substitutes, and item availability.'
+                  : '${data.materials.length} '
+                      'material${data.materials.length == 1 ? '' : 's'} · prices left '
+                      'blank for the '
+                      'shop to fill in. Useful for shops that quote in person or over '
+                      'chat.',
               style: GoogleFonts.poppins(
                 fontSize: 11.5,
                 height: 1.4,

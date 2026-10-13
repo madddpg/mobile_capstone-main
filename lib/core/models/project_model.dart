@@ -16,6 +16,8 @@ class ProjectModel {
   final String status; // Draft, Ready, Posted
   final DateTime lastUpdated;
   final String? postId;
+  final String? selectedShopName;
+  final String? selectedQuotationId;
 
   final String projectScope; // Cosmetic, Structural, Functional
 
@@ -52,6 +54,8 @@ class ProjectModel {
     required this.status,
     required this.lastUpdated,
     this.postId,
+    this.selectedShopName,
+    this.selectedQuotationId,
     this.projectScope = 'Cosmetic',
     this.hasSiteDetails = false,
     this.excludedWork = const [],
@@ -84,6 +88,8 @@ class ProjectModel {
       lastUpdated: asDate(firstOf(data, ['updatedAt', 'lastUpdated'])) ??
           DateTime.now(),
       postId: asStringOrNull(data['postId']),
+      selectedShopName: asStringOrNull(firstOf(data, ['selectedShopName', 'shopName', 'supplierName'])),
+      selectedQuotationId: asStringOrNull(firstOf(data, ['selectedQuotationId', 'quotationId'])),
       projectScope: asString(data['projectScope'], fallback: 'Cosmetic'),
       hasSiteDetails: data['siteDetails'] is Map,
       excludedWork: ExcludedWork.listFrom(data['excludedWork']),

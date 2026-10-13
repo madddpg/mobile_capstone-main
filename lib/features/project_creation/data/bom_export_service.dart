@@ -23,6 +23,11 @@ class _ExportPalette {
     required this.tableHeaderFg,
     required this.notesBg,
     required this.filledHeader,
+    required this.substituteBg,
+    required this.substituteFg,
+    required this.unavailableBg,
+    required this.unavailableFg,
+    required this.amountFg,
   });
 
   final PdfColor page;
@@ -36,6 +41,11 @@ class _ExportPalette {
   final PdfColor tableHeaderFg;
   final PdfColor notesBg;
   final bool filledHeader;
+  final PdfColor substituteBg;
+  final PdfColor substituteFg;
+  final PdfColor unavailableBg;
+  final PdfColor unavailableFg;
+  final PdfColor amountFg;
 }
 
 class BomExportService {
@@ -53,6 +63,11 @@ class BomExportService {
     tableHeaderFg: PdfColor.fromInt(0xFFEDE4D4),
     notesBg: PdfColor.fromInt(0xFFF6F1E7),
     filledHeader: true,
+    substituteBg: PdfColor.fromInt(0xFFFEF3C7),
+    substituteFg: PdfColor.fromInt(0xFF92400E),
+    unavailableBg: PdfColor.fromInt(0xFFFEE2E2),
+    unavailableFg: PdfColor.fromInt(0xFFB91C1C),
+    amountFg: PdfColor.fromInt(0xFF2E7D32),
   );
 
   /// High-contrast sheet for chat/image export: white page, black type.
@@ -68,6 +83,11 @@ class BomExportService {
     tableHeaderFg: PdfColors.black,
     notesBg: PdfColors.white,
     filledHeader: false,
+    substituteBg: PdfColor.fromInt(0xFFF0F0F0),
+    substituteFg: PdfColors.black,
+    unavailableBg: PdfColor.fromInt(0xFFF0F0F0),
+    unavailableFg: PdfColors.black,
+    amountFg: PdfColors.black,
   );
 
   static Future<Uint8List> buildPdf(
@@ -75,8 +95,11 @@ class BomExportService {
     bool forImage = false,
   }) async {
     final palette = forImage ? _imagePalette : _appPalette;
+    final titleDoc = data.isSupplierPicked
+        ? '${data.estimateName} - Quotation Summary'
+        : '${data.estimateName} - Material Canvass Sheet';
     final doc = pw.Document(
-      title: pdfSafe('${data.estimateName} - Material Canvass Sheet'),
+      title: pdfSafe(titleDoc),
       author: 'iConstruct',
     );
 
@@ -178,13 +201,35 @@ class BomExportService {
         ? ' (${_trimDouble(data.areaSqm)} sq.m)'
         : '';
     final count = data.materials.length;
+    if (data.isSupplierPicked) {
+      final supplierPart = (data.supplierName ?? '').trim().isNotEmpty
+          ? ' from ${data.supplierName!.trim()}'
+          : '';
+      return 'Quotation summary for $count '
+          'material${count == 1 ? '' : 's'}$supplierPart — '
+          '${data.estimateName}$area. Total: PHP ${_formatCurrency(data.totalAmount)}.';
+    }
     return 'Requesting a quotation for $count '
         'material${count == 1 ? '' : 's'} — '
         '${data.estimateName}$area. Prices and availability are up to you; '
         'please fill in the blank columns.';
   }
 
+  static String _formatCurrency(double amount) {
+    if (amount <= 0) return '0.00';
+    final parts = amount.toStringAsFixed(2).split('.');
+    final integerPart = parts[0].replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (match) => ',',
+    );
+    return '$integerPart.${parts[1]}';
+  }
+
   static pw.Widget _header(BomExportData data, _ExportPalette p) {
+    final subTitle = data.isSupplierPicked
+        ? 'Quotation Summary (Supplier Selected)'
+        : 'Material Canvass Sheet';
+
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 14),
       child: pw.Column(
@@ -217,7 +262,7 @@ class BomExportService {
                     ),
                     pw.SizedBox(height: 2),
                     pw.Text(
-                      'Material Canvass Sheet',
+                      subTitle,
                       style: pw.TextStyle(color: p.headerFg, fontSize: 10),
                     ),
                   ],
@@ -257,6 +302,9 @@ class BomExportService {
   }
 
   static pw.Widget _continuedHeader(BomExportData data, _ExportPalette p) {
+    final sheetLabel = data.isSupplierPicked
+        ? 'Quotation Summary - continued'
+        : 'Material Canvass Sheet - continued';
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 10),
       padding: const pw.EdgeInsets.only(bottom: 6),
@@ -275,7 +323,7 @@ class BomExportService {
             ),
           ),
           pw.Text(
-            'Material Canvass Sheet - continued',
+            sheetLabel,
             style: pw.TextStyle(fontSize: 9, color: p.muted),
           ),
         ],
@@ -308,6 +356,7 @@ class BomExportService {
       ),
     );
   }
+
   static pw.Widget _summary(BomExportData data, _ExportPalette p) {
     final entries = <List<String>>[
       ['Renovation type', data.renovationType.isEmpty ? '-' : data.renovationType],
@@ -319,12 +368,15 @@ class BomExportService {
         'Materials',
         '${data.materials.length} item${data.materials.length == 1 ? '' : 's'}',
       ],
-      [
-        'Budget preference',
-        (data.budgetPreference ?? '').trim().isEmpty
-            ? 'Not set'
-            : data.budgetPreference!.trim(),
-      ],
+      if (data.isSupplierPicked && (data.supplierName ?? '').trim().isNotEmpty)
+        ['Selected Supplier', data.supplierName!.trim()]
+      else
+        [
+          'Budget preference',
+          (data.budgetPreference ?? '').trim().isEmpty
+              ? 'Not set'
+              : data.budgetPreference!.trim(),
+        ],
     ];
 
     return pw.Column(
@@ -377,11 +429,6 @@ class BomExportService {
     );
   }
 
-  /// What the builder left out, printed under the list it was left out of.
-  ///
-  /// A shop reading the sheet can otherwise only guess whether a missing
-  /// material was decided against or forgotten, and quotes for the wrong job
-  /// either way.
   static pw.Widget _excludedBlock(BomExportData data, _ExportPalette p) {
     return pw.Container(
       width: double.infinity,
@@ -444,7 +491,9 @@ class BomExportService {
               palette: p,
               bold: true,
               color: p.tableHeaderFg,
-              align: i >= 3 ? pw.TextAlign.center : pw.TextAlign.left,
+              align: i >= 5
+                  ? pw.TextAlign.right
+                  : (i >= 3 ? pw.TextAlign.center : pw.TextAlign.left),
             ),
         ],
       ),
@@ -468,16 +517,110 @@ class BomExportService {
       );
 
       for (final item in items) {
+        // Material cell with potential Substitute / Unavailable badge
+        final materialCell = pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  pw.Expanded(
+                    child: pw.Text(
+                      pdfSafe(item.name),
+                      style: pw.TextStyle(
+                        fontSize: 9.5,
+                        color: p.ink,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (item.isSubstitute) ...[
+                    pw.SizedBox(width: 4),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                      decoration: pw.BoxDecoration(
+                        color: p.substituteBg,
+                        borderRadius: pw.BorderRadius.circular(3),
+                        border: pw.Border.all(color: p.substituteFg, width: 0.5),
+                      ),
+                      child: pw.Text(
+                        'SUBSTITUTE',
+                        style: pw.TextStyle(
+                          fontSize: 6,
+                          fontWeight: pw.FontWeight.bold,
+                          color: p.substituteFg,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (item.isUnavailable) ...[
+                    pw.SizedBox(width: 4),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                      decoration: pw.BoxDecoration(
+                        color: p.unavailableBg,
+                        borderRadius: pw.BorderRadius.circular(3),
+                        border: pw.Border.all(color: p.unavailableFg, width: 0.5),
+                      ),
+                      child: pw.Text(
+                        'UNAVAILABLE',
+                        style: pw.TextStyle(
+                          fontSize: 6,
+                          fontWeight: pw.FontWeight.bold,
+                          color: p.unavailableFg,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              if (item.isSubstitute && (item.requestedName ?? '').isNotEmpty) ...[
+                pw.SizedBox(height: 1.5),
+                pw.Text(
+                  pdfSafe('instead of ${item.requestedName}'),
+                  style: pw.TextStyle(
+                    fontSize: 7.5,
+                    fontStyle: pw.FontStyle.italic,
+                    color: p.substituteFg,
+                  ),
+                ),
+              ],
+              if (item.notes != null && item.notes!.trim().isNotEmpty) ...[
+                pw.SizedBox(height: 1.5),
+                pw.Text(
+                  pdfSafe(item.notes!.trim()),
+                  style: pw.TextStyle(fontSize: 7.5, color: p.muted),
+                ),
+              ],
+            ],
+          ),
+        );
+
+        // Unit Price & Amount values
+        String unitPriceText = '';
+        String amountText = '';
+        PdfColor? amountColor;
+
+        if (item.isUnavailable) {
+          unitPriceText = 'Unavailable';
+          amountText = '—';
+        } else if (item.hasPrice) {
+          if (item.unitPrice > 0) {
+            unitPriceText = _formatCurrency(item.unitPrice);
+          }
+          if (item.amount > 0) {
+            amountText = _formatCurrency(item.amount);
+            amountColor = p.amountFg;
+          }
+        }
+
         rows.add(
           pw.TableRow(
             children: [
               _cell('${index++}', palette: p, align: pw.TextAlign.center, size: 8.5),
-              _cell(
-                item.name,
-                palette: p,
-                bold: true,
-                secondary: item.notes,
-              ),
+              materialCell,
               _cell(item.size ?? '-', palette: p, size: 8.5),
               _cell(item.quantityLabel, palette: p, align: pw.TextAlign.center),
               _cell(
@@ -486,13 +629,30 @@ class BomExportService {
                 align: pw.TextAlign.center,
                 size: 8.5,
               ),
-              _cell('', palette: p),
-              _cell('', palette: p),
+              _cell(
+                unitPriceText,
+                palette: p,
+                align: item.isUnavailable ? pw.TextAlign.center : pw.TextAlign.right,
+                size: 8.5,
+                color: item.isUnavailable ? p.unavailableFg : null,
+              ),
+              _cell(
+                amountText,
+                palette: p,
+                align: pw.TextAlign.right,
+                size: 8.5,
+                bold: amountText.isNotEmpty && amountText != '—',
+                color: amountColor,
+              ),
             ],
           ),
         );
       }
     });
+
+    final totalText = data.totalAmount > 0
+        ? 'PHP ${_formatCurrency(data.totalAmount)}'
+        : '';
 
     rows.add(
       pw.TableRow(
@@ -503,7 +663,13 @@ class BomExportService {
           _cell('', palette: p),
           _cell('', palette: p),
           _cell('', palette: p),
-          _cell('', palette: p),
+          _cell(
+            totalText,
+            palette: p,
+            bold: true,
+            align: pw.TextAlign.right,
+            color: totalText.isNotEmpty ? p.amountFg : null,
+          ),
         ],
       ),
     );
@@ -538,7 +704,9 @@ class BomExportService {
       child: pw.Column(
         crossAxisAlignment: align == pw.TextAlign.center
             ? pw.CrossAxisAlignment.center
-            : pw.CrossAxisAlignment.start,
+            : (align == pw.TextAlign.right
+                ? pw.CrossAxisAlignment.end
+                : pw.CrossAxisAlignment.start),
         children: [
           pw.Text(
             pdfSafe(text),
@@ -562,6 +730,46 @@ class BomExportService {
   }
 
   static pw.Widget _shopBlock(BomExportData data, _ExportPalette p) {
+    if (data.isSupplierPicked) {
+      final supplierDisplay = (data.supplierName ?? '').trim().isNotEmpty
+          ? data.supplierName!.trim()
+          : 'Selected Supplier';
+      return pw.Container(
+        padding: const pw.EdgeInsets.all(12),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: p.line, width: 0.5),
+          borderRadius: pw.BorderRadius.circular(4),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'Selected Supplier',
+              style: pw.TextStyle(
+                fontSize: 10,
+                fontWeight: pw.FontWeight.bold,
+                color: p.ink,
+              ),
+            ),
+            pw.SizedBox(height: 6),
+            pw.Text(
+              pdfSafe(supplierDisplay),
+              style: pw.TextStyle(
+                fontSize: 12,
+                fontWeight: pw.FontWeight.bold,
+                color: p.ink,
+              ),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              'Quotation accepted. Prices and item availability shown above are based on the accepted offer.',
+              style: pw.TextStyle(fontSize: 8, color: p.muted),
+            ),
+          ],
+        ),
+      );
+    }
+
     return pw.Container(
       padding: const pw.EdgeInsets.all(12),
       decoration: pw.BoxDecoration(

@@ -1085,22 +1085,97 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
   }
 
   Future<void> _shareMaterialList() async {
-    await showBomShareSheet(
-      context,
-      BomExportData.fromMaterials(
-        estimateName: _projectName.trim().isEmpty
-            ? _projectType
-            : _projectName.trim(),
-        renovationType: _projectType,
-        areaSqm: _projectArea,
-        budgetPreference: _selectedBudget,
-        notes: _remarksController.text.trim().isEmpty
-            ? null
-            : _remarksController.text.trim(),
-        materials: _buildMaterialMaps(),
-        excluded: _excludedWork,
-      ),
-    );
+    final existing = widget.existingProject;
+    final stage = existing != null
+        ? ProjectLifecycle.stageIndex(existing.status)
+        : ProjectLifecycle.stageDraft;
+    final isSupplierPicked = stage >= ProjectLifecycle.stageSupplierSelected;
+    final postId = existing?.postId;
+
+    List<Map<String, dynamic>>? quotationItems;
+    String? resolvedSupplierName = existing?.selectedShopName;
+
+    if (isSupplierPicked && postId != null && postId.isNotEmpty) {
+      try {
+        final postDoc = await FirebaseFirestore.instance
+            .collection('projectPosts')
+            .doc(postId)
+            .get();
+
+        if (postDoc.exists) {
+          final postData = postDoc.data() ?? {};
+          final selectedQuoteId = (existing?.selectedQuotationId ??
+                  postData['selectedQuotationId'] ??
+                  '')
+              .toString()
+              .trim();
+          resolvedSupplierName ??= (postData['selectedShopName'] ?? '').toString().trim();
+          if (resolvedSupplierName.isEmpty) resolvedSupplierName = null;
+
+          if (selectedQuoteId.isNotEmpty) {
+            final quoteDoc = await FirebaseFirestore.instance
+                .collection('projectPosts')
+                .doc(postId)
+                .collection('quotations')
+                .doc(selectedQuoteId)
+                .get();
+
+            if (quoteDoc.exists) {
+              final quoteData = quoteDoc.data() ?? {};
+              quotationItems = [
+                for (final item in (quoteData['items'] ?? quoteData['materials'] ?? quoteData['lineItems'] ?? []))
+                  if (item is Map) Map<String, dynamic>.from(item),
+              ];
+              resolvedSupplierName ??= (quoteData['shopName'] ?? quoteData['vendorName'])?.toString().trim();
+            }
+          }
+        }
+      } catch (_) {
+        // Fall back to standard BOM if firestore read fails
+      }
+    }
+
+    if (!mounted) return;
+
+    if (quotationItems != null && quotationItems.isNotEmpty) {
+      await showBomShareSheet(
+        context,
+        BomExportData.fromQuotation(
+          estimateName: _projectName.trim().isEmpty
+              ? _projectType
+              : _projectName.trim(),
+          renovationType: _projectType,
+          areaSqm: _projectArea,
+          budgetPreference: _selectedBudget,
+          notes: _remarksController.text.trim().isEmpty
+              ? null
+              : _remarksController.text.trim(),
+          materials: _buildMaterialMaps(),
+          quotationItems: quotationItems,
+          supplierName: resolvedSupplierName,
+          excluded: _excludedWork,
+        ),
+      );
+    } else {
+      await showBomShareSheet(
+        context,
+        BomExportData.fromMaterials(
+          estimateName: _projectName.trim().isEmpty
+              ? _projectType
+              : _projectName.trim(),
+          renovationType: _projectType,
+          areaSqm: _projectArea,
+          budgetPreference: _selectedBudget,
+          notes: _remarksController.text.trim().isEmpty
+              ? null
+              : _remarksController.text.trim(),
+          materials: _buildMaterialMaps(),
+          supplierName: resolvedSupplierName,
+          isSupplierPicked: isSupplierPicked,
+          excluded: _excludedWork,
+        ),
+      );
+    }
   }
 
   Future<void> _postProjectForBidding() async {

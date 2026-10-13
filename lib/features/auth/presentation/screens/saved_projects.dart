@@ -615,18 +615,85 @@ class ProjectCard extends StatelessWidget {
     }
   }
 
-  void _handleShareProject(BuildContext context) {
-    showBomShareSheet(
-      context,
-      BomExportData.fromMaterials(
-        estimateName: project.projectName,
-        renovationType: project.projectType,
-        areaSqm: project.projectArea,
-        budgetPreference: project.costLevel,
-        materials: project.materials,
-        excluded: project.excludedWork,
-      ),
-    );
+  Future<void> _handleShareProject(BuildContext context) async {
+    final stage = ProjectLifecycle.stageIndex(project.status);
+    final isSupplierPicked = stage >= ProjectLifecycle.stageSupplierSelected;
+    final postId = project.postId;
+
+    List<Map<String, dynamic>>? quotationItems;
+    String? resolvedSupplierName = project.selectedShopName;
+
+    if (isSupplierPicked && postId != null && postId.isNotEmpty) {
+      try {
+        final postDoc = await FirebaseFirestore.instance
+            .collection('projectPosts')
+            .doc(postId)
+            .get();
+
+        if (postDoc.exists) {
+          final postData = postDoc.data() ?? {};
+          final selectedQuoteId = (project.selectedQuotationId ??
+                  postData['selectedQuotationId'] ??
+                  '')
+              .toString()
+              .trim();
+          resolvedSupplierName ??= (postData['selectedShopName'] ?? '').toString().trim();
+          if (resolvedSupplierName.isEmpty) resolvedSupplierName = null;
+
+          if (selectedQuoteId.isNotEmpty) {
+            final quoteDoc = await FirebaseFirestore.instance
+                .collection('projectPosts')
+                .doc(postId)
+                .collection('quotations')
+                .doc(selectedQuoteId)
+                .get();
+
+            if (quoteDoc.exists) {
+              final quoteData = quoteDoc.data() ?? {};
+              quotationItems = [
+                for (final item in (quoteData['items'] ?? quoteData['materials'] ?? quoteData['lineItems'] ?? []))
+                  if (item is Map) Map<String, dynamic>.from(item),
+              ];
+              resolvedSupplierName ??= (quoteData['shopName'] ?? quoteData['vendorName'])?.toString().trim();
+            }
+          }
+        }
+      } catch (_) {
+        // Fall back to standard BOM if firestore read fails
+      }
+    }
+
+    if (!context.mounted) return;
+
+    if (quotationItems != null && quotationItems.isNotEmpty) {
+      showBomShareSheet(
+        context,
+        BomExportData.fromQuotation(
+          estimateName: project.projectName,
+          renovationType: project.projectType,
+          areaSqm: project.projectArea,
+          budgetPreference: project.costLevel,
+          materials: project.materials,
+          quotationItems: quotationItems,
+          supplierName: resolvedSupplierName,
+          excluded: project.excludedWork,
+        ),
+      );
+    } else {
+      showBomShareSheet(
+        context,
+        BomExportData.fromMaterials(
+          estimateName: project.projectName,
+          renovationType: project.projectType,
+          areaSqm: project.projectArea,
+          budgetPreference: project.costLevel,
+          materials: project.materials,
+          supplierName: resolvedSupplierName,
+          isSupplierPicked: isSupplierPicked,
+          excluded: project.excludedWork,
+        ),
+      );
+    }
   }
 
   void _handleDeleteProject(BuildContext context) {
