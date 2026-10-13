@@ -194,6 +194,8 @@ class ChatService {
       'senderRole': 'builder',
       'text': capped,
       if (attachment != null) 'attachment': attachment,
+      if (attachment != null && attachment['kind'] == 'image' && attachment['url'] != null)
+        'imageUrl': attachment['url'],
       'createdAt': FieldValue.serverTimestamp(),
     });
     batch.set(

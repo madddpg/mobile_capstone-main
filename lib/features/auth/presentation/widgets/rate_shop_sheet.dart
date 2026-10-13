@@ -22,19 +22,35 @@ Future<bool> showRateShopSheet(
   RankedShop shop, {
   // Injected in tests; the app reads and writes Firestore.
   ShopRatingService? ratingService,
+  String? defaultPostId,
+  String? defaultProjectTitle,
 }) async {
   final service = ratingService ?? ShopRatingService();
 
-  final projects = await service.ratableProjects(shop.shopIds);
+  var projects = await service.ratableProjects(
+    shop.shopIds,
+    shopName: shop.shopName,
+  );
   if (!context.mounted) return false;
+
+  if (projects.isEmpty && defaultPostId != null && defaultPostId.trim().isNotEmpty) {
+    projects = [
+      (
+        postId: defaultPostId.trim(),
+        title: (defaultProjectTitle ?? '').trim().isNotEmpty
+            ? defaultProjectTitle!.trim()
+            : 'Current estimate',
+      ),
+    ];
+  }
 
   if (projects.isEmpty) {
     showAppMessage(
       context,
       SnackBar(
         content: Text(
-          'You can rate ${shop.shopName} once they have confirmed an order '
-          'on one of your estimates.',
+          'You can rate ${shop.shopName} once you have selected them '
+          'for one of your estimates.',
         ),
       ),
     );

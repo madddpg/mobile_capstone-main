@@ -95,7 +95,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
       unawaited(_watchConfirmationFromThread());
     }
     if (!mounted) return;
-    if (_confirmation == ShopConfirmation.confirmed) {
+    if (_confirmation != ShopConfirmation.declined) {
       await _enterThread();
     } else {
       setState(() => _preparing = false);
@@ -151,8 +151,8 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   void _setConfirmation(ShopConfirmation next) {
     if (!mounted || next == _confirmation) return;
     setState(() => _confirmation = next);
-    // Confirmed while the builder was looking at the waiting message.
-    if (next == ShopConfirmation.confirmed && !_entered) {
+    // Confirmed while the builder was looking at the screen.
+    if (next != ShopConfirmation.declined && !_entered) {
       setState(() => _preparing = true);
       _enterThread();
     }
@@ -429,19 +429,38 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                 color: AppColors.cream.withValues(alpha: 0.35),
                               ),
                             ),
+                            if (_confirmation == ShopConfirmation.pending)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                color: AppColors.cream.withValues(alpha: 0.12),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.info_outline_rounded,
+                                      size: 15,
+                                      color: AppColors.cream,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Order submitted. You can message and share photos or files with $shopName to coordinate.',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 11.5,
+                                          color: AppColors.cream,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             Expanded(
-                              child: _confirmation != ShopConfirmation.confirmed
+                              child: _confirmation == ShopConfirmation.declined
                                   ? _LockedThread(
                                       text:
-                                          _confirmation ==
-                                              ShopConfirmation.declined
-                                          ? '$shopName backed out of this order, so this '
-                                                'chat is closed.'
-                                          : 'Waiting for $shopName to confirm your order. '
-                                                'You can message them once they do.',
-                                      declined:
-                                          _confirmation ==
-                                          ShopConfirmation.declined,
+                                          '$shopName backed out of this order, so this '
+                                          'chat is closed.',
+                                      declined: true,
                                     )
                                   : _preparing
                                   ? const AppSkeletonChatThread()
@@ -535,7 +554,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                             ),
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                              child: closed
+                              child: closed || _confirmation == ShopConfirmation.declined
                                   ? Text(
                                       'This thread is closed.',
                                       textAlign: TextAlign.center,
@@ -545,10 +564,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                         ),
                                       ),
                                     )
-                                  : _preparing ||
-                                        _prepareError != null ||
-                                        _confirmation !=
-                                            ShopConfirmation.confirmed
+                                  : _preparing || _prepareError != null
                                   ? const SizedBox.shrink()
                                   : Row(
                                       children: [

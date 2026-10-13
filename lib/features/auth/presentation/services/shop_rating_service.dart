@@ -77,80 +77,141 @@ class ShopRatingService {
     await _ratingRef(shopId, uid).delete();
   }
 
-  /// Projects where this builder selected [shopId] and the shop confirmed the
-  /// order, and so may rate it.
+  /// Projects where this builder selected [shopIds] (or [shopName]) and the order
+  /// was not declined, making it eligible to rate.
   ///
   /// Returns the posts newest first. An empty list means the builder has not
-  /// done business with this shop and the rating action stays hidden. An
-  /// order the shop has not confirmed yet, or backed out of, is not business
-  /// done.
+  /// done business with this shop yet.
   Future<List<({String postId, String title})>> ratableProjects(
-    Iterable<String> shopIds,
-  ) async {
+    Iterable<String> shopIds, {
+    String? shopName,
+  }) async {
     final uid = _uid;
     final ids = shopIds
         .map((id) => id.trim())
         .where((id) => id.isNotEmpty)
         .toSet();
-    if (uid == null || ids.isEmpty) return const [];
+    if (uid == null) return const [];
+
+    final normalizedShopName = (shopName ?? '').trim().toLowerCase();
 
     try {
-      final snaps = await Future.wait(
-        ids.map(
-          (shopId) => _db
-              .collection('projectPosts')
-              .where('userId', isEqualTo: uid)
-              .where('selectedShopId', isEqualTo: shopId)
-              .get(),
-        ),
-      );
-      final byId = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
-      for (final snap in snaps) {
-        for (final doc in snap.docs) {
-          byId[doc.id] = doc;
+      final snapDocsMap = <String, Map<String, dynamic>>{};
+
+      // 1. Fetch user's posts via single-field queries (never requires composite index)
+      final userPostsSnap = await _db
+          .collection('projectPosts')
+          .where('userId', isEqualTo: uid)
+          .get();
+      for (final doc in userPostsSnap.docs) {
+        snapDocsMap[doc.id] = doc.data();
+      }
+
+      // Also check builderId in case post used builderId instead of userId
+      try {
+        final builderPostsSnap = await _db
+            .collection('projectPosts')
+            .where('builderId', isEqualTo: uid)
+            .get();
+        for (final doc in builderPostsSnap.docs) {
+          snapDocsMap[doc.id] = doc.data();
+        }
+      } catch (_) {}
+
+      final eligibleDocs = <String, Map<String, dynamic>>{};
+
+      for (final entry in snapDocsMap.entries) {
+        final data = entry.value;
+        final selectedId = (data['selectedShopId'] ?? '').toString().trim();
+        final selectedName = (data['selectedShopName'] ?? '').toString().trim().toLowerCase();
+
+        final matchesId = ids.isNotEmpty && ids.contains(selectedId);
+        final matchesName = normalizedShopName.isNotEmpty &&
+            selectedName.isNotEmpty &&
+            (selectedName == normalizedShopName ||
+                selectedName.contains(normalizedShopName) ||
+                normalizedShopName.contains(selectedName));
+
+        if (matchesId || matchesName) {
+          eligibleDocs[entry.key] = data;
         }
       }
-      final snapDocs = byId.values.toList();
 
-      final confirmed = await Future.wait(
-        snapDocs.map((d) => _shopConfirmed(d.id, d.data())),
-      );
+      // 2. Also inspect saved_projects if projectPosts didn't find any direct matches
+      if (eligibleDocs.isEmpty) {
+        try {
+          final savedSnap = await _db
+              .collection('users')
+              .doc(uid)
+              .collection('saved_projects')
+              .get();
+          for (final doc in savedSnap.docs) {
+            final data = doc.data();
+            final savedPostId = (data['postId'] ?? '').toString().trim();
+            final savedShopId = (data['selectedShopId'] ?? '').toString().trim();
+            final savedShopName = (data['selectedShopName'] ?? '').toString().trim().toLowerCase();
 
-      final rows =
-          [
-            for (var i = 0; i < snapDocs.length; i++)
-              if (confirmed[i]) snapDocs[i],
-          ].map((d) {
-            final data = d.data();
-            final title = (data['projectName'] ?? data['projectTitle'] ?? '')
-                .toString()
-                .trim();
-            return (
-              postId: d.id,
-              title: title.isEmpty ? 'Untitled estimate' : title,
-            );
-          }).toList();
+            final matchesId = ids.isNotEmpty && ids.contains(savedShopId);
+            final matchesName = normalizedShopName.isNotEmpty &&
+                savedShopName.isNotEmpty &&
+                (savedShopName == normalizedShopName ||
+                    savedShopName.contains(normalizedShopName) ||
+                    normalizedShopName.contains(savedShopName));
+
+            if ((matchesId || matchesName) && savedPostId.isNotEmpty) {
+              if (snapDocsMap.containsKey(savedPostId)) {
+                eligibleDocs[savedPostId] = snapDocsMap[savedPostId]!;
+              } else {
+                eligibleDocs[savedPostId] = {
+                  'projectName': data['name'] ?? data['projectName'] ?? 'Saved Estimate',
+                  'selectedShopId': savedShopId,
+                };
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. Exclude only orders that were explicitly declined
+      final rows = <({String postId, String title})>[];
+      for (final entry in eligibleDocs.entries) {
+        final postId = entry.key;
+        final data = entry.value;
+
+        final isDeclined = await _isOrderDeclined(postId, data);
+        if (!isDeclined) {
+          final title = (data['projectName'] ?? data['projectTitle'] ?? '')
+              .toString()
+              .trim();
+          rows.add((
+            postId: postId,
+            title: title.isEmpty ? 'Untitled estimate' : title,
+          ));
+        }
+      }
 
       return rows;
     } catch (_) {
-      // A missing composite index or a rules change should hide the action,
-      // not break the shop profile the builder came to read.
       return const [];
     }
   }
 
-  /// Whether the shop confirmed the order on this post. A quotation from
-  /// before shops confirmed carries no answer and counts as confirmed.
-  Future<bool> _shopConfirmed(String postId, Map<String, dynamic> post) async {
+  /// Only blocks rating if the shop explicitly backed out / declined the order.
+  /// If pending or confirmed, rating is allowed once supplier is chosen.
+  Future<bool> _isOrderDeclined(String postId, Map<String, dynamic> post) async {
     final quotationId = (post['selectedQuotationId'] ?? '').toString().trim();
-    if (quotationId.isEmpty) return true;
-    final snap = await _db
-        .collection('projectPosts')
-        .doc(postId)
-        .collection('quotations')
-        .doc(quotationId)
-        .get();
-    return shopConfirmationOf(snap.data() ?? const {}) ==
-        ShopConfirmation.confirmed;
+    if (quotationId.isEmpty) return false;
+    try {
+      final snap = await _db
+          .collection('projectPosts')
+          .doc(postId)
+          .collection('quotations')
+          .doc(quotationId)
+          .get();
+      final data = snap.data() ?? const {};
+      return shopConfirmationOf(data) == ShopConfirmation.declined;
+    } catch (_) {
+      return false;
+    }
   }
 }

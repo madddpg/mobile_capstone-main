@@ -7,6 +7,8 @@ import 'package:iconstruct/core/theme/app_theme.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/features/chat/data/chat_attachment_service.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// How far a sent message has got.
 enum DeliveryState { sending, delivered, seen }
@@ -206,6 +208,7 @@ class MessengerMessageList extends StatelessWidget {
           children: [
             if (startsRun && sentAt != null) _timeSeparator(sentAt),
             _bubbleRow(
+              context: context,
               message: msg,
               text: text,
               mine: mine,
@@ -237,6 +240,7 @@ class MessengerMessageList extends StatelessWidget {
   }
 
   Widget _bubbleRow({
+    required BuildContext context,
     required Map<String, dynamic> message,
     required String text,
     required bool mine,
@@ -245,7 +249,20 @@ class MessengerMessageList extends StatelessWidget {
     required double maxWidth,
   }) {
     final attachment = message['attachment'];
-    final hasAttachment = attachment is Map && attachment['url'] != null;
+    final imageUrl = (message['imageUrl'] ?? '').toString().trim();
+    final Map<String, dynamic>? resolvedAttachment;
+    if (attachment is Map && attachment['url'] != null) {
+      resolvedAttachment = Map<String, dynamic>.from(attachment);
+    } else if (imageUrl.isNotEmpty) {
+      resolvedAttachment = {
+        'url': imageUrl,
+        'kind': 'image',
+        'name': 'Photo',
+      };
+    } else {
+      resolvedAttachment = null;
+    }
+    final hasAttachment = resolvedAttachment != null;
     // Tight inside a run, looser between runs, so the grouping is legible
     // without any divider.
     final topGap = startsRun ? 0.0 : 2.0;
@@ -269,7 +286,7 @@ class MessengerMessageList extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (hasAttachment)
-            _attachment(Map<String, dynamic>.from(attachment), mine, maxWidth),
+            _attachment(context, resolvedAttachment, mine, maxWidth),
           if (hasAttachment && text.isNotEmpty) const SizedBox(height: 6),
           if (text.isNotEmpty)
             Text(
@@ -376,64 +393,252 @@ class MessengerMessageList extends StatelessWidget {
   ///
   /// Photos go through [CachedNetworkImage] so each one is fetched once and
   /// then read from disk; a thread full of site photos would otherwise
-  /// re-download on every open. Documents show as a labelled row rather than a
-  /// preview, because there is nothing useful to show of a PDF at this size.
-  Widget _attachment(Map<String, dynamic> a, bool mine, double maxWidth) {
+  /// re-download on every open. Tapping a photo opens full-screen zoomable view.
+  /// Documents show as a labelled clickable row that opens or shares the file.
+  Widget _attachment(
+    BuildContext context,
+    Map<String, dynamic> a,
+    bool mine,
+    double maxWidth,
+  ) {
     final url = (a['url'] ?? '').toString();
     final name = (a['name'] ?? 'Attachment').toString();
-    final isImage = (a['kind'] ?? '').toString() == 'image';
+    final isImage = (a['kind'] ?? '').toString() == 'image' || _isImageUrl(url);
     final bytes = a['sizeBytes'] is num ? (a['sizeBytes'] as num).toInt() : 0;
 
     if (isImage) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(11),
-        child: _photo(url, mine, maxWidth - 26),
+      return GestureDetector(
+        onTap: () {
+          if (url.isNotEmpty) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => FullScreenImageViewer(
+                  imageUrl: url,
+                  title: name.isEmpty ? 'Photo' : name,
+                ),
+              ),
+            );
+          }
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(11),
+          child: Stack(
+            children: [
+              _photo(url, mine, maxWidth - 26),
+              Positioned(
+                right: 6,
+                bottom: 6,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.fullscreen_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
     final onSurface = mine ? Colors.white : AppColors.textDark;
-    return Container(
-      constraints: BoxConstraints(maxWidth: maxWidth - 26),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: (mine ? Colors.white : AppColors.textDark).withValues(
-          alpha: 0.12,
-        ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openDocument(context, url, name),
         borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.insert_drive_file_rounded, size: 20, color: onSurface),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: onSurface,
-                  ),
+        child: Container(
+          constraints: BoxConstraints(maxWidth: maxWidth - 26),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: (mine ? Colors.white : AppColors.textDark).withValues(
+              alpha: 0.12,
+            ),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.insert_drive_file_rounded, size: 20, color: onSurface),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: onSurface,
+                      ),
+                    ),
+                    if (bytes > 0)
+                      Text(
+                        ChatAttachmentService.readableSize(bytes),
+                        style: GoogleFonts.poppins(
+                          fontSize: 10.5,
+                          color: onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                  ],
                 ),
-                if (bytes > 0)
-                  Text(
-                    ChatAttachmentService.readableSize(bytes),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.open_in_new_rounded,
+                size: 16,
+                color: onSurface.withValues(alpha: 0.7),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static bool _isImageUrl(String url) {
+    final lower = url.toLowerCase();
+    return lower.contains('.jpg') ||
+        lower.contains('.jpeg') ||
+        lower.contains('.png') ||
+        lower.contains('.webp') ||
+        lower.contains('.gif');
+  }
+
+  static Future<void> _openDocument(
+    BuildContext context,
+    String url,
+    String name,
+  ) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid document link')),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryGold.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.description_rounded,
+                        color: AppColors.primaryGold,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          color: AppColors.cream,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(
+                    Icons.open_in_browser_rounded,
+                    color: AppColors.primaryGold,
+                  ),
+                  title: Text(
+                    'Open document',
                     style: GoogleFonts.poppins(
-                      fontSize: 10.5,
-                      color: onSurface.withValues(alpha: 0.7),
+                      color: AppColors.cream,
+                      fontSize: 13.5,
                     ),
                   ),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    try {
+                      final launched = await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                      if (!launched && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Could not open document in external viewer'),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Could not open document: $e')),
+                        );
+                      }
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.share_rounded,
+                    color: AppColors.cream,
+                  ),
+                  title: Text(
+                    'Share link',
+                    style: GoogleFonts.poppins(
+                      color: AppColors.cream,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    try {
+                      await SharePlus.instance.share(
+                        ShareParams(text: url, subject: name),
+                      );
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Could not share link: $e')),
+                        );
+                      }
+                    }
+                  },
+                ),
               ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -518,3 +723,92 @@ class MessengerMessageList extends StatelessWidget {
     );
   }
 }
+
+/// Full screen zoomable image viewer for chat photos.
+class FullScreenImageViewer extends StatelessWidget {
+  final String imageUrl;
+  final String title;
+
+  const FullScreenImageViewer({
+    super.key,
+    required this.imageUrl,
+    this.title = 'Photo',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final uri = Uri.tryParse(imageUrl);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          title,
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          if (uri != null)
+            IconButton(
+              icon: const Icon(Icons.open_in_browser_rounded, color: Colors.white),
+              tooltip: 'Open in browser',
+              onPressed: () => launchUrl(uri, mode: LaunchMode.externalApplication),
+            ),
+          IconButton(
+            icon: const Icon(Icons.share_rounded, color: Colors.white),
+            tooltip: 'Share image link',
+            onPressed: () {
+              SharePlus.instance.share(
+                ShareParams(text: imageUrl, subject: title),
+              );
+            },
+          ),
+        ],
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.8,
+          maxScale: 4.0,
+          child: kIsWeb
+              ? Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return const Center(
+                      child: CircularProgressIndicator(color: AppColors.primaryGold),
+                    );
+                  },
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Text(
+                      'Failed to load image',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                )
+              : CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.contain,
+                  placeholder: (_, __) => const Center(
+                    child: CircularProgressIndicator(color: AppColors.primaryGold),
+                  ),
+                  errorWidget: (_, __, ___) => const Center(
+                    child: Text(
+                      'Failed to load image',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+

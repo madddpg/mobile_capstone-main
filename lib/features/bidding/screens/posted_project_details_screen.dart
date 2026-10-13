@@ -12,7 +12,8 @@ import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
 import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
-import 'package:iconstruct/core/navigation/app_nav.dart';
+import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
+import 'package:iconstruct/features/auth/presentation/widgets/rate_shop_sheet.dart';
 import 'quotations_screen.dart';
 
 class PostedProjectDetailsScreen extends StatelessWidget {
@@ -313,53 +314,97 @@ class PostedProjectDetailsScreen extends StatelessWidget {
                             ),
                             if (hasSelectedShop) ...[
                               const SizedBox(height: 10),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: creamBg,
-                                    foregroundColor: navyCard,
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 10,
-                                    ),
-                                  ),
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => ChatThreadScreen(
-                                          conversationId:
-                                              ChatService.conversationId(
-                                                postId,
-                                                selectedShopId,
-                                              ),
-                                          shopName: selectedShopName.isEmpty
-                                              ? null
-                                              : selectedShopName,
-                                          postId: postId,
-                                          shopId: selectedShopId,
-                                          quotationId:
-                                              selectedQuotationId.isEmpty
-                                              ? selectedShopId
-                                              : selectedQuotationId,
-                                          projectTitle: projectName,
-                                        ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: creamBg,
+                                      side: BorderSide(
+                                        color: creamBg.withValues(alpha: 0.6),
                                       ),
-                                    );
-                                  },
-                                  child: Text(
-                                    'Message shop',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 10,
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      showRateShopSheet(
+                                        context,
+                                        RankedShop(
+                                          uid: selectedShopId,
+                                          documentId: selectedShopId,
+                                          shopName: selectedShopName.isEmpty
+                                              ? 'Hardware Shop'
+                                              : selectedShopName,
+                                          address: '',
+                                          barangay: '',
+                                          city: '',
+                                          quotationCount: 0,
+                                        ),
+                                        defaultPostId: postId,
+                                        defaultProjectTitle: projectName,
+                                      );
+                                    },
+                                    icon: const Icon(Icons.star_outline_rounded, size: 16),
+                                    label: Text(
+                                      'Rate shop',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
-                                ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: creamBg,
+                                      foregroundColor: navyCard,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 18,
+                                        vertical: 10,
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ChatThreadScreen(
+                                            conversationId:
+                                                ChatService.conversationId(
+                                                  postId,
+                                                  selectedShopId,
+                                                ),
+                                            shopName: selectedShopName.isEmpty
+                                                ? null
+                                                : selectedShopName,
+                                            postId: postId,
+                                            shopId: selectedShopId,
+                                            quotationId:
+                                                selectedQuotationId.isEmpty
+                                                ? selectedShopId
+                                                : selectedQuotationId,
+                                            projectTitle: projectName,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      'Message shop',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                             const SizedBox(height: 10),

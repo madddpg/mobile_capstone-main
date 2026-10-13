@@ -122,26 +122,46 @@ class ChatAttachmentService {
   /// Returns null when the builder backs out. Throws with a readable reason
   /// when the file is too large, so the caller can show it directly.
   Future<PickedAttachment?> pickFile() async {
-    final picked = await FilePicker.pickFile(
-      type: FileType.custom,
-      allowedExtensions: allowedFileExtensions,
-    );
-    if (picked == null) return null;
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: allowedFileExtensions,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return null;
 
-    // Reading the bytes works wherever the file came from: a real path on a
-    // phone, a content URI, or a browser blob with no path at all. The old
-    // code asked for `picked.path` and refused anything that had none, which
-    // on the web is every file.
-    _refuseIfTooBig(await picked.length());
-    final bytes = await picked.readAsBytes();
-    _refuseIfTooBig(bytes.length);
+      final picked = result.files.first;
+      final bytes = picked.bytes ?? await picked.readAsBytes();
+      _refuseIfTooBig(bytes.length);
 
-    return PickedAttachment(
-      bytes: bytes,
-      name: picked.name,
-      kind: AttachmentKind.file,
-      sizeBytes: bytes.length,
-    );
+      return PickedAttachment(
+        bytes: bytes,
+        name: picked.name,
+        kind: AttachmentKind.file,
+        sizeBytes: bytes.length,
+      );
+    } catch (_) {
+      try {
+        final picked = await FilePicker.pickFile(
+          type: FileType.custom,
+          allowedExtensions: allowedFileExtensions,
+        );
+        if (picked == null) return null;
+
+        final bytes = await picked.readAsBytes();
+        _refuseIfTooBig(bytes.length);
+
+        return PickedAttachment(
+          bytes: bytes,
+          name: picked.name,
+          kind: AttachmentKind.file,
+          sizeBytes: bytes.length,
+        );
+      } catch (inner) {
+        if (inner is ChatAttachmentException) rethrow;
+        throw ChatAttachmentException('Could not read that document. Please try again.');
+      }
+    }
   }
 
   /// Stops an oversized attachment at pick time rather than after a slow
@@ -173,9 +193,13 @@ class ChatAttachmentService {
 
     final stamp = DateTime.now().millisecondsSinceEpoch;
     final safeName = _safeName(picked.name);
-    final ref = _storage
+    final isImage = picked.kind == AttachmentKind.image;
+
+    // Try primary path first
+    final primaryFolder = isImage ? 'chat_images' : 'chat_attachments';
+    var ref = _storage
         .ref()
-        .child('chat_attachments')
+        .child(primaryFolder)
         .child(conversationId)
         .child('${stamp}_$safeName');
 
@@ -184,8 +208,6 @@ class ChatAttachmentService {
         picked.bytes,
         SettableMetadata(
           contentType: _contentTypeFor(safeName, picked.kind),
-          // Attachments never change once written, so both the app's disk
-          // cache and any CDN in front of Storage can hold them indefinitely.
           cacheControl: 'public, max-age=31536000, immutable',
           customMetadata: {'uploadedBy': uid},
         ),
@@ -198,6 +220,32 @@ class ChatAttachmentService {
         sizeBytes: picked.sizeBytes,
       );
     } on FirebaseException catch (e) {
+      // If primary path hit permission-denied for an image, try alternative folder
+      if (isImage && (e.code == 'unauthorized' || e.code == 'permission-denied')) {
+        try {
+          ref = _storage
+              .ref()
+              .child('chat_attachments')
+              .child(conversationId)
+              .child('${stamp}_$safeName');
+          await ref.putData(
+            picked.bytes,
+            SettableMetadata(
+              contentType: _contentTypeFor(safeName, picked.kind),
+              cacheControl: 'public, max-age=31536000, immutable',
+              customMetadata: {'uploadedBy': uid},
+            ),
+          );
+          final url = await ref.getDownloadURL();
+          return UploadedAttachment(
+            url: url,
+            name: picked.name,
+            kind: picked.kind,
+            sizeBytes: picked.sizeBytes,
+          );
+        } catch (_) {}
+      }
+
       debugPrint('Attachment upload failed: ${e.code} — ${e.message}');
       throw ChatAttachmentException(uploadFailureMessage(e.code));
     }
@@ -214,7 +262,7 @@ class ChatAttachmentService {
   static String uploadFailureMessage(String code) {
     return switch (code) {
       'unauthorized' || 'permission-denied' =>
-        'This photo or file could not be sent. Try again in a moment.',
+        'This photo or file could not be sent. Check project storage permissions.',
       'unauthenticated' =>
         'You have been signed out. Sign in again and resend.',
       'object-not-found' || 'bucket-not-found' || 'project-not-found' =>
@@ -253,7 +301,7 @@ class ChatAttachmentService {
       'xls' => 'application/vnd.ms-excel',
       'xlsx' =>
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      _ => kind == AttachmentKind.image ? 'image/jpeg' : 'application/octet-stream',
+      _ => kind == AttachmentKind.image ? 'image/jpeg' : 'application/pdf',
     };
   }
 

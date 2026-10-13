@@ -926,11 +926,26 @@ class _ShopSummaryCard extends StatelessWidget {
               tint: AppColors.danger,
             ),
           ],
-          if (canMessage && shop.profile != null)
+          if (isSelected && confirmation != ShopConfirmation.declined) ...[
+            final rateProfile = shop.profile ??
+                RankedShop(
+                  uid: shop.shopId,
+                  documentId: shop.shopId,
+                  shopName: quote.shopName,
+                  address: '',
+                  barangay: '',
+                  city: '',
+                  quotationCount: 0,
+                );
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: () => showRateShopSheet(context, shop.profile!),
+                onPressed: () => showRateShopSheet(
+                  context,
+                  rateProfile,
+                  defaultPostId: postId,
+                  defaultProjectTitle: projectName,
+                ),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.navySoft,
                   visualDensity: VisualDensity.compact,
@@ -946,6 +961,7 @@ class _ShopSummaryCard extends StatelessWidget {
                 ),
               ),
             ),
+          ],
           // Lower prices the shop offered on lines left as overpriced.
           if (isSelected &&
               confirmation != ShopConfirmation.declined &&
