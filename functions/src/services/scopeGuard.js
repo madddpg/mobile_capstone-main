@@ -26,10 +26,16 @@ const OFF_DOMAIN = [
   // personal advice the app must not give
   "medical", "diagnos", "prescription", "symptom", "lawyer", "lawsuit",
   "legal advice", "invest", "stock market", "crypto", "loan", "insurance",
-  // chit-chat / identity probing
+  // chit-chat / identity probing / prompt injection & system instruction extraction
   "who are you", "what model", "your prompt", "ignore previous",
   "ignore all previous", "system prompt", "jailbreak", "pretend you are",
   "act as", "tell me a joke", "sing", "poem",
+  "system instruction", "system instructions", "internal instruction", "internal instructions",
+  "repeat the text above", "repeat above", "repeat your prompt", "repeat your instruction",
+  "repeat previous", "print your prompt", "reveal your prompt", "show your prompt",
+  "developer message", "developer instruction", "initial prompt", "hidden prompt",
+  "hidden instruction", "inside the backquote", "inside a blockquote", "inside the blockquote",
+  "blockquote", "backquote",
 ];
 
 // ── Out of scope: adjacent construction topics that belong to another phase ──
