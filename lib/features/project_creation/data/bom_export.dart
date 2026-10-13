@@ -6,7 +6,6 @@
 library;
 
 import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
-import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
 
@@ -200,7 +199,7 @@ class BomExportData {
   /// Builds from the project BOM materials reconciled with the accepted quotation.
   ///
   /// For items the shop substituted, displays the substitute product name with
-  /// substitute badge and note "instead of <original item>".
+  /// substitute badge and note "instead of `<original item>`".
   /// For items marked unavailable, displays them with the UNAVAILABLE badge,
   /// Unit Price as 'Unavailable', and Amount as '—'.
   /// For quoted items, displays their updated unit price and line total amount.
