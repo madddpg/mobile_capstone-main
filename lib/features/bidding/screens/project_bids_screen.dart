@@ -337,6 +337,7 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                             isSelected: selectedQuotationId == shop.quote.id,
                             hasAcceptedOffer: selectedQuotationId != null,
                             postId: postId,
+                            projectName: projectName,
                             remainderPostId: remainderPostIdFor(
                               projectData,
                               shop.quote.id,
@@ -665,6 +666,9 @@ class _ShopSummaryCard extends StatelessWidget {
   final bool hasAcceptedOffer;
   final String postId;
 
+  /// Named on a rating, so the shop sees which job it is for.
+  final String projectName;
+
   /// Post id of the estimate re-canvassing the dropped lines, or empty.
   final String remainderPostId;
 
@@ -687,6 +691,7 @@ class _ShopSummaryCard extends StatelessWidget {
     required this.isSelected,
     required this.hasAcceptedOffer,
     required this.postId,
+    required this.projectName,
     required this.remainderPostId,
     required this.estimateMaterials,
     required this.onAccept,
@@ -927,22 +932,22 @@ class _ShopSummaryCard extends StatelessWidget {
             ),
           ],
           if (isSelected && confirmation != ShopConfirmation.declined) ...[
-            final rateProfile = shop.profile ??
-                RankedShop(
-                  uid: shop.shopId,
-                  documentId: shop.shopId,
-                  shopName: quote.shopName,
-                  address: '',
-                  barangay: '',
-                  city: '',
-                  quotationCount: 0,
-                );
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: () => showRateShopSheet(
                   context,
-                  rateProfile,
+                  // The storefront may not have loaded yet; rate by id.
+                  shop.profile ??
+                      RankedShop(
+                        uid: shop.shopId,
+                        documentId: shop.shopId,
+                        shopName: quote.shopName,
+                        address: '',
+                        barangay: '',
+                        city: '',
+                        quotationCount: 0,
+                      ),
                   defaultPostId: postId,
                   defaultProjectTitle: projectName,
                 ),

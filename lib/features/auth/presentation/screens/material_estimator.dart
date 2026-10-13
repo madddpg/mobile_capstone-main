@@ -1093,6 +1093,8 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
     final postId = existing?.postId;
 
     List<Map<String, dynamic>>? quotationItems;
+
+    var quotationStatus = '';
     String? resolvedSupplierName = existing?.selectedShopName;
 
     if (isSupplierPicked && postId != null && postId.isNotEmpty) {
@@ -1122,6 +1124,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
 
             if (quoteDoc.exists) {
               final quoteData = quoteDoc.data() ?? {};
+              quotationStatus = (quoteData['status'] ?? '').toString();
               quotationItems = [
                 for (final item in (quoteData['items'] ?? quoteData['materials'] ?? quoteData['lineItems'] ?? []))
                   if (item is Map) Map<String, dynamic>.from(item),
@@ -1152,6 +1155,7 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
               : _remarksController.text.trim(),
           materials: _buildMaterialMaps(),
           quotationItems: quotationItems,
+          quotationStatus: quotationStatus,
           supplierName: resolvedSupplierName,
           excluded: _excludedWork,
         ),

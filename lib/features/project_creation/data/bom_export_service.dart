@@ -98,10 +98,7 @@ class BomExportService {
     final titleDoc = data.isSupplierPicked
         ? '${data.estimateName} - Quotation Summary'
         : '${data.estimateName} - Material Canvass Sheet';
-    final doc = pw.Document(
-      title: pdfSafe(titleDoc),
-      author: 'iConstruct',
-    );
+    final doc = pw.Document(title: pdfSafe(titleDoc), author: 'iConstruct');
 
     doc.addPage(
       pw.MultiPage(
@@ -197,9 +194,7 @@ class BomExportService {
   }
 
   static String _shareMessage(BomExportData data) {
-    final area = data.areaSqm > 0
-        ? ' (${_trimDouble(data.areaSqm)} sq.m)'
-        : '';
+    final area = data.areaSqm > 0 ? ' (${_trimDouble(data.areaSqm)} sq.m)' : '';
     final count = data.materials.length;
     if (data.isSupplierPicked) {
       final supplierPart = (data.supplierName ?? '').trim().isNotEmpty
@@ -236,7 +231,10 @@ class BomExportService {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const pw.EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
             decoration: pw.BoxDecoration(
               color: p.headerBg,
               border: p.filledHeader
@@ -322,10 +320,7 @@ class BomExportService {
               color: p.ink,
             ),
           ),
-          pw.Text(
-            sheetLabel,
-            style: pw.TextStyle(fontSize: 9, color: p.muted),
-          ),
+          pw.Text(sheetLabel, style: pw.TextStyle(fontSize: 9, color: p.muted)),
         ],
       ),
     );
@@ -359,7 +354,10 @@ class BomExportService {
 
   static pw.Widget _summary(BomExportData data, _ExportPalette p) {
     final entries = <List<String>>[
-      ['Renovation type', data.renovationType.isEmpty ? '-' : data.renovationType],
+      [
+        'Renovation type',
+        data.renovationType.isEmpty ? '-' : data.renovationType,
+      ],
       [
         'Project area',
         data.areaSqm > 0 ? '${_trimDouble(data.areaSqm)} sq.m' : 'Not set',
@@ -539,11 +537,17 @@ class BomExportService {
                   if (item.isSubstitute) ...[
                     pw.SizedBox(width: 4),
                     pw.Container(
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                      padding: const pw.EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1.5,
+                      ),
                       decoration: pw.BoxDecoration(
                         color: p.substituteBg,
                         borderRadius: pw.BorderRadius.circular(3),
-                        border: pw.Border.all(color: p.substituteFg, width: 0.5),
+                        border: pw.Border.all(
+                          color: p.substituteFg,
+                          width: 0.5,
+                        ),
                       ),
                       child: pw.Text(
                         'SUBSTITUTE',
@@ -558,11 +562,17 @@ class BomExportService {
                   if (item.isUnavailable) ...[
                     pw.SizedBox(width: 4),
                     pw.Container(
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                      padding: const pw.EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1.5,
+                      ),
                       decoration: pw.BoxDecoration(
                         color: p.unavailableBg,
                         borderRadius: pw.BorderRadius.circular(3),
-                        border: pw.Border.all(color: p.unavailableFg, width: 0.5),
+                        border: pw.Border.all(
+                          color: p.unavailableFg,
+                          width: 0.5,
+                        ),
                       ),
                       child: pw.Text(
                         'UNAVAILABLE',
@@ -574,9 +584,43 @@ class BomExportService {
                       ),
                     ),
                   ],
+                  if (item.isDeclined) ...[
+                    pw.SizedBox(width: 4),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1.5,
+                      ),
+                      decoration: pw.BoxDecoration(
+                        color: p.band,
+                        borderRadius: pw.BorderRadius.circular(3),
+                        border: pw.Border.all(color: p.muted, width: 0.5),
+                      ),
+                      child: pw.Text(
+                        'NOT ORDERED',
+                        style: pw.TextStyle(
+                          fontSize: 6,
+                          fontWeight: pw.FontWeight.bold,
+                          color: p.muted,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
-              if (item.isSubstitute && (item.requestedName ?? '').isNotEmpty) ...[
+              if (item.isDeclined) ...[
+                pw.SizedBox(height: 1.5),
+                pw.Text(
+                  pdfSafe('Left out by the builder: ${item.declineReason}'),
+                  style: pw.TextStyle(
+                    fontSize: 7.5,
+                    fontStyle: pw.FontStyle.italic,
+                    color: p.muted,
+                  ),
+                ),
+              ],
+              if (item.isSubstitute &&
+                  (item.requestedName ?? '').isNotEmpty) ...[
                 pw.SizedBox(height: 1.5),
                 pw.Text(
                   pdfSafe('instead of ${item.requestedName}'),
@@ -610,7 +654,10 @@ class BomExportService {
           if (item.unitPrice > 0) {
             unitPriceText = _formatCurrency(item.unitPrice);
           }
-          if (item.amount > 0) {
+          if (item.isDeclined) {
+            // The shop's price stays visible; the line is not in the total.
+            amountText = '—';
+          } else if (item.amount > 0) {
             amountText = _formatCurrency(item.amount);
             amountColor = p.amountFg;
           }
@@ -619,7 +666,12 @@ class BomExportService {
         rows.add(
           pw.TableRow(
             children: [
-              _cell('${index++}', palette: p, align: pw.TextAlign.center, size: 8.5),
+              _cell(
+                '${index++}',
+                palette: p,
+                align: pw.TextAlign.center,
+                size: 8.5,
+              ),
               materialCell,
               _cell(item.size ?? '-', palette: p, size: 8.5),
               _cell(item.quantityLabel, palette: p, align: pw.TextAlign.center),
@@ -632,7 +684,9 @@ class BomExportService {
               _cell(
                 unitPriceText,
                 palette: p,
-                align: item.isUnavailable ? pw.TextAlign.center : pw.TextAlign.right,
+                align: item.isUnavailable
+                    ? pw.TextAlign.center
+                    : pw.TextAlign.right,
                 size: 8.5,
                 color: item.isUnavailable ? p.unavailableFg : null,
               ),
@@ -705,8 +759,8 @@ class BomExportService {
         crossAxisAlignment: align == pw.TextAlign.center
             ? pw.CrossAxisAlignment.center
             : (align == pw.TextAlign.right
-                ? pw.CrossAxisAlignment.end
-                : pw.CrossAxisAlignment.start),
+                  ? pw.CrossAxisAlignment.end
+                  : pw.CrossAxisAlignment.start),
         children: [
           pw.Text(
             pdfSafe(text),
@@ -824,11 +878,7 @@ class BomExportService {
               style: pw.TextStyle(fontSize: 7, color: p.muted),
             ),
             pw.SizedBox(height: 12),
-            pw.Container(
-              height: 0.6,
-              width: double.infinity,
-              color: p.line,
-            ),
+            pw.Container(height: 0.6, width: double.infinity, color: p.line),
           ],
         ),
       ),

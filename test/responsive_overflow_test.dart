@@ -125,7 +125,9 @@ String _describe(FlutterErrorDetails details) {
   final full = details.toString();
   final first = details.exceptionAsString().split('\n').first.trim();
   final where = RegExp(r'file:///\S*?(lib/[^\s:]+):(\d+)').firstMatch(full);
-  return where == null ? first : '$first  @ ${where.group(1)}:${where.group(2)}';
+  return where == null
+      ? first
+      : '$first  @ ${where.group(1)}:${where.group(2)}';
 }
 
 /// Loads the app's bundled fonts under the names the screens ask for.
@@ -189,8 +191,7 @@ class _FakeAiService extends AiMaterialConsultantService {
     required String scope,
     required String description,
     required WorkCatalogue catalogue,
-  }) async =>
-      AiWorkRecommendResult(success: true, picks: picks);
+  }) async => AiWorkRecommendResult(success: true, picks: picks);
 }
 
 /// Opens a sheet or dialog as soon as it is on screen, the way a tap would.
@@ -211,30 +212,90 @@ class _OpensOnStartState extends State<_OpensOnStart> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: SizedBox.expand());
+  Widget build(BuildContext context) => const Scaffold(body: SizedBox.expand());
 }
 
 /// The smallest valid PNG, standing in for a picked photo.
 final _onePixelPng = Uint8List.fromList(const [
-  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-  0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
-  0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+  0x89,
+  0x50,
+  0x4E,
+  0x47,
+  0x0D,
+  0x0A,
+  0x1A,
+  0x0A,
+  0x00,
+  0x00,
+  0x00,
+  0x0D,
+  0x49,
+  0x48,
+  0x44,
+  0x52,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x08,
+  0x06,
+  0x00,
+  0x00,
+  0x00,
+  0x1F,
+  0x15,
+  0xC4,
+  0x89,
+  0x00,
+  0x00,
+  0x00,
+  0x0A,
+  0x49,
+  0x44,
+  0x41,
+  0x54,
+  0x78,
+  0x9C,
+  0x63,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x05,
+  0x00,
+  0x01,
+  0x0D,
+  0x0A,
+  0x2D,
+  0xB4,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4E,
+  0x44,
+  0xAE,
+  0x42,
+  0x60,
+  0x82,
 ]);
 
 /// A builder who bought from the shop on two estimates and has not rated it.
 class _FakeRatingService implements ShopRatingService {
   @override
   Future<List<({String postId, String title})>> ratableProjects(
-    Iterable<String> shopIds,
-  ) async =>
-      const [
-        (postId: 'post-1', title: 'Dela Cruz ground-floor bathroom, Calamba'),
-        (postId: 'post-2', title: 'Kitchen Renovation (remaining lines)'),
-      ];
+    Iterable<String> shopIds, {
+    String? shopName,
+  }) async => const [
+    (postId: 'post-1', title: 'Dela Cruz ground-floor bathroom, Calamba'),
+    (postId: 'post-2', title: 'Kitchen Renovation (remaining lines)'),
+  ];
 
   @override
   Future<ShopRatingDraft?> myRating(String shopId) async => null;
@@ -280,9 +341,10 @@ void main() {
     await Firebase.initializeApp();
   });
 
-  final bathroom =
-      RenovationTemplatesCatalog.forProject(
-          'Bathroom Renovation', RenovationScope.structural);
+  final bathroom = RenovationTemplatesCatalog.forProject(
+    'Bathroom Renovation',
+    RenovationScope.structural,
+  );
   final extensionBom = bathroom.copyWithItems(
     BomQuantityEstimator.scaleTemplate(
       template: bathroom,
@@ -311,19 +373,20 @@ void main() {
     ),
   );
   List<AddedPlumbingSelection> estimateLines() => [
-        for (final item in extensionBom.items)
-          AddedPlumbingSelection(
-            categoryTitle: item.category,
-            kind: 'Tap / drop to change type',
-            materialName: item.name,
-            size: item.size,
-            unit: item.unit,
-            quantity: item.defaultQuantity,
-          ),
-      ];
-  final kitchen =
-      RenovationTemplatesCatalog.forProject(
-          'Kitchen Renovation', RenovationScope.cosmetic);
+    for (final item in extensionBom.items)
+      AddedPlumbingSelection(
+        categoryTitle: item.category,
+        kind: 'Tap / drop to change type',
+        materialName: item.name,
+        size: item.size,
+        unit: item.unit,
+        quantity: item.defaultQuantity,
+      ),
+  ];
+  final kitchen = RenovationTemplatesCatalog.forProject(
+    'Kitchen Renovation',
+    RenovationScope.cosmetic,
+  );
 
   final screens = <String, Widget Function()>{
     'DisplayScreen': () => const DisplayScreen(),
@@ -332,168 +395,172 @@ void main() {
     'TermsConditionsScreen': () => const TermsConditionsScreen(),
     'ChangePasswordScreen': () => const ChangePasswordScreen(),
     'EditProfileScreen': () => const EditProfileScreen(
-          firstName: 'Juan Miguel',
-          lastName: 'Dela Cruz',
-        ),
+      firstName: 'Juan Miguel',
+      lastName: 'Dela Cruz',
+    ),
     'HomeScreen': () => const HomeScreen(),
     'CreateProjectScreen': () =>
         const CreateProjectScreen(renovationType: 'Bathroom Renovation'),
     'SelectPlanningMethodScreen': () =>
         const SelectPlanningMethodScreen(projectName: 'Bathroom Renovation'),
-    'SelectRenovationTypeScreen': () => const SelectRenovationTypeScreen(
-          renovationType: 'Interior Painting',
-        ),
+    'SelectRenovationTypeScreen': () =>
+        const SelectRenovationTypeScreen(renovationType: 'Interior Painting'),
     // Structural is ticked by default here, so the disclaimer renders.
     'SelectRenovationTypeScreen (structural ticked)': () =>
         const SelectRenovationTypeScreen(renovationType: 'Roof Repair'),
     'DescribeProjectScreen (AI)': () => const DescribeProjectScreen(
-          projectName: 'Bathroom Renovation',
-          scope: RenovationScope.functional,
-          method: PlanningMethod.ai,
-        ),
+      projectName: 'Bathroom Renovation',
+      scope: RenovationScope.functional,
+      method: PlanningMethod.ai,
+    ),
     'TemplateAreaScreen (functional)': () => TemplateAreaScreen(
-          template: RenovationTemplatesCatalog.forProject(
-              'Kitchen Renovation', RenovationScope.functional),
-          projectName: 'Kitchen Renovation',
-          scope: RenovationScope.functional,
-        ),
+      template: RenovationTemplatesCatalog.forProject(
+        'Kitchen Renovation',
+        RenovationScope.functional,
+      ),
+      projectName: 'Kitchen Renovation',
+      scope: RenovationScope.functional,
+    ),
     'TemplateAreaScreen': () => TemplateAreaScreen(
-          template: bathroom,
-          projectName: 'Bathroom Renovation',
-        ),
+      template: bathroom,
+      projectName: 'Bathroom Renovation',
+    ),
     'CostEstimationScreen': () => CostEstimationScreen(
-          projectName: 'Bathroom Renovation',
-          template: extensionBom,
-          projectAreaSqm: 20,
-          scope: RenovationScope.structural,
-        ),
+      projectName: 'Bathroom Renovation',
+      template: extensionBom,
+      projectAreaSqm: 20,
+      scope: RenovationScope.structural,
+    ),
     'TemplateAreaScreen (kitchen site details)': () => TemplateAreaScreen(
-          template: kitchen,
-          projectName: 'Kitchen Renovation',
-        ),
+      template: kitchen,
+      projectName: 'Kitchen Renovation',
+    ),
     'TemplateAreaScreen (partial)': () => TemplateAreaScreen(
-          template: kitchen,
-          projectName: 'Kitchen Renovation',
-          coverage: RenovationCoverage.partial,
-        ),
+      template: kitchen,
+      projectName: 'Kitchen Renovation',
+      coverage: RenovationCoverage.partial,
+    ),
     'TemplateAreaScreen (roof area)': () => TemplateAreaScreen(
-          template:
-              RenovationTemplatesCatalog.forProject(
-              'Roof Repair', RenovationScope.cosmetic),
-          projectName: 'Roof Repair',
-        ),
+      template: RenovationTemplatesCatalog.forProject(
+        'Roof Repair',
+        RenovationScope.cosmetic,
+      ),
+      projectName: 'Roof Repair',
+    ),
     'CostEstimationScreen (measured room)': () => CostEstimationScreen(
-          projectName: 'Bathroom Renovation',
-          template: measuredBom,
-          projectAreaSqm: measuredTakeoff.floorSqm,
-          takeoff: measuredTakeoff,
-        ),
+      projectName: 'Bathroom Renovation',
+      template: measuredBom,
+      projectAreaSqm: measuredTakeoff.floorSqm,
+      takeoff: measuredTakeoff,
+    ),
     // Structural work ticked from the start, so the disclaimer renders too.
     'SelectWorkItemsScreen': () => SelectWorkItemsScreen(
-          catalogue: RenovationTemplatesCatalog.workCatalogueFor(
-              'Bathroom Renovation'),
-          projectName: 'Bathroom Renovation',
-          types: RenovationTypes([
-            RenovationScope.cosmetic,
-            RenovationScope.structural,
-            RenovationScope.functional,
-          ]),
-        ),
+      catalogue: RenovationTemplatesCatalog.workCatalogueFor(
+        'Bathroom Renovation',
+      ),
+      projectName: 'Bathroom Renovation',
+      types: RenovationTypes([
+        RenovationScope.cosmetic,
+        RenovationScope.structural,
+        RenovationScope.functional,
+      ]),
+    ),
     'TemplateAreaScreen (work items)': () => TemplateAreaScreen(
-          template: RenovationTemplatesCatalog.workCatalogueFor(
-                  'Bathroom Renovation')
-              .templateFor({'retile_floor', 'replace_toilet'}),
-          projectName: 'Bathroom Renovation',
-        ),
+      template: RenovationTemplatesCatalog.workCatalogueFor(
+        'Bathroom Renovation',
+      ).templateFor({'retile_floor', 'replace_toilet'}),
+      projectName: 'Bathroom Renovation',
+    ),
     // A room with the most kinds of work ticked at once, including wiring.
     'SelectWorkItemsScreen (kitchen)': () => SelectWorkItemsScreen(
-          catalogue: RenovationTemplatesCatalog.workCatalogueFor(
-              'Kitchen Renovation'),
-          projectName: 'Kitchen Renovation',
-          types: RenovationTypes([
-            RenovationScope.cosmetic,
-            RenovationScope.functional,
-          ]),
-        ),
+      catalogue: RenovationTemplatesCatalog.workCatalogueFor(
+        'Kitchen Renovation',
+      ),
+      projectName: 'Kitchen Renovation',
+      types: RenovationTypes([
+        RenovationScope.cosmetic,
+        RenovationScope.functional,
+      ]),
+    ),
     'TemplateAreaScreen (kitchen work items)': () => TemplateAreaScreen(
-          template: RenovationTemplatesCatalog.workCatalogueFor(
-                  'Kitchen Renovation')
-              .templateFor({'tile_backsplash', 'rewire'}),
-          projectName: 'Kitchen Renovation',
-          scope: RenovationScope.functional,
-          renovationTypes: RenovationTypes([
-            RenovationScope.cosmetic,
-            RenovationScope.functional,
-          ]),
-        ),
+      template: RenovationTemplatesCatalog.workCatalogueFor(
+        'Kitchen Renovation',
+      ).templateFor({'tile_backsplash', 'rewire'}),
+      projectName: 'Kitchen Renovation',
+      scope: RenovationScope.functional,
+      renovationTypes: RenovationTypes([
+        RenovationScope.cosmetic,
+        RenovationScope.functional,
+      ]),
+    ),
     // Long names on both the shop and a substitute, with a note, so the
     // badge and the price have to share one line on a small phone.
     'SelectShopSheet (substitute)': () => const Scaffold(
-          body: Align(
-            alignment: Alignment.bottomCenter,
-            child: SelectShopSheet(
-              shopName: 'Santo Niño Construction Supply and Hardware',
-              quotedTotal: 0,
-              items: [
-                {
-                  'productName': 'Interior Latex Paint (4 L)',
-                  'qty': 4,
-                  'unit': 'gal',
-                  'price': 10,
-                  'subtotal': 40,
-                },
-                {
-                  'productName': 'Mega Bond Premium Tile Adhesive Extra',
-                  'requestedName': 'Tile Adhesive (25 kg)',
-                  'status': 'substituted',
-                  'lineNote': 'Out of stock this week; same coverage.',
-                  'qty': 20,
-                  'unit': 'bags',
-                  'price': 343,
-                  'subtotal': 6860,
-                },
-              ],
-            ),
-          ),
+      body: Align(
+        alignment: Alignment.bottomCenter,
+        child: SelectShopSheet(
+          shopName: 'Santo Niño Construction Supply and Hardware',
+          quotedTotal: 0,
+          items: [
+            {
+              'productName': 'Interior Latex Paint (4 L)',
+              'qty': 4,
+              'unit': 'gal',
+              'price': 10,
+              'subtotal': 40,
+            },
+            {
+              'productName': 'Mega Bond Premium Tile Adhesive Extra',
+              'requestedName': 'Tile Adhesive (25 kg)',
+              'status': 'substituted',
+              'lineNote': 'Out of stock this week; same coverage.',
+              'qty': 20,
+              'unit': 'bags',
+              'price': 343,
+              'subtotal': 6860,
+            },
+          ],
         ),
+      ),
+    ),
     'LoginScreen': () => const LoginScreen(),
     'RegisterScreen': () => const RegisterScreen(),
     'ForgotPasswordScreen': () => const ForgotPasswordScreen(),
     'ForgotPasswordOtpScreen': () => const ForgotPasswordOtpScreen(
-          email: 'juan.miguel.delacruz.builder@example.com',
-        ),
+      email: 'juan.miguel.delacruz.builder@example.com',
+    ),
     'ResetPasswordScreen': () => const ResetPasswordScreen(
-          email: 'juan.miguel.delacruz.builder@example.com',
-          verificationToken: 'token',
-        ),
+      email: 'juan.miguel.delacruz.builder@example.com',
+      verificationToken: 'token',
+    ),
     'EmailVerificationScreen': () => const EmailVerificationScreen(
-          email: 'juan.miguel.delacruz.builder@example.com',
-          uid: 'uid-1',
-        ),
+      email: 'juan.miguel.delacruz.builder@example.com',
+      uid: 'uid-1',
+    ),
     'AIConsultationScreen': () => AIConsultationScreen(
-          projectName: 'Bathroom Renovation',
-          renovationTypes: RenovationTypes([
-            RenovationScope.cosmetic,
-            RenovationScope.structural,
-          ]),
-        ),
+      projectName: 'Bathroom Renovation',
+      renovationTypes: RenovationTypes([
+        RenovationScope.cosmetic,
+        RenovationScope.structural,
+      ]),
+    ),
     'AiRecommendationsScreen': () => AiRecommendationsScreen(
-          projectName: 'Kitchen Renovation',
-          scope: RenovationScope.functional,
-          renovationTypes: RenovationTypes([
-            RenovationScope.cosmetic,
-            RenovationScope.functional,
-          ]),
-          description:
-              'Retile the backsplash and rewire the outlets near the sink.',
-          service: _FakeAiService(const [
-            AiWorkPick(
-              id: 'tile_backsplash',
-              reason: 'The backsplash behind the sink is cracked and stained',
-            ),
-            AiWorkPick(id: 'rewire', reason: 'Outlets near the sink spark'),
-          ]),
+      projectName: 'Kitchen Renovation',
+      scope: RenovationScope.functional,
+      renovationTypes: RenovationTypes([
+        RenovationScope.cosmetic,
+        RenovationScope.functional,
+      ]),
+      description:
+          'Retile the backsplash and rewire the outlets near the sink.',
+      service: _FakeAiService(const [
+        AiWorkPick(
+          id: 'tile_backsplash',
+          reason: 'The backsplash behind the sink is cracked and stained',
         ),
+        AiWorkPick(id: 'rewire', reason: 'Outlets near the sink spark'),
+      ]),
+    ),
     'BiddingHubScreen': () => const BiddingHubScreen(),
     'MainHomeScreen': () => const MainHomeScreen(),
     'ProfileScreen': () => const ProfileScreen(),
@@ -503,263 +570,267 @@ void main() {
     'NotificationsScreen': () => const NotificationsScreen(),
     'ChatInboxScreen': () => const ChatInboxScreen(),
     'ChatThreadScreen': () => const ChatThreadScreen(
-          conversationId: 'post-1_shop-1',
-          shopName: 'Santo Niño Construction Supply and Hardware',
-          projectTitle: 'Bathroom Renovation (remaining lines)',
-        ),
+      conversationId: 'post-1_shop-1',
+      shopName: 'Santo Niño Construction Supply and Hardware',
+      projectTitle: 'Bathroom Renovation (remaining lines)',
+    ),
     'PostedProjectDetailsScreen': () =>
         const PostedProjectDetailsScreen(postId: 'post-1'),
     'QuotationsScreen': () => const QuotationsScreen(
-          postId: 'post-1',
-          projectName: 'Bathroom Renovation (remaining lines)',
-        ),
+      postId: 'post-1',
+      projectName: 'Bathroom Renovation (remaining lines)',
+    ),
     'ProjectBidsScreen': () => const ProjectBidsScreen(
-          postId: 'post-1',
-          projectName: 'Bathroom Renovation (remaining lines)',
-        ),
+      postId: 'post-1',
+      projectName: 'Bathroom Renovation (remaining lines)',
+    ),
     // Sheets and dialogs, opened over a blank screen with long real names.
     'CancelSelectionSheet': () => _OpensOnStart(
-          (context) => showCancelSelectionSheet(
-            context,
-            shopName: 'Santo Niño Construction Supply and Hardware',
-            otherQuotations: 3,
-          ),
-        ),
+      (context) => showCancelSelectionSheet(
+        context,
+        shopName: 'Santo Niño Construction Supply and Hardware',
+        otherQuotations: 3,
+      ),
+    ),
     'ShopStorefrontSheet': () =>
         _OpensOnStart((context) => showShopStorefrontSheet(context, _longShop)),
     'RateShopSheet': () => _OpensOnStart(
-          (context) => showRateShopSheet(
-            context,
-            _longShop,
-            ratingService: _FakeRatingService(),
-          ),
-        ),
+      (context) => showRateShopSheet(
+        context,
+        _longShop,
+        ratingService: _FakeRatingService(),
+      ),
+    ),
     'AttachmentConfirmSheet (photo)': () => _OpensOnStart(
-          (context) => showAttachmentConfirmSheet(
-            context,
-            attachment: PickedAttachment(
-              bytes: _onePixelPng,
-              name: 'scaled_IMG_20260928_101512.jpg',
-              kind: AttachmentKind.image,
-              sizeBytes: _onePixelPng.length,
-            ),
-            shopName: 'Santo Niño Construction Supply and Hardware',
-            caption: 'This is the wall behind the sink, the tiles here are '
-                'the ones that need replacing.',
-          ),
+      (context) => showAttachmentConfirmSheet(
+        context,
+        attachment: PickedAttachment(
+          bytes: _onePixelPng,
+          name: 'scaled_IMG_20260928_101512.jpg',
+          kind: AttachmentKind.image,
+          sizeBytes: _onePixelPng.length,
         ),
+        shopName: 'Santo Niño Construction Supply and Hardware',
+        caption:
+            'This is the wall behind the sink, the tiles here are '
+            'the ones that need replacing.',
+      ),
+    ),
     'AttachmentConfirmSheet (document)': () => _OpensOnStart(
-          (context) => showAttachmentConfirmSheet(
-            context,
-            attachment: PickedAttachment(
-              bytes: Uint8List(0),
-              name: 'Dela-Cruz-bathroom-floor-plan-final-revision.pdf',
-              kind: AttachmentKind.file,
-              sizeBytes: 2411520,
-            ),
-            shopName: 'Santo Niño Construction Supply and Hardware',
-          ),
+      (context) => showAttachmentConfirmSheet(
+        context,
+        attachment: PickedAttachment(
+          bytes: Uint8List(0),
+          name: 'Dela-Cruz-bathroom-floor-plan-final-revision.pdf',
+          kind: AttachmentKind.file,
+          sizeBytes: 2411520,
         ),
+        shopName: 'Santo Niño Construction Supply and Hardware',
+      ),
+    ),
     'BomShareSheet': () => _OpensOnStart(
-          (context) => showBomShareSheet(
-            context,
-            BomExportData(
-              estimateName: 'Dela Cruz ground-floor bathroom, Calamba',
-              renovationType: 'Bathroom Renovation',
-              areaSqm: 20,
-              budgetPreference: 'Mid-range',
-              materials: [
-                for (final item in extensionBom.items)
-                  BomExportItem(
-                    name: item.name,
-                    category: item.category,
-                    quantity: item.defaultQuantity,
-                    unit: item.unit,
-                    size: item.size,
-                  ),
-              ],
-            ),
-          ),
+      (context) => showBomShareSheet(
+        context,
+        BomExportData(
+          estimateName: 'Dela Cruz ground-floor bathroom, Calamba',
+          renovationType: 'Bathroom Renovation',
+          areaSqm: 20,
+          budgetPreference: 'Mid-range',
+          materials: [
+            for (final item in extensionBom.items)
+              BomExportItem(
+                name: item.name,
+                category: item.category,
+                quantity: item.defaultQuantity,
+                unit: item.unit,
+                size: item.size,
+              ),
+          ],
         ),
+      ),
+    ),
     'MaterialIdSheet': () => _OpensOnStart(
-          (context) => showMaterialIdSheet(
-            context,
-            name: 'Ceramic Wall Tiles, Matte Finish (Anti-slip)',
-            category: 'Tiles & Adhesives',
-            unit: 'pcs',
-            quantity: 184,
-            size: '30 x 60 cm',
-          ),
-        ),
+      (context) => showMaterialIdSheet(
+        context,
+        name: 'Ceramic Wall Tiles, Matte Finish (Anti-slip)',
+        category: 'Tiles & Adhesives',
+        unit: 'pcs',
+        quantity: 184,
+        size: '30 x 60 cm',
+      ),
+    ),
     'OtpDialog': () => _OpensOnStart(
-          (context) => showDialog<void>(
-            context: context,
-            builder: (_) => const OtpDialog(
-              email: 'juan.miguel.delacruz.builder@example.com',
-              uid: 'uid-1',
-            ),
-          ),
+      (context) => showDialog<void>(
+        context: context,
+        builder: (_) => const OtpDialog(
+          email: 'juan.miguel.delacruz.builder@example.com',
+          uid: 'uid-1',
         ),
+      ),
+    ),
     // What a builder sees under the shop they took part of an offer from.
     'AcceptedLinesPanel': () => Scaffold(
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: AcceptedLinesPanel(
-              summary: readAcceptance({
-                'status': 'partially_accepted',
-                'acceptedTotal': 8940,
-                'items': [
-                  {
-                    'productName': 'Portland Cement (40 kg)',
-                    'qty': 12,
-                    'unit': 'bags',
-                    'price': 260,
-                    'subtotal': 3120,
-                    'accepted': true,
-                  },
-                  {
-                    'productName': 'Mega Bond Premium Tile Adhesive Extra',
-                    'requestedName': 'Tile Adhesive (25 kg)',
-                    'status': 'substituted',
-                    'qty': 20,
-                    'unit': 'bags',
-                    'price': 291,
-                    'subtotal': 5820,
-                    'accepted': true,
-                  },
-                  {
-                    'productName': 'Ceramic Wall Tiles, Matte (30 x 60 cm)',
-                    'qty': 184,
-                    'unit': 'pcs',
-                    'price': 48,
-                    'subtotal': 8832,
-                    'accepted': false,
-                  },
-                ],
-              }),
-              quotedTotal: 17772,
-              postId: 'post-1',
-              quotationId: 'q-1',
-              shopName: 'Santo Niño Construction Supply and Hardware',
-            ),
-          ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: AcceptedLinesPanel(
+          summary: readAcceptance({
+            'status': 'partially_accepted',
+            'acceptedTotal': 8940,
+            'items': [
+              {
+                'productName': 'Portland Cement (40 kg)',
+                'qty': 12,
+                'unit': 'bags',
+                'price': 260,
+                'subtotal': 3120,
+                'accepted': true,
+              },
+              {
+                'productName': 'Mega Bond Premium Tile Adhesive Extra',
+                'requestedName': 'Tile Adhesive (25 kg)',
+                'status': 'substituted',
+                'qty': 20,
+                'unit': 'bags',
+                'price': 291,
+                'subtotal': 5820,
+                'accepted': true,
+              },
+              {
+                'productName': 'Ceramic Wall Tiles, Matte (30 x 60 cm)',
+                'qty': 184,
+                'unit': 'pcs',
+                'price': 48,
+                'subtotal': 8832,
+                'accepted': false,
+              },
+            ],
+          }),
+          quotedTotal: 17772,
+          postId: 'post-1',
+          quotationId: 'q-1',
+          shopName: 'Santo Niño Construction Supply and Hardware',
         ),
+      ),
+    ),
     // One offer waiting, one taken and one turned down in the last round.
     'CounterOffersPanel': () => const Scaffold(
-          body: SingleChildScrollView(
-            padding: EdgeInsets.all(20),
-            child: CounterOffersPanel(
-              postId: 'post-1',
-              quotationId: 'q-1',
-              shopName: 'Santo Niño Construction Supply and Hardware',
-              quotationData: {
-                'status': 'partially_accepted',
-                'items': [
-                  {
-                    'productName': 'Ceramic Wall Tiles, Matte (30 x 60 cm)',
-                    'qty': 184,
-                    'unit': 'pcs',
-                    'price': 48,
-                    'subtotal': 8832,
-                    'accepted': false,
-                    'declineReason': 'overpriced',
-                    'negotiation': {
-                      'shopOfferedPrice': 42.5,
-                      'status': 'pending',
-                      'round': 1,
-                    },
-                  },
-                  {
-                    'productName': 'Portland Cement (40 kg)',
-                    'qty': 12,
-                    'unit': 'bags',
-                    'price': 245,
-                    'subtotal': 2940,
-                    'accepted': true,
-                    'declineReason': 'overpriced',
-                    'negotiation': {
-                      'shopOfferedPrice': 245,
-                      'status': 'accepted',
-                      'round': 1,
-                    },
-                  },
-                  {
-                    'productName': 'Mega Bond Premium Tile Adhesive Extra',
-                    'qty': 20,
-                    'unit': 'bags',
-                    'price': 343,
-                    'subtotal': 6860,
-                    'accepted': false,
-                    'declineReason': 'overpriced',
-                    'negotiation': {
-                      'shopOfferedPrice': 330,
-                      'status': 'declined',
-                      'round': 2,
-                    },
-                  },
-                ],
-              },
-            ),
-          ),
-        ),
-    // A thread with long messages, a file, and a system note.
-    'MessengerMessageList': () => Scaffold(
-          body: MessengerMessageList(
-            docs: const [
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(20),
+        child: CounterOffersPanel(
+          postId: 'post-1',
+          quotationId: 'q-1',
+          shopName: 'Santo Niño Construction Supply and Hardware',
+          quotationData: {
+            'status': 'partially_accepted',
+            'items': [
               {
-                'senderRole': 'system',
-                'senderId': 'system',
-                'text': 'Quotation accepted for "Bathroom Renovation". You '
-                    'can now message each other.',
+                'productName': 'Ceramic Wall Tiles, Matte (30 x 60 cm)',
+                'qty': 184,
+                'unit': 'pcs',
+                'price': 48,
+                'subtotal': 8832,
+                'accepted': false,
+                'declineReason': 'overpriced',
+                'negotiation': {
+                  'shopOfferedPrice': 42.5,
+                  'status': 'pending',
+                  'round': 1,
+                },
               },
               {
-                'senderRole': 'builder',
-                'senderId': 'builder-1',
-                'text': 'Hi! Can you deliver the 12 bags of Portland cement '
-                    'and the tile adhesive to Barangay Real on Saturday '
-                    'morning, before 9? The street is narrow, so a small '
-                    'truck would be best.',
+                'productName': 'Portland Cement (40 kg)',
+                'qty': 12,
+                'unit': 'bags',
+                'price': 245,
+                'subtotal': 2940,
+                'accepted': true,
+                'declineReason': 'overpriced',
+                'negotiation': {
+                  'shopOfferedPrice': 245,
+                  'status': 'accepted',
+                  'round': 1,
+                },
               },
               {
-                'senderRole': 'shop',
-                'senderId': 'shop-1',
-                'text': 'Yes po, Saturday 8 AM works. We only have Mega Bond '
-                    'in stock for the adhesive, same coverage per bag.',
-              },
-              {
-                'senderRole': 'builder',
-                'senderId': 'builder-1',
-                'text': '',
-                'attachment': {
-                  'url': 'https://example.com/site-floor-plan.pdf',
-                  'name': 'Dela-Cruz-bathroom-floor-plan-final-revision.pdf',
-                  'kind': 'file',
-                  'sizeBytes': 2411520,
+                'productName': 'Mega Bond Premium Tile Adhesive Extra',
+                'qty': 20,
+                'unit': 'bags',
+                'price': 343,
+                'subtotal': 6860,
+                'accepted': false,
+                'declineReason': 'overpriced',
+                'negotiation': {
+                  'shopOfferedPrice': 330,
+                  'status': 'declined',
+                  'round': 2,
                 },
               },
             ],
-            uid: 'builder-1',
-            shopName: 'Santo Niño Construction Supply and Hardware',
-            conversation: const {'readAt': {}},
-            controller: ScrollController(),
-          ),
+          },
         ),
+      ),
+    ),
+    // A thread with long messages, a file, and a system note.
+    'MessengerMessageList': () => Scaffold(
+      body: MessengerMessageList(
+        docs: const [
+          {
+            'senderRole': 'system',
+            'senderId': 'system',
+            'text':
+                'Quotation accepted for "Bathroom Renovation". You '
+                'can now message each other.',
+          },
+          {
+            'senderRole': 'builder',
+            'senderId': 'builder-1',
+            'text':
+                'Hi! Can you deliver the 12 bags of Portland cement '
+                'and the tile adhesive to Barangay Real on Saturday '
+                'morning, before 9? The street is narrow, so a small '
+                'truck would be best.',
+          },
+          {
+            'senderRole': 'shop',
+            'senderId': 'shop-1',
+            'text':
+                'Yes po, Saturday 8 AM works. We only have Mega Bond '
+                'in stock for the adhesive, same coverage per bag.',
+          },
+          {
+            'senderRole': 'builder',
+            'senderId': 'builder-1',
+            'text': '',
+            'attachment': {
+              'url': 'https://example.com/site-floor-plan.pdf',
+              'name': 'Dela-Cruz-bathroom-floor-plan-final-revision.pdf',
+              'kind': 'file',
+              'sizeBytes': 2411520,
+            },
+          },
+        ],
+        uid: 'builder-1',
+        shopName: 'Santo Niño Construction Supply and Hardware',
+        conversation: const {'readAt': {}},
+        controller: ScrollController(),
+      ),
+    ),
     'MaterialEstimatorScreen': () => MaterialEstimatorScreen(
-          projectName: 'Bathroom Renovation',
-          customProjectName: 'Dela Cruz ground-floor bathroom, Calamba',
-          plumbingMaterials: estimateLines(),
-          aiProjectArea: 20,
-          scope: RenovationScope.structural,
-          lockEstimateDetails: true,
-        ),
+      projectName: 'Bathroom Renovation',
+      customProjectName: 'Dela Cruz ground-floor bathroom, Calamba',
+      plumbingMaterials: estimateLines(),
+      aiProjectArea: 20,
+      scope: RenovationScope.structural,
+      lockEstimateDetails: true,
+    ),
     'EstimateUnavailableView': () => Scaffold(
-          body: EstimateUnavailableView(
-            outcome: PostLoadOutcome.unavailable,
-            postId: 'post-1',
-            onRetry: () {},
-            showBackButton: true,
-          ),
-        ),
+      body: EstimateUnavailableView(
+        outcome: PostLoadOutcome.unavailable,
+        postId: 'post-1',
+        onRetry: () {},
+        showBackButton: true,
+      ),
+    ),
   };
 
   const withTextFields = {
@@ -794,10 +865,16 @@ void main() {
       }
       if (withTextFields.contains(screen.key)) {
         for (final size in _keyboardSizes.entries) {
-          testWidgets('fits on ${size.key} with the keyboard open',
-              (tester) async {
-            await _expectFits(tester, screen.key, screen.value, size,
-                keyboard: _keyboardHeight);
+          testWidgets('fits on ${size.key} with the keyboard open', (
+            tester,
+          ) async {
+            await _expectFits(
+              tester,
+              screen.key,
+              screen.value,
+              size,
+              keyboard: _keyboardHeight,
+            );
           });
         }
       }

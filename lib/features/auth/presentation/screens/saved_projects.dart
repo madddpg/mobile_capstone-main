@@ -621,6 +621,8 @@ class ProjectCard extends StatelessWidget {
     final postId = project.postId;
 
     List<Map<String, dynamic>>? quotationItems;
+
+    var quotationStatus = '';
     String? resolvedSupplierName = project.selectedShopName;
 
     if (isSupplierPicked && postId != null && postId.isNotEmpty) {
@@ -650,6 +652,7 @@ class ProjectCard extends StatelessWidget {
 
             if (quoteDoc.exists) {
               final quoteData = quoteDoc.data() ?? {};
+              quotationStatus = (quoteData['status'] ?? '').toString();
               quotationItems = [
                 for (final item in (quoteData['items'] ?? quoteData['materials'] ?? quoteData['lineItems'] ?? []))
                   if (item is Map) Map<String, dynamic>.from(item),
@@ -675,6 +678,7 @@ class ProjectCard extends StatelessWidget {
           budgetPreference: project.costLevel,
           materials: project.materials,
           quotationItems: quotationItems,
+          quotationStatus: quotationStatus,
           supplierName: resolvedSupplierName,
           excluded: project.excludedWork,
         ),

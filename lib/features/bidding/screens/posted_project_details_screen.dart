@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_pill_nav.dart';
+import 'package:iconstruct/core/navigation/app_nav.dart';
 import 'package:iconstruct/core/navigation/planning_nav.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
 import 'package:iconstruct/features/chat/screens/chat_inbox_screen.dart';
@@ -349,7 +350,10 @@ class PostedProjectDetailsScreen extends StatelessWidget {
                                         defaultProjectTitle: projectName,
                                       );
                                     },
-                                    icon: const Icon(Icons.star_outline_rounded, size: 16),
+                                    icon: const Icon(
+                                      Icons.star_outline_rounded,
+                                      size: 16,
+                                    ),
                                     label: Text(
                                       'Rate shop',
                                       style: GoogleFonts.poppins(

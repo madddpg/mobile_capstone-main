@@ -432,7 +432,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                             if (_confirmation == ShopConfirmation.pending)
                               Container(
                                 width: double.infinity,
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
                                 color: AppColors.cream.withValues(alpha: 0.12),
                                 child: Row(
                                   children: [
@@ -554,7 +557,9 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                             ),
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                              child: closed || _confirmation == ShopConfirmation.declined
+                              child:
+                                  closed ||
+                                      _confirmation == ShopConfirmation.declined
                                   ? Text(
                                       'This thread is closed.',
                                       textAlign: TextAlign.center,

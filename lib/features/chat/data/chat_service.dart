@@ -29,11 +29,9 @@ bool conversationIsUnread(Map<String, dynamic> data, String uid) {
 }
 
 class ChatService {
-  ChatService({
-    FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  ChatService({FirebaseFirestore? firestore, FirebaseAuth? auth})
+    : _db = firestore ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
@@ -51,7 +49,7 @@ class ChatService {
   /// `orderBy` is dropped (no `userId + lastMessageAt` index exists) and the
   /// merged list is sorted client-side.
   Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
-      watchMyConversations() {
+  watchMyConversations() {
     final uid = _uid;
     if (uid == null) return Stream.value(const []);
 
@@ -88,14 +86,18 @@ class ChatService {
     final controller =
         StreamController<List<QueryDocumentSnapshot<Map<String, dynamic>>>>();
     final subs = <StreamSubscription>[];
-    subs.add(byBuilder.listen((s) {
-      latestBuilder = s;
-      if (!controller.isClosed) controller.add(merge());
-    }, onError: controller.addError));
-    subs.add(byUser.listen((s) {
-      latestUser = s;
-      if (!controller.isClosed) controller.add(merge());
-    }, onError: controller.addError));
+    subs.add(
+      byBuilder.listen((s) {
+        latestBuilder = s;
+        if (!controller.isClosed) controller.add(merge());
+      }, onError: controller.addError),
+    );
+    subs.add(
+      byUser.listen((s) {
+        latestUser = s;
+        if (!controller.isClosed) controller.add(merge());
+      }, onError: controller.addError),
+    );
     controller.onCancel = () async {
       for (final s in subs) {
         await s.cancel();
@@ -157,8 +159,10 @@ class ChatService {
     if (uid == null) return Stream<int>.value(0);
 
     return watchMyConversations()
-        .map((docs) =>
-            docs.where((d) => conversationIsUnread(d.data(), uid)).length)
+        .map(
+          (docs) =>
+              docs.where((d) => conversationIsUnread(d.data(), uid)).length,
+        )
         .handleError((_) => 0);
   }
 
@@ -178,8 +182,7 @@ class ChatService {
     }
     final trimmed = text.trim();
     if (trimmed.isEmpty && attachment == null) return;
-    final capped =
-        trimmed.length > 4000 ? trimmed.substring(0, 4000) : trimmed;
+    final capped = trimmed.length > 4000 ? trimmed.substring(0, 4000) : trimmed;
 
     // The thread list shows a one-line preview, so an attachment with no
     // caption needs words of its own rather than an empty row.
@@ -194,20 +197,18 @@ class ChatService {
       'senderRole': 'builder',
       'text': capped,
       if (attachment != null) 'attachment': attachment,
-      if (attachment != null && attachment['kind'] == 'image' && attachment['url'] != null)
+      if (attachment != null &&
+          attachment['kind'] == 'image' &&
+          attachment['url'] != null)
         'imageUrl': attachment['url'],
       'createdAt': FieldValue.serverTimestamp(),
     });
-    batch.set(
-      convRef,
-      {
-        'lastMessage': preview,
-        'lastMessageAt': FieldValue.serverTimestamp(),
-        'lastSenderId': uid,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    batch.set(convRef, {
+      'lastMessage': preview,
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastSenderId': uid,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
     await batch.commit();
   }
 

@@ -254,11 +254,7 @@ class MessengerMessageList extends StatelessWidget {
     if (attachment is Map && attachment['url'] != null) {
       resolvedAttachment = Map<String, dynamic>.from(attachment);
     } else if (imageUrl.isNotEmpty) {
-      resolvedAttachment = {
-        'url': imageUrl,
-        'kind': 'image',
-        'name': 'Photo',
-      };
+      resolvedAttachment = {'url': imageUrl, 'kind': 'image', 'name': 'Photo'};
     } else {
       resolvedAttachment = null;
     }
@@ -522,15 +518,15 @@ class MessengerMessageList extends StatelessWidget {
   ) async {
     final uri = Uri.tryParse(url);
     if (uri == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid document link')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid document link')));
       return;
     }
 
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.cardBackground,
+      backgroundColor: AppColors.navy,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -547,12 +543,12 @@ class MessengerMessageList extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppColors.primaryGold.withValues(alpha: 0.15),
+                        color: AppColors.creamWarm.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(
                         Icons.description_rounded,
-                        color: AppColors.primaryGold,
+                        color: AppColors.creamWarm,
                         size: 22,
                       ),
                     ),
@@ -575,7 +571,7 @@ class MessengerMessageList extends StatelessWidget {
                 ListTile(
                   leading: const Icon(
                     Icons.open_in_browser_rounded,
-                    color: AppColors.primaryGold,
+                    color: AppColors.creamWarm,
                   ),
                   title: Text(
                     'Open document',
@@ -594,14 +590,18 @@ class MessengerMessageList extends StatelessWidget {
                       if (!launched && context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Could not open document in external viewer'),
+                            content: Text(
+                              'Could not open document in external viewer',
+                            ),
                           ),
                         );
                       }
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Could not open document: $e')),
+                          SnackBar(
+                            content: Text('Could not open document: $e'),
+                          ),
                         );
                       }
                     }
@@ -756,9 +756,13 @@ class FullScreenImageViewer extends StatelessWidget {
         actions: [
           if (uri != null)
             IconButton(
-              icon: const Icon(Icons.open_in_browser_rounded, color: Colors.white),
+              icon: const Icon(
+                Icons.open_in_browser_rounded,
+                color: Colors.white,
+              ),
               tooltip: 'Open in browser',
-              onPressed: () => launchUrl(uri, mode: LaunchMode.externalApplication),
+              onPressed: () =>
+                  launchUrl(uri, mode: LaunchMode.externalApplication),
             ),
           IconButton(
             icon: const Icon(Icons.share_rounded, color: Colors.white),
@@ -783,10 +787,12 @@ class FullScreenImageViewer extends StatelessWidget {
                   loadingBuilder: (context, child, progress) {
                     if (progress == null) return child;
                     return const Center(
-                      child: CircularProgressIndicator(color: AppColors.primaryGold),
+                      child: CircularProgressIndicator(
+                        color: AppColors.creamWarm,
+                      ),
                     );
                   },
-                  errorBuilder: (_, __, ___) => const Center(
+                  errorBuilder: (_, _, _) => const Center(
                     child: Text(
                       'Failed to load image',
                       style: TextStyle(color: Colors.white70),
@@ -796,10 +802,12 @@ class FullScreenImageViewer extends StatelessWidget {
               : CachedNetworkImage(
                   imageUrl: imageUrl,
                   fit: BoxFit.contain,
-                  placeholder: (_, __) => const Center(
-                    child: CircularProgressIndicator(color: AppColors.primaryGold),
+                  placeholder: (_, _) => const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.creamWarm,
+                    ),
                   ),
-                  errorWidget: (_, __, ___) => const Center(
+                  errorWidget: (_, _, _) => const Center(
                     child: Text(
                       'Failed to load image',
                       style: TextStyle(color: Colors.white70),
@@ -811,4 +819,3 @@ class FullScreenImageViewer extends StatelessWidget {
     );
   }
 }
-

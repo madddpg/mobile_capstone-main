@@ -1,4 +1,3 @@
-
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -43,11 +42,11 @@ class UploadedAttachment {
   });
 
   Map<String, dynamic> toMap() => {
-        'url': url,
-        'name': name,
-        'kind': kind == AttachmentKind.image ? 'image' : 'file',
-        'sizeBytes': sizeBytes,
-      };
+    'url': url,
+    'name': name,
+    'kind': kind == AttachmentKind.image ? 'image' : 'file',
+    'sizeBytes': sizeBytes,
+  };
 }
 
 /// Picks and uploads chat attachments.
@@ -66,9 +65,9 @@ class ChatAttachmentService {
     FirebaseStorage? storage,
     FirebaseAuth? auth,
     ImagePicker? picker,
-  })  : _storage = storage ?? FirebaseStorage.instance,
-        _auth = auth ?? FirebaseAuth.instance,
-        _picker = picker ?? ImagePicker();
+  }) : _storage = storage ?? FirebaseStorage.instance,
+       _auth = auth ?? FirebaseAuth.instance,
+       _picker = picker ?? ImagePicker();
 
   final FirebaseStorage _storage;
   final FirebaseAuth _auth;
@@ -89,7 +88,13 @@ class ChatAttachmentService {
   /// Documents the shop can actually open. Anything else is refused at pick
   /// time with a reason, rather than uploaded and left unopenable.
   static const List<String> allowedFileExtensions = [
-    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt',
+    'pdf',
+    'doc',
+    'docx',
+    'xls',
+    'xlsx',
+    'csv',
+    'txt',
   ];
 
   /// Takes a photo or picks one from the gallery, downscaled on the way in.
@@ -123,15 +128,13 @@ class ChatAttachmentService {
   /// when the file is too large, so the caller can show it directly.
   Future<PickedAttachment?> pickFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final picked = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: allowedFileExtensions,
-        withData: true,
       );
-      if (result == null || result.files.isEmpty) return null;
+      if (picked == null) return null;
 
-      final picked = result.files.first;
-      final bytes = picked.bytes ?? await picked.readAsBytes();
+      final bytes = await picked.readAsBytes();
       _refuseIfTooBig(bytes.length);
 
       return PickedAttachment(
@@ -140,27 +143,11 @@ class ChatAttachmentService {
         kind: AttachmentKind.file,
         sizeBytes: bytes.length,
       );
-    } catch (_) {
-      try {
-        final picked = await FilePicker.pickFile(
-          type: FileType.custom,
-          allowedExtensions: allowedFileExtensions,
-        );
-        if (picked == null) return null;
-
-        final bytes = await picked.readAsBytes();
-        _refuseIfTooBig(bytes.length);
-
-        return PickedAttachment(
-          bytes: bytes,
-          name: picked.name,
-          kind: AttachmentKind.file,
-          sizeBytes: bytes.length,
-        );
-      } catch (inner) {
-        if (inner is ChatAttachmentException) rethrow;
-        throw ChatAttachmentException('Could not read that document. Please try again.');
-      }
+    } catch (e) {
+      if (e is ChatAttachmentException) rethrow;
+      throw ChatAttachmentException(
+        'Could not read that document. Please try again.',
+      );
     }
   }
 
@@ -221,7 +208,8 @@ class ChatAttachmentService {
       );
     } on FirebaseException catch (e) {
       // If primary path hit permission-denied for an image, try alternative folder
-      if (isImage && (e.code == 'unauthorized' || e.code == 'permission-denied')) {
+      if (isImage &&
+          (e.code == 'unauthorized' || e.code == 'permission-denied')) {
         try {
           ref = _storage
               .ref()
@@ -251,7 +239,6 @@ class ChatAttachmentService {
     }
   }
 
-
   /// Turns a Cloud Storage error code into something worth reading.
   ///
   /// These are separated out because the failures have completely different
@@ -274,15 +261,18 @@ class ChatAttachmentService {
       'retry-limit-exceeded' =>
         'The upload kept timing out. Check your connection and try again.',
       'canceled' => 'That upload was cancelled.',
-      _ => 'That attachment did not upload ($code). Try again, and send this '
-          'code on if it keeps happening.',
+      _ =>
+        'That attachment did not upload ($code). Try again, and send this '
+            'code on if it keeps happening.',
     };
   }
 
   /// Storage object names travel in URLs, so anything awkward is flattened.
   static String _safeName(String name) {
     final cleaned = name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
-    return cleaned.length <= 80 ? cleaned : cleaned.substring(cleaned.length - 80);
+    return cleaned.length <= 80
+        ? cleaned
+        : cleaned.substring(cleaned.length - 80);
   }
 
   static String _contentTypeFor(String name, AttachmentKind kind) {

@@ -6,6 +6,7 @@
 library;
 
 import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
+import 'package:iconstruct/features/bidding/data/partial_acceptance.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/ph_renovation_rates.dart';
 
@@ -22,6 +23,10 @@ class BomExportItem {
   final String? requestedName;
   final bool isUnavailable;
 
+  /// Why the builder left this line out of a partly accepted quotation, such
+  /// as "Overpriced". Null on a line that is part of the order.
+  final String? declineReason;
+
   const BomExportItem({
     required this.name,
     required this.category,
@@ -34,7 +39,11 @@ class BomExportItem {
     this.isSubstitute = false,
     this.requestedName,
     this.isUnavailable = false,
+    this.declineReason,
   });
+
+  /// The builder did not order this line from the selected shop.
+  bool get isDeclined => declineReason != null;
 
   factory BomExportItem.fromMap(Map<String, dynamic> data) {
     final rawQty = data['quantity'] ?? data['qty'];
@@ -47,7 +56,11 @@ class BomExportItem {
         ? rawPrice.toDouble()
         : double.tryParse('${rawPrice ?? 0}'.replaceAll(',', '')) ?? 0.0;
 
-    final rawAmount = data['subtotal'] ?? data['amount'] ?? data['lineTotal'] ?? data['total'];
+    final rawAmount =
+        data['subtotal'] ??
+        data['amount'] ??
+        data['lineTotal'] ??
+        data['total'];
     var amount = rawAmount is num
         ? rawAmount.toDouble()
         : double.tryParse('${rawAmount ?? 0}'.replaceAll(',', '')) ?? 0.0;
@@ -56,14 +69,16 @@ class BomExportItem {
     }
 
     final rawStatus = '${data['status'] ?? ''}'.trim().toLowerCase();
-    final isSub = rawStatus == 'substituted' ||
+    final isSub =
+        rawStatus == 'substituted' ||
         rawStatus == 'substitute' ||
         data['isSubstitute'] == true ||
         ('${data['requestedName'] ?? ''}'.trim().isNotEmpty &&
             '${data['requestedName'] ?? ''}'.trim().toLowerCase() !=
                 (data['name'] ?? '').toString().trim().toLowerCase());
 
-    final isUnavail = rawStatus == 'unavailable' ||
+    final isUnavail =
+        rawStatus == 'unavailable' ||
         rawStatus == 'notavailable' ||
         rawStatus == 'outofstock' ||
         data['available'] == false ||
@@ -135,10 +150,12 @@ class BomExportData {
     DateTime? generatedAt,
   }) : generatedAt = generatedAt ?? DateTime.now();
 
-  /// Total sum of all priced items on this sheet.
+  /// Total of the priced lines on this sheet that are part of the order.
+  /// Unavailable lines and lines the builder declined are left out, so a
+  /// partly accepted quotation totals what was actually ordered.
   double get totalAmount {
     return materials.fold<double>(0.0, (sum, item) {
-      if (!item.isUnavailable && item.amount > 0) {
+      if (!item.isUnavailable && !item.isDeclined && item.amount > 0) {
         return sum + item.amount;
       }
       return sum;
@@ -196,19 +213,26 @@ class BomExportData {
     );
   }
 
-  /// Builds from the project BOM materials reconciled with the accepted quotation.
+  /// Builds the sheet for an estimate whose supplier was picked: the posted
+  /// material list, reconciled line by line with the selected shop's
+  /// quotation.
   ///
-  /// For items the shop substituted, displays the substitute product name with
-  /// substitute badge and note "instead of `<original item>`".
-  /// For items marked unavailable, displays them with the UNAVAILABLE badge,
-  /// Unit Price as 'Unavailable', and Amount as '—'.
-  /// For quoted items, displays their updated unit price and line total amount.
+  /// A line the shop substituted shows the shop's product with a SUBSTITUTE
+  /// badge and "instead of" and the material asked for. A line the shop cannot
+  /// supply shows UNAVAILABLE and no amount. Every other quoted line shows the
+  /// shop's unit price and amount; after an accepted counter-offer that is the
+  /// agreed price, since accepting one rewrites the line's prices.
+  ///
+  /// On a partly accepted quotation ([quotationStatus] `partially_accepted`)
+  /// the lines the builder left out show as not ordered, with the reason they
+  /// gave, and are not counted in the total.
   factory BomExportData.fromQuotation({
     required String estimateName,
     required String renovationType,
     required double areaSqm,
     required List<dynamic> materials,
     required List<Map<String, dynamic>> quotationItems,
+    String quotationStatus = '',
     String? supplierName,
     List<ExcludedWork> excluded = const [],
     String? budgetPreference,
@@ -216,8 +240,12 @@ class BomExportData {
     DateTime? generatedAt,
   }) {
     final quotedLines = parseQuotedLines({'materials': quotationItems});
+    final declined = _declinedLines(quotationItems, quotationStatus);
     final matchedIndices = <int>{};
     final items = <BomExportItem>[];
+
+    String? declineFor(QuotedLine line) =>
+        declined[normalizeMaterialName(line.matchName)];
 
     for (final raw in materials) {
       if (raw is! Map) {
@@ -237,6 +265,7 @@ class BomExportData {
 
       final bomMap = Map<String, dynamic>.from(raw);
       final bomName = (bomMap['name'] ?? '').toString().trim();
+      if (bomName.isEmpty) continue;
       final category = (bomMap['category'] ?? '').toString().trim().isEmpty
           ? 'Materials'
           : bomMap['category'].toString().trim();
@@ -246,27 +275,16 @@ class BomExportData {
           : double.tryParse('${rawQty ?? 0}') ?? 0;
       final unit = (bomMap['unit'] ?? '').toString().trim();
       final size = BomExportItem._cleaned(bomMap['size']);
-      final bomNotes = BomExportItem._cleaned(bomMap['notes'] ?? bomMap['note']);
+      final bomNotes = BomExportItem._cleaned(
+        bomMap['notes'] ?? bomMap['note'],
+      );
 
-      // Look for a matching quoted line from the supplier
-      QuotedLine? matchedLine;
-      for (var i = 0; i < quotedLines.length; i++) {
-        if (matchedIndices.contains(i)) continue;
-        final q = quotedLines[i];
-        final matchTarget = q.matchName;
-        if (normalizeMaterialName(matchTarget) == normalizeMaterialName(bomName) ||
-            (matchTarget.isNotEmpty &&
-                bomName.isNotEmpty &&
-                (normalizeMaterialName(matchTarget).contains(normalizeMaterialName(bomName)) ||
-                    normalizeMaterialName(bomName).contains(normalizeMaterialName(matchTarget))))) {
-          matchedLine = q;
-          matchedIndices.add(i);
-          break;
-        }
-      }
+      final index = _matchQuotedLine(quotedLines, bomName, matchedIndices);
+      final matchedLine = index == null ? null : quotedLines[index];
+      if (index != null) matchedIndices.add(index);
 
       if (matchedLine == null) {
-        // Not quoted by the shop or shop didn't supply it
+        // The shop did not quote this line.
         items.add(
           BomExportItem(
             name: bomName,
@@ -277,46 +295,45 @@ class BomExportData {
             notes: bomNotes,
           ),
         );
-      } else if (matchedLine.markedUnavailable || !matchedLine.hasPrice) {
-        // Quoted line was marked unavailable
+      } else if (!matchedLine.hasPrice) {
+        // Marked unavailable, or left without a price: either way the shop
+        // is not supplying it.
         items.add(
           BomExportItem(
             name: matchedLine.name.isNotEmpty ? matchedLine.name : bomName,
             category: category,
             quantity: quantity,
             unit: unit,
-            size: size ?? (matchedLine.size.isNotEmpty ? matchedLine.size : null),
+            size:
+                size ?? (matchedLine.size.isNotEmpty ? matchedLine.size : null),
             notes: matchedLine.note.isNotEmpty ? matchedLine.note : bomNotes,
-            unitPrice: 0.0,
-            amount: 0.0,
             isSubstitute: matchedLine.isSubstitute,
             requestedName: matchedLine.isSubstitute ? bomName : null,
             isUnavailable: true,
           ),
         );
       } else {
-        // Quoted line has price / substitute
-        final unitPrice = matchedLine.derivedUnitPrice;
-        final amount = matchedLine.lineTotal;
         items.add(
           BomExportItem(
             name: matchedLine.name.isNotEmpty ? matchedLine.name : bomName,
             category: category,
-            quantity: matchedLine.quantity > 0 ? matchedLine.quantity : quantity,
+            quantity: matchedLine.quantity > 0
+                ? matchedLine.quantity
+                : quantity,
             unit: matchedLine.unit.isNotEmpty ? matchedLine.unit : unit,
             size: matchedLine.size.isNotEmpty ? matchedLine.size : size,
             notes: matchedLine.note.isNotEmpty ? matchedLine.note : bomNotes,
-            unitPrice: unitPrice,
-            amount: amount,
+            unitPrice: matchedLine.derivedUnitPrice,
+            amount: matchedLine.lineTotal,
             isSubstitute: matchedLine.isSubstitute,
             requestedName: matchedLine.isSubstitute ? bomName : null,
-            isUnavailable: false,
+            declineReason: declineFor(matchedLine),
           ),
         );
       }
     }
 
-    // Also include any extra items the shop quoted that weren't matched in BOM
+    // Lines the shop quoted that match nothing on the estimate.
     for (var i = 0; i < quotedLines.length; i++) {
       if (matchedIndices.contains(i)) continue;
       final extra = quotedLines[i];
@@ -332,8 +349,11 @@ class BomExportData {
           unitPrice: extra.derivedUnitPrice,
           amount: extra.lineTotal,
           isSubstitute: extra.isSubstitute,
-          requestedName: extra.requestedName.isNotEmpty ? extra.requestedName : null,
-          isUnavailable: extra.markedUnavailable || !extra.hasPrice,
+          requestedName: extra.requestedName.isNotEmpty
+              ? extra.requestedName
+              : null,
+          isUnavailable: !extra.hasPrice,
+          declineReason: extra.hasPrice ? declineFor(extra) : null,
         ),
       );
     }
@@ -354,6 +374,55 @@ class BomExportData {
     );
   }
 
+  /// The quoted line for the estimate material [bomName], skipping lines
+  /// already used. An exact name wins over a partial one, so "Portland
+  /// Cement - Slab" is never paired with the screed cement line just because
+  /// it was listed first.
+  static int? _matchQuotedLine(
+    List<QuotedLine> lines,
+    String bomName,
+    Set<int> used,
+  ) {
+    final target = normalizeMaterialName(bomName);
+    if (target.isEmpty) return null;
+    for (var i = 0; i < lines.length; i++) {
+      if (used.contains(i)) continue;
+      if (normalizeMaterialName(lines[i].matchName) == target) return i;
+    }
+    for (var i = 0; i < lines.length; i++) {
+      if (used.contains(i)) continue;
+      final name = normalizeMaterialName(lines[i].matchName);
+      if (name.isEmpty) continue;
+      if (name.contains(target) || target.contains(name)) return i;
+    }
+    return null;
+  }
+
+  /// The lines the builder left out of a partly accepted quotation, by
+  /// normalized material name, with the reason shown for each.
+  ///
+  /// The per-line `accepted` flags only mean something on a quotation marked
+  /// partially accepted; on any other they are ignored, as in
+  /// `readAcceptance`.
+  static Map<String, String> _declinedLines(
+    List<Map<String, dynamic>> quotationItems,
+    String quotationStatus,
+  ) {
+    final partial =
+        quotationStatus.trim().toLowerCase() ==
+        AcceptanceOutcome.statusPartiallyAccepted;
+    if (!partial) return const {};
+    return {
+      for (final item in quotationItems)
+        if (item['accepted'] == false)
+          normalizeMaterialName(
+            isSubstitutedLine(item)
+                ? requestedItemName(item)
+                : (item['name'] ?? '').toString(),
+          ): declineReasonOf(item)?.label ?? 'Not ordered',
+    };
+  }
+
   /// Materials grouped by category, in first-seen order.
   Map<String, List<BomExportItem>> get byCategory {
     final grouped = <String, List<BomExportItem>>{};
@@ -369,7 +438,8 @@ class BomExportData {
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
-    final date = '${generatedAt.year}'
+    final date =
+        '${generatedAt.year}'
         '${generatedAt.month.toString().padLeft(2, '0')}'
         '${generatedAt.day.toString().padLeft(2, '0')}';
     return '${slug.isEmpty ? 'material-estimate' : slug}-bom-$date';
