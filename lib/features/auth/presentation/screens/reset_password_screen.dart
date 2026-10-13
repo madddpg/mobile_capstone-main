@@ -141,7 +141,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 ),
                 Expanded(
                   child: KeyboardForm(
-                    alignFieldsAboveAction: true,
+                    centerContent: true,
                     action: AppPrimaryButton(
                       label: 'Confirm',
                       loading: _loading,

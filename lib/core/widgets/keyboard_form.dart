@@ -83,6 +83,7 @@ class KeyboardForm extends StatelessWidget {
   final Widget child;
   final Widget? action;
   final bool alignFieldsAboveAction;
+  final bool centerContent;
   final EdgeInsetsGeometry padding;
 
   const KeyboardForm({
@@ -90,6 +91,7 @@ class KeyboardForm extends StatelessWidget {
     required this.child,
     this.action,
     this.alignFieldsAboveAction = false,
+    this.centerContent = false,
     this.padding = EdgeInsets.zero,
   });
 
@@ -114,9 +116,11 @@ class KeyboardForm extends StatelessWidget {
                   child: ConstrainedBox(
                     constraints: BoxConstraints(minHeight: minHeight),
                     child: Column(
-                      mainAxisAlignment: alignFieldsAboveAction
-                          ? MainAxisAlignment.end
-                          : MainAxisAlignment.start,
+                      mainAxisAlignment: centerContent
+                          ? MainAxisAlignment.center
+                          : alignFieldsAboveAction
+                              ? MainAxisAlignment.end
+                              : MainAxisAlignment.start,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [child],
                     ),

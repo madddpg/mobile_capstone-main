@@ -207,7 +207,7 @@ class _ForgotPasswordOtpScreenState extends State<ForgotPasswordOtpScreen> {
                 ),
                 Expanded(
                   child: KeyboardForm(
-                    alignFieldsAboveAction: true,
+                    centerContent: true,
                     action: AppPrimaryButton(
                       label: 'Enter',
                       loading: _verifying,
