@@ -35,10 +35,10 @@ service cloud.firestore {
     // Builder uid on a posted estimate. Canonical field is userId (Auth uid).
     function isPostOwner(data) {
       return signedIn() && (
-        data.userId == request.auth.uid
-        || data.builderId == request.auth.uid
-        || data.ownerId == request.auth.uid
-        || data.postedBy == request.auth.uid
+        data.get('userId', '') == request.auth.uid
+        || data.get('builderId', '') == request.auth.uid
+        || data.get('ownerId', '') == request.auth.uid
+        || data.get('postedBy', '') == request.auth.uid
       );
     }
 
@@ -263,7 +263,7 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(["quotationCount", "updatedAt"]))
         || (isPostOwner(resource.data)
-            && request.resource.data.userId == resource.data.userId);
+            && request.resource.data.get('userId', resource.data.get('userId', '')) == resource.data.get('userId', ''));
 
       allow delete: if isAdmin() || isPostOwner(resource.data);
 
@@ -343,7 +343,6 @@ service cloud.firestore {
           || isApprovedShop();
         allow create: if isAdmin() || (
           ownsPostedEstimate(postId)
-          && request.resource.data.postId == postId
           && request.resource.data.changedBy == request.auth.uid
         );
         allow update, delete: if false;
@@ -524,7 +523,10 @@ service cloud.firestore {
         && request.resource.data.recipientId == resource.data.recipientId
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['isRead']);
-      allow create: if false;
+      allow create: if signedIn()
+        && request.resource.data.get('type', '') == 'bidding_deadline_changed'
+        && request.resource.data.get('recipientType', '') == 'shop'
+        && ownsPostedEstimate(request.resource.data.postId);
       allow delete: if signedIn()
         && resource.data.recipientId == request.auth.uid;
     }

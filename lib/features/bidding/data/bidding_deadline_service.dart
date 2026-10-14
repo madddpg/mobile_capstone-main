@@ -26,16 +26,19 @@ class DeadlineHistoryEntry {
     required this.changedAt,
   });
 
-  factory DeadlineHistoryEntry.fromDoc(DocumentSnapshot doc) {
-    final data = (doc.data() as Map<String, dynamic>?) ?? {};
+  factory DeadlineHistoryEntry.fromMap(
+    Map<String, dynamic> data, {
+    String id = '',
+  }) {
     DateTime parseDate(dynamic v) {
       if (v is Timestamp) return v.toDate();
       if (v is DateTime) return v;
+      if (v is String) return DateTime.tryParse(v) ?? DateTime.now();
       return DateTime.now();
     }
 
     return DeadlineHistoryEntry(
-      id: doc.id,
+      id: id.isNotEmpty ? id : (data['id']?.toString() ?? ''),
       changedBy: data['changedBy']?.toString() ?? '',
       previousDeadline: parseDate(data['previousDeadline']),
       newDeadline: parseDate(data['newDeadline']),
@@ -44,6 +47,20 @@ class DeadlineHistoryEntry {
       changedAt: parseDate(data['changedAt']),
     );
   }
+
+  factory DeadlineHistoryEntry.fromDoc(DocumentSnapshot doc) {
+    final data = (doc.data() as Map<String, dynamic>?) ?? {};
+    return DeadlineHistoryEntry.fromMap(data, id: doc.id);
+  }
+
+  Map<String, dynamic> toMap() => {
+    'changedBy': changedBy,
+    'previousDeadline': Timestamp.fromDate(previousDeadline),
+    'newDeadline': Timestamp.fromDate(newDeadline),
+    'reason': reason,
+    if (note != null && note!.trim().isNotEmpty) 'note': note!.trim(),
+    'changedAt': Timestamp.fromDate(changedAt),
+  };
 }
 
 /// Service managing bidding deadlines, extensions, prior-notice validations,
@@ -104,6 +121,7 @@ class BiddingDeadlineService {
 
     // Client-side fallback transaction
     final postRef = _firestore.collection('projectPosts').doc(postId);
+    DateTime? previousEndsAt;
 
     await _firestore.runTransaction((txn) async {
       final postSnap = await txn.get(postRef);
@@ -139,8 +157,18 @@ class BiddingDeadlineService {
       );
 
       final changeCount = schedule.deadlineChangeCount + 1;
+      previousEndsAt = schedule.endsAt;
 
-      // Update post document
+      final historyMap = <String, dynamic>{
+        'changedBy': user.uid,
+        'previousDeadline': Timestamp.fromDate(schedule.endsAt),
+        'newDeadline': Timestamp.fromDate(newDeadline),
+        'reason': trimmedReason,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        'changedAt': Timestamp.fromDate(now),
+      };
+
+      // Update post document — uses only allowed fields on projectPosts
       txn.update(postRef, {
         'biddingEndsAt': Timestamp.fromDate(newDeadline),
         if (!postData.containsKey('originalBiddingEndsAt'))
@@ -149,28 +177,37 @@ class BiddingDeadlineService {
         'deadlineChangeCount': changeCount,
         'lastDeadlineChangedAt': FieldValue.serverTimestamp(),
         'lastDeadlineChangeReason': trimmedReason,
+        if (note != null && note.trim().isNotEmpty)
+          'lastDeadlineChangeNotes': note.trim(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      // Write to biddingDeadlineHistory subcollection
-      final historyRef = postRef.collection('biddingDeadlineHistory').doc();
-      txn.set(historyRef, {
-        'changedBy': user.uid,
-        'previousDeadline': Timestamp.fromDate(schedule.endsAt),
-        'newDeadline': Timestamp.fromDate(newDeadline),
-        'reason': trimmedReason,
-        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
-        'changedAt': FieldValue.serverTimestamp(),
+        'deadlineHistory': FieldValue.arrayUnion([historyMap]),
       });
     });
 
-    // Notify participating shops who submitted quotations
+    // Best-effort optional write to subcollection (non-blocking if rules reject subcollections)
+    if (previousEndsAt != null) {
+      try {
+        await postRef.collection('biddingDeadlineHistory').add({
+          'postId': postId,
+          'changedBy': user.uid,
+          'previousDeadline': Timestamp.fromDate(previousEndsAt!),
+          'newDeadline': Timestamp.fromDate(newDeadline),
+          'reason': trimmedReason,
+          if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+          'changedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint('Subcollection deadline history write skipped or denied: $e');
+      }
+    }
+
+    // Best-effort notification to shops with submitted quotations
     _notifyShopsOfDeadlineChange(
       postId: postId,
       newDeadline: newDeadline,
       reason: trimmedReason,
     ).catchError((e) {
-      debugPrint('Failed to send shop notifications: $e');
+      debugPrint('Shop notification skipped or denied: $e');
     });
   }
 
@@ -226,15 +263,36 @@ class BiddingDeadlineService {
   }
 
   /// Streams the deadline change history for a given project.
+  ///
+  /// Reads directly from the post document's `deadlineHistory` array for instant,
+  /// rule-compliant updates, with automatic fallback to the subcollection if present.
   Stream<List<DeadlineHistoryEntry>> streamDeadlineHistory(String postId) {
     return _firestore
         .collection('projectPosts')
         .doc(postId)
-        .collection('biddingDeadlineHistory')
-        .orderBy('changedAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => DeadlineHistoryEntry.fromDoc(doc))
-            .toList());
+        .map((snap) {
+      final data = snap.data();
+      if (data == null) return <DeadlineHistoryEntry>[];
+
+      final rawList = data['deadlineHistory'];
+      if (rawList is List && rawList.isNotEmpty) {
+        final entries = <DeadlineHistoryEntry>[];
+        for (var i = 0; i < rawList.length; i++) {
+          final item = rawList[i];
+          if (item is Map) {
+            entries.add(
+              DeadlineHistoryEntry.fromMap(
+                Map<String, dynamic>.from(item),
+                id: '$postId-hist-$i',
+              ),
+            );
+          }
+        }
+        entries.sort((a, b) => b.changedAt.compareTo(a.changedAt));
+        return entries;
+      }
+      return <DeadlineHistoryEntry>[];
+    });
   }
 }

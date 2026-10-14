@@ -1453,6 +1453,16 @@ exports.changeBiddingDeadline = onCall(async (request) => {
 
   const batch = db.batch();
 
+  const historyEntry = {
+    postId,
+    previousDeadline: postData.biddingEndsAt || null,
+    newDeadline: newEndsAtTimestamp,
+    reason: reason || "Extension granted",
+    notes: notes || null,
+    changedAt: nowTimestamp,
+    changedBy: callerUid,
+  };
+
   batch.update(postRef, {
     biddingEndsAt: newEndsAtTimestamp,
     biddingStatus: "open",
@@ -1461,18 +1471,11 @@ exports.changeBiddingDeadline = onCall(async (request) => {
     lastDeadlineChangeReason: reason || "Extension granted",
     lastDeadlineChangeNotes: notes || null,
     updatedAt: nowTimestamp,
+    deadlineHistory: admin.firestore.FieldValue.arrayUnion(historyEntry),
   });
 
   const historyRef = postRef.collection("biddingDeadlineHistory").doc();
-  batch.set(historyRef, {
-    postId,
-    previousDeadline: postData.biddingEndsAt || null,
-    newDeadline: newEndsAtTimestamp,
-    reason: reason || "Extension granted",
-    notes: notes || null,
-    changedAt: nowTimestamp,
-    changedBy: callerUid,
-  });
+  batch.set(historyRef, historyEntry);
 
   await batch.commit();
 
