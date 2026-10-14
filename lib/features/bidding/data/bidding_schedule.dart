@@ -324,13 +324,20 @@ class BiddingSchedule {
     final now = DateTime.now();
     final postedAt = parseDate(data['postedAt'], now);
 
-    final startsAt = parseDate(data['biddingStartsAt'], postedAt);
+    final startsAt = parseDate(
+      data['biddingStartsAt'] ?? data['biddingOpeningDate'] ?? data['startDate'],
+      postedAt,
+    );
     final endsAt = parseDate(
-      data['biddingEndsAt'],
+      data['biddingEndsAt'] ??
+          data['biddingDeadline'] ??
+          data['deadline'] ??
+          data['closingDate'] ??
+          data['endDate'],
       startsAt.add(const Duration(days: 3)),
     );
     final originalEndsAt = parseDate(
-      data['originalBiddingEndsAt'],
+      data['originalBiddingEndsAt'] ?? data['originalDeadline'],
       endsAt,
     );
 

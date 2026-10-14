@@ -184,10 +184,18 @@ Map<String, dynamic> projectPostFields({
     // there is none, so "nothing excluded" reads as absent rather than as an
     // empty list the dashboard has to special-case.
     if (excludedWork.isNotEmpty) 'excludedWork': excludedWork,
-    if (biddingStartsAt != null) 'biddingStartsAt': Timestamp.fromDate(biddingStartsAt),
+    if (biddingStartsAt != null) ...{
+      'biddingStartsAt': Timestamp.fromDate(biddingStartsAt),
+      'biddingOpeningDate': Timestamp.fromDate(biddingStartsAt),
+      'startDate': Timestamp.fromDate(biddingStartsAt),
+    },
     if (biddingEndsAt != null) ...{
       'biddingEndsAt': Timestamp.fromDate(biddingEndsAt),
       'originalBiddingEndsAt': Timestamp.fromDate(biddingEndsAt),
+      'biddingDeadline': Timestamp.fromDate(biddingEndsAt),
+      'deadline': Timestamp.fromDate(biddingEndsAt),
+      'closingDate': Timestamp.fromDate(biddingEndsAt),
+      'endDate': Timestamp.fromDate(biddingEndsAt),
     },
     if (biddingStatus != null && biddingStatus.isNotEmpty)
       'biddingStatus': biddingStatus,

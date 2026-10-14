@@ -1465,6 +1465,10 @@ exports.changeBiddingDeadline = onCall(async (request) => {
 
   batch.update(postRef, {
     biddingEndsAt: newEndsAtTimestamp,
+    biddingDeadline: newEndsAtTimestamp,
+    deadline: newEndsAtTimestamp,
+    closingDate: newEndsAtTimestamp,
+    endDate: newEndsAtTimestamp,
     biddingStatus: "open",
     deadlineChangeCount: newCount,
     lastDeadlineChangedAt: nowTimestamp,

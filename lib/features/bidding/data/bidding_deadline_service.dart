@@ -169,10 +169,17 @@ class BiddingDeadlineService {
       };
 
       // Update post document — uses only allowed fields on projectPosts
+      final newDeadlineTs = Timestamp.fromDate(newDeadline);
       txn.update(postRef, {
-        'biddingEndsAt': Timestamp.fromDate(newDeadline),
+        'biddingEndsAt': newDeadlineTs,
+        'biddingDeadline': newDeadlineTs,
+        'deadline': newDeadlineTs,
+        'closingDate': newDeadlineTs,
+        'endDate': newDeadlineTs,
         if (!postData.containsKey('originalBiddingEndsAt'))
           'originalBiddingEndsAt': Timestamp.fromDate(schedule.endsAt),
+        if (!postData.containsKey('originalDeadline'))
+          'originalDeadline': Timestamp.fromDate(schedule.endsAt),
         'biddingStatus': newStatus.name,
         'deadlineChangeCount': changeCount,
         'lastDeadlineChangedAt': FieldValue.serverTimestamp(),
