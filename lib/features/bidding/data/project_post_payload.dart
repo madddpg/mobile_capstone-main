@@ -6,6 +6,7 @@
 /// the contract in one place, away from the screen, is what makes it testable.
 library;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
 
 /// The quantity a hardware shop should be asked for on one material line.
@@ -149,6 +150,9 @@ Map<String, dynamic> projectPostFields({
   List<Map<String, dynamic>> excludedWork = const [],
   String coverage = '',
   List<String> renovationTypes = const [],
+  DateTime? biddingStartsAt,
+  DateTime? biddingEndsAt,
+  String? biddingStatus,
 }) {
   return {
     'postId': postId,
@@ -180,5 +184,13 @@ Map<String, dynamic> projectPostFields({
     // there is none, so "nothing excluded" reads as absent rather than as an
     // empty list the dashboard has to special-case.
     if (excludedWork.isNotEmpty) 'excludedWork': excludedWork,
+    if (biddingStartsAt != null) 'biddingStartsAt': Timestamp.fromDate(biddingStartsAt),
+    if (biddingEndsAt != null) ...{
+      'biddingEndsAt': Timestamp.fromDate(biddingEndsAt),
+      'originalBiddingEndsAt': Timestamp.fromDate(biddingEndsAt),
+    },
+    if (biddingStatus != null && biddingStatus.isNotEmpty)
+      'biddingStatus': biddingStatus,
+    'deadlineChangeCount': 0,
   };
 }

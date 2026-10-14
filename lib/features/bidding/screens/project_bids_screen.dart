@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 
 import 'package:iconstruct/core/firebase/firestore_error.dart';
@@ -29,6 +30,9 @@ import 'package:iconstruct/features/bidding/widgets/counter_offers_panel.dart';
 import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
 import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.dart';
 import 'package:iconstruct/features/bidding/widgets/line_selection_sheet.dart';
+import 'package:iconstruct/features/bidding/data/bidding_schedule.dart';
+import 'package:iconstruct/features/bidding/widgets/bidding_status_banner.dart';
+import 'package:iconstruct/features/bidding/widgets/change_deadline_sheet.dart';
 import 'package:iconstruct/features/chat/data/chat_service.dart';
 import 'package:iconstruct/features/chat/screens/chat_thread_screen.dart';
 import 'package:iconstruct/core/perf/perf_log.dart';
@@ -82,6 +86,19 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
 
   String get postId => widget.postId;
   String get projectName => widget.projectName;
+
+  void _openChangeDeadline(
+    BuildContext context,
+    BiddingSchedule schedule,
+    String projectName,
+  ) {
+    ChangeDeadlineSheet.show(
+      context,
+      postId: postId,
+      projectName: projectName,
+      schedule: schedule,
+    );
+  }
 
   @override
   void initState() {
@@ -200,6 +217,10 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
           final projectData =
               projectSnapshot.data!.data() as Map<String, dynamic>? ?? {};
           final bom = parseQuotedLines({'materials': projectData['materials']});
+          final schedule = BiddingSchedule.fromMap(projectData);
+          final currentUid = FirebaseAuth.instance.currentUser?.uid;
+          final isOwner = currentUid != null &&
+              (currentUid == projectData['userId'] || currentUid == projectData['builderId']);
           // Treat an empty string as "no supplier selected" — the web side can
           // write `''`, and `'' != null` would otherwise hide every Accept
           // button and leave the screen unrecoverable.
@@ -247,6 +268,23 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                   color: AppColors.cream.withValues(alpha: 0.35),
                 ),
               ),
+              if (schedule != null) ...[
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: BiddingStatusBanner(
+                    schedule: schedule,
+                    isOwner: isOwner,
+                    onChangeDeadline: isOwner
+                        ? () => _openChangeDeadline(
+                              context,
+                              schedule,
+                              projectName,
+                            )
+                        : null,
+                  ),
+                ),
+              ],
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
                   stream: _quotationsStream,

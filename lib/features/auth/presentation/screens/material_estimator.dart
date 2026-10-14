@@ -16,7 +16,9 @@ import 'package:iconstruct/core/state/active_project_state.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/core/widgets/offset_panel_shell.dart';
 import 'package:iconstruct/features/bidding/screens/posted_project_details_screen.dart';
+import 'package:iconstruct/features/bidding/data/bidding_schedule.dart';
 import 'package:iconstruct/features/bidding/data/project_post_payload.dart';
+import 'package:iconstruct/features/bidding/widgets/bidding_schedule_section.dart';
 import 'package:iconstruct/features/project_creation/data/bom_export.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/material_visual.dart';
@@ -130,6 +132,11 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
   /// re-post (creating a duplicate `projectPosts` doc) before it is disposed.
   bool _postedThisSession = false;
 
+  /// Bidding schedule state for posting review.
+  late DateTime _biddingOpeningDateTime;
+  late DateTime _biddingDeadlineDateTime;
+  bool _biddingOpenImmediately = true;
+
   late final String _projectScopeLabel =
       widget.existingProject?.projectScope ?? widget.scope.label;
 
@@ -189,6 +196,15 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _biddingOpeningDateTime = now;
+    _biddingDeadlineDateTime = DateTime(
+      now.year,
+      now.month,
+      now.day + 3,
+      17,
+      0,
+    );
     _localTiles = List.from(widget.tiles);
     _localPlumbing = List.from(widget.plumbingMaterials);
 
@@ -697,6 +713,21 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
               height: 1.4,
             ),
           ),
+          if (!_alreadyPosted) ...[
+            const SizedBox(height: 16),
+            const Divider(color: Color(0x33EDE4D4), thickness: 1),
+            const SizedBox(height: 16),
+            BiddingScheduleSection(
+              openingDateTime: _biddingOpeningDateTime,
+              deadlineDateTime: _biddingDeadlineDateTime,
+              openImmediately: _biddingOpenImmediately,
+              onOpeningChanged: (dt) => setState(() => _biddingOpeningDateTime = dt),
+              onDeadlineChanged: (dt) => setState(() => _biddingDeadlineDateTime = dt),
+              onOpenImmediatelyChanged: (val) => setState(() => _biddingOpenImmediately = val),
+              enabled: !_busy,
+              isDark: true,
+            ),
+          ],
           const SizedBox(height: 20),
           if (_alreadyPosted) ...[
             SizedBox(
@@ -1247,6 +1278,20 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
       return;
     }
 
+    final scheduleError = BiddingSchedule.validateSchedule(
+      startsAt: _biddingOpeningDateTime,
+      endsAt: _biddingDeadlineDateTime,
+    );
+    if (scheduleError != null) {
+      if (mounted) {
+        showAppMessage(
+          context,
+          SnackBar(content: Text(scheduleError)),
+        );
+      }
+      return;
+    }
+
     PerfLog.begin('post_project');
     setState(() => _busy = true);
     try {
@@ -1295,6 +1340,13 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
         email: user.email,
       );
 
+      final now = DateTime.now();
+      final initialBiddingStatus = BiddingSchedule.resolveStatus(
+        startsAt: _biddingOpeningDateTime,
+        endsAt: _biddingDeadlineDateTime,
+        now: now,
+      );
+
       final Map<String, dynamic> projectPostData = {
         ...projectPostFields(
           postId: newPostRef.id,
@@ -1312,6 +1364,9 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           siteDetails: widget.siteDetails,
           remarks: _remarksController.text,
           excludedWork: ExcludedWork.listToMaps(_excludedWork),
+          biddingStartsAt: _biddingOpeningDateTime,
+          biddingEndsAt: _biddingDeadlineDateTime,
+          biddingStatus: initialBiddingStatus.name,
         ),
         'status': 'open',
         'quotationCount': 0,
@@ -1336,6 +1391,9 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
           'excludedWork': ExcludedWork.listToMaps(_excludedWork),
         'status': ProjectLifecycle.waitingForQuotations,
         'postId': newPostRef.id,
+        'biddingStartsAt': Timestamp.fromDate(_biddingOpeningDateTime),
+        'biddingEndsAt': Timestamp.fromDate(_biddingDeadlineDateTime),
+        'biddingStatus': initialBiddingStatus.name,
         'postedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         if (widget.existingProject == null)
@@ -1355,13 +1413,12 @@ class _MaterialEstimatorScreenState extends State<MaterialEstimatorScreen> {
       ActiveProjectState.instance.clear();
 
       if (mounted) {
+        final successMsg = initialBiddingStatus == BiddingStatus.scheduled
+            ? 'Project posted! Bidding opens on ${BiddingSchedule.formatDateTime(_biddingOpeningDateTime)}.'
+            : 'BOM sent to hardware shops. Bidding closes on ${BiddingSchedule.formatDateTime(_biddingDeadlineDateTime)}.';
         showAppMessage(
           context,
-          const SnackBar(
-            content: Text(
-              'BOM sent to hardware shops. Waiting for supplier quotations.',
-            ),
-          ),
+          SnackBar(content: Text(successMsg)),
           kind: AppMessageKind.success,
         );
         // The estimate's planning screens are done with once it is posted:

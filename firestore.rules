@@ -251,7 +251,7 @@ service cloud.firestore {
         && request.resource.data.projectName.size() <= 200
         && request.resource.data.materials is list
         && request.resource.data.materials.size() <= 500
-        && request.resource.data.status == 'open'
+        && request.resource.data.status in ['open', 'scheduled']
         && request.resource.data.quotationCount == 0
         && !request.resource.data.keys().hasAny([
              'price', 'unitPrice', 'catalogPrice', 'estimatedTotal', 'listPrice'
@@ -286,7 +286,14 @@ service cloud.firestore {
           && request.resource.data.projectId == postId
           && request.resource.data.amount is number
           && request.resource.data.amount >= 0
-          && request.resource.data.status == 'pending';
+          && request.resource.data.status == 'pending'
+          // Server-authoritative bidding period enforcement:
+          && get(/databases/$(database)/documents/projectPosts/$(postId)).data.get('biddingStatus', 'open') != 'closed'
+          && get(/databases/$(database)/documents/projectPosts/$(postId)).data.get('status', 'open') != 'closed'
+          && (!('biddingStartsAt' in get(/databases/$(database)/documents/projectPosts/$(postId)).data)
+              || request.time >= get(/databases/$(database)/documents/projectPosts/$(postId)).data.biddingStartsAt)
+          && (!('biddingEndsAt' in get(/databases/$(database)/documents/projectPosts/$(postId)).data)
+              || request.time <= get(/databases/$(database)/documents/projectPosts/$(postId)).data.biddingEndsAt);
 
         // Two writers, kept as separate branches so neither can borrow the
         // other's fields:
@@ -326,6 +333,19 @@ service cloud.firestore {
         allow create: if signedIn()
           && ownsPostedEstimate(postId)
           && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      // Bidding deadline modification history (audit trail)
+      match /biddingDeadlineHistory/{historyId} {
+        allow read: if isAdmin()
+          || ownsPostedEstimate(postId)
+          || isApprovedShop();
+        allow create: if isAdmin() || (
+          ownsPostedEstimate(postId)
+          && request.resource.data.postId == postId
+          && request.resource.data.changedBy == request.auth.uid
+        );
         allow update, delete: if false;
       }
     }

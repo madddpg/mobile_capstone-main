@@ -521,10 +521,7 @@ class ProjectCard extends StatelessWidget {
     }
   }
 
-  void _handlePostProject(BuildContext context) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
+  void _handlePostProject(BuildContext context) {
     if (project.postId != null ||
         ProjectLifecycle.stageIndex(project.status) >=
             ProjectLifecycle.stageWaiting) {
@@ -537,82 +534,11 @@ class ProjectCard extends StatelessWidget {
       return;
     }
 
-    PerfLog.begin('post_project');
-    // Show loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+    PlanningNav.openMaterialEstimator(
+      context,
+      projectName: project.projectName,
+      existingProject: project,
     );
-
-    try {
-      await FirebaseAuth.instance.currentUser?.getIdToken(true);
-
-      final batch = FirebaseFirestore.instance.batch();
-      final newPostRef = FirebaseFirestore.instance
-          .collection('projectPosts')
-          .doc();
-      final savedProjectRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('saved_projects')
-          .doc(project.id);
-
-      final Map<String, dynamic> projectPostData = {
-        'postId': newPostRef.id,
-        'userId': uid,
-        'builderId': uid,
-        'projectId': project.id,
-        'projectName': project.projectName,
-        'projectType': project.projectType,
-        'materials': withPhotoKeys(project.materials),
-        'materialsCount': project.materialCount,
-        'totalAreaSqm': project.projectArea,
-        'budget': project.costLevel,
-        'status': 'open',
-        'quotationCount': 0,
-        'postedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      batch.set(newPostRef, projectPostData);
-      batch.set(savedProjectRef, {
-        'status': ProjectLifecycle.waitingForQuotations,
-        'postId': newPostRef.id,
-        'postedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      await batch.commit();
-      PerfLog.response('post_project');
-
-      ActiveProjectState.instance.clear();
-
-      if (context.mounted) {
-        Navigator.pop(context); // Remove loading
-        showAppMessage(
-          context,
-          const SnackBar(
-            content: Text('Project successfully posted for bidding!'),
-          ),
-          kind: AppMessageKind.success,
-        );
-        PerfLog.contentReady('post_project');
-      }
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context); // Remove loading
-        showAppMessage(
-          context,
-          SnackBar(
-            content: Text(
-              firestoreUserMessage(e, action: 'post this estimate for bidding'),
-            ),
-            duration: const Duration(seconds: 6),
-          ),
-        );
-      }
-    }
   }
 
   Future<void> _handleShareProject(BuildContext context) async {

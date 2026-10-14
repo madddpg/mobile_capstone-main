@@ -13,8 +13,12 @@ import 'package:iconstruct/features/bidding/data/post_load_outcome.dart';
 import 'package:iconstruct/features/bidding/widgets/estimate_unavailable_view.dart';
 import 'package:iconstruct/features/project_creation/data/excluded_work.dart';
 import 'package:iconstruct/features/project_creation/data/renovation_coverage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:iconstruct/features/auth/presentation/models/ranked_shop.dart';
 import 'package:iconstruct/features/auth/presentation/widgets/rate_shop_sheet.dart';
+import 'package:iconstruct/features/bidding/data/bidding_schedule.dart';
+import 'package:iconstruct/features/bidding/widgets/bidding_status_banner.dart';
+import 'package:iconstruct/features/bidding/widgets/change_deadline_sheet.dart';
 import 'quotations_screen.dart';
 
 class PostedProjectDetailsScreen extends StatelessWidget {
@@ -105,6 +109,11 @@ class PostedProjectDetailsScreen extends StatelessWidget {
           final selectedQuotationId = (data['selectedQuotationId'] ?? '')
               .toString();
           final hasSelectedShop = selectedShopId.isNotEmpty;
+
+          final schedule = BiddingSchedule.fromMap(data);
+          final currentUid = FirebaseAuth.instance.currentUser?.uid;
+          final isOwner = currentUid != null &&
+              (data['userId'] == currentUid || data['builderId'] == currentUid);
 
           return Stack(
             children: [
@@ -199,9 +208,22 @@ class PostedProjectDetailsScreen extends StatelessWidget {
                                 height: 1.2,
                               ),
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 14),
+                            BiddingStatusBanner(
+                              schedule: schedule,
+                              isOwner: isOwner,
+                              onChangeDeadline: () {
+                                ChangeDeadlineSheet.show(
+                                  context,
+                                  postId: postId,
+                                  projectName: projectName,
+                                  schedule: schedule,
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 14),
                             const Divider(color: Colors.white30, thickness: 1),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 16),
 
                             Text(
                               "Project Details",
@@ -224,6 +246,23 @@ class PostedProjectDetailsScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             _buildDetailText("Budget: $budget"),
+                            const SizedBox(height: 12),
+                            Text(
+                              "Bidding Schedule",
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                color: creamBg,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildDetailText("Bidding Opens: ${BiddingSchedule.formatDateTime(schedule.startsAt)}"),
+                            const SizedBox(height: 4),
+                            _buildDetailText("Quotation Deadline: ${BiddingSchedule.formatDateTime(schedule.endsAt)}"),
+                            if (schedule.isDeadlineChanged) ...[
+                              const SizedBox(height: 4),
+                              _buildDetailText("Original Deadline: ${BiddingSchedule.formatDateTime(schedule.originalEndsAt)}"),
+                            ],
                             // What the shops were told is not being asked for.
                             // Shown here because this is the screen a builder
                             // checks after posting.

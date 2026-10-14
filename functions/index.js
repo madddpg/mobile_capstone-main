@@ -573,8 +573,12 @@ exports.onProjectPostCreated = onDocumentCreated("projectPosts/{postId}", async 
     const batch = db.batch();
     let notificationCount = 0;
 
-    const title = "New Project Opportunity";
-    const message = `A ${postData.projectType || "project"} project is now open for quotation.`;
+    let title = "New Project Opportunity";
+    let message = `A ${postData.projectType || "project"} project is now open for quotation.`;
+    if (postData.biddingStatus === "scheduled") {
+      title = "New Project Opportunity (Scheduled)";
+      message = `A ${postData.projectType || "project"} project has been posted and will open for quotation soon.`;
+    }
 
     shopsSnapshot.forEach((shopDoc) => {
       const shopDocId = shopDoc.id;
@@ -636,6 +640,9 @@ exports.onProjectPostCreated = onDocumentCreated("projectPosts/{postId}", async 
             postId: String(postId),
             projectName: String(postData.projectName || ""),
             projectType: String(postData.projectType || ""),
+            biddingStatus: String(postData.biddingStatus || "open"),
+            biddingStartsAt: String(postData.biddingStartsAt?.toMillis?.() || ""),
+            biddingEndsAt: String(postData.biddingEndsAt?.toMillis?.() || ""),
             click_action: "FLUTTER_NOTIFICATION_CLICK",
           },
           tokens: chunk,
@@ -1374,4 +1381,179 @@ exports.cancelSupplierSelection = onCall(async (request) => {
   }
 
   return { success: true, restored: outcome.restored };
+});
+
+/**
+ * changeBiddingDeadline: Controlled bidding deadline modification.
+ * Enforces homeowner ownership, valid future deadline, opening time precedence,
+ * and the 24-hour prior-notice policy when shortening.
+ * Records the change in biddingDeadlineHistory subcollection and notifies participating shops.
+ */
+exports.changeBiddingDeadline = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be signed in to modify a bidding deadline.");
+  }
+
+  const { postId, newDeadline, reason, notes } = request.data || {};
+  if (!postId || typeof postId !== "string") {
+    throw new HttpsError("invalid-argument", "Valid postId is required.");
+  }
+  if (!newDeadline) {
+    throw new HttpsError("invalid-argument", "New deadline date/time is required.");
+  }
+
+  const postRef = db.collection("projectPosts").doc(postId);
+  const postSnap = await postRef.get();
+  if (!postSnap.exists) {
+    throw new HttpsError("not-found", "The specified project post was not found.");
+  }
+
+  const postData = postSnap.data() || {};
+  const callerUid = request.auth.uid;
+  const isOwner = callerUid === postData.userId ||
+                  callerUid === postData.builderId ||
+                  callerUid === postData.ownerId;
+  if (!isOwner) {
+    throw new HttpsError("permission-denied", "Only the owner of this project can change the bidding deadline.");
+  }
+
+  const parsedNewDeadline = new Date(newDeadline);
+  if (isNaN(parsedNewDeadline.getTime())) {
+    throw new HttpsError("invalid-argument", "Invalid date format for the new deadline.");
+  }
+
+  const now = new Date();
+  if (parsedNewDeadline.getTime() <= now.getTime()) {
+    throw new HttpsError("failed-precondition", "The new quotation deadline must be in the future.");
+  }
+
+  const currentEndsAt = postData.biddingEndsAt?.toDate?.() || null;
+  const startsAt = postData.biddingStartsAt?.toDate?.() || null;
+
+  if (startsAt && parsedNewDeadline.getTime() <= startsAt.getTime()) {
+    throw new HttpsError("failed-precondition", "The deadline must be after the bidding start date/time.");
+  }
+
+  // Prior-notice policy: shortening deadline requires at least 24 hours advance notice
+  if (currentEndsAt && parsedNewDeadline.getTime() < currentEndsAt.getTime()) {
+    const hoursRemaining = (parsedNewDeadline.getTime() - now.getTime()) / (1000 * 60 * 60);
+    if (hoursRemaining < 24) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Shortening a deadline requires at least 24 hours prior notice before the new deadline."
+      );
+    }
+  }
+
+  const newEndsAtTimestamp = Timestamp.fromDate(parsedNewDeadline);
+  const nowTimestamp = Timestamp.now();
+  const currentCount = typeof postData.deadlineChangeCount === "number" ? postData.deadlineChangeCount : 0;
+  const newCount = currentCount + 1;
+  const projectName = postData.projectName || "Renovation Project";
+
+  const batch = db.batch();
+
+  batch.update(postRef, {
+    biddingEndsAt: newEndsAtTimestamp,
+    biddingStatus: "open",
+    deadlineChangeCount: newCount,
+    lastDeadlineChangedAt: nowTimestamp,
+    lastDeadlineChangeReason: reason || "Extension granted",
+    lastDeadlineChangeNotes: notes || null,
+    updatedAt: nowTimestamp,
+  });
+
+  const historyRef = postRef.collection("biddingDeadlineHistory").doc();
+  batch.set(historyRef, {
+    postId,
+    previousDeadline: postData.biddingEndsAt || null,
+    newDeadline: newEndsAtTimestamp,
+    reason: reason || "Extension granted",
+    notes: notes || null,
+    changedAt: nowTimestamp,
+    changedBy: callerUid,
+  });
+
+  await batch.commit();
+
+  // Notify shops that submitted quotations
+  try {
+    const quotesSnap = await postRef.collection("quotations").get();
+    const shopIds = new Set();
+    quotesSnap.forEach((doc) => {
+      const q = doc.data();
+      if (q.shopId) shopIds.add(q.shopId);
+    });
+
+    const formattedDeadline = parsedNewDeadline.toLocaleString("en-US", {
+      timeZone: "Asia/Manila",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+    const notifTitle = "Bidding Deadline Updated";
+    const notifMessage = `The quotation deadline for "${projectName}" has been changed to ${formattedDeadline}. Reason: ${reason || "Schedule adjusted"}.`;
+
+    const notifyBatch = db.batch();
+    const allShopTokens = [];
+
+    for (const shopId of shopIds) {
+      const notifRef = db.collection("notifications").doc();
+      notifyBatch.set(notifRef, {
+        type: "bidding_deadline_changed",
+        postId,
+        projectName,
+        recipientId: shopId,
+        recipientType: "shop",
+        title: notifTitle,
+        message: notifMessage,
+        newDeadline: newEndsAtTimestamp,
+        isRead: false,
+        createdAt: nowTimestamp,
+      });
+
+      const shopDoc = await db.collection("shops").doc(shopId).get();
+      if (shopDoc.exists) {
+        const tokens = shopDoc.data()?.fcmTokens;
+        if (Array.isArray(tokens)) {
+          tokens.forEach((t) => {
+            if (typeof t === "string" && t.trim() !== "") {
+              allShopTokens.push(t.trim());
+            }
+          });
+        }
+      }
+    }
+
+    if (shopIds.size > 0) {
+      await notifyBatch.commit();
+    }
+
+    const uniqueTokens = [...new Set(allShopTokens)];
+    if (uniqueTokens.length > 0) {
+      await admin.messaging().sendEachForMulticast({
+        notification: { title: notifTitle, body: notifMessage },
+        data: {
+          type: "bidding_deadline_changed",
+          postId: String(postId),
+          projectName: String(projectName),
+          newDeadline: String(parsedNewDeadline.getTime()),
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+        },
+        tokens: uniqueTokens,
+      });
+    }
+  } catch (notifyErr) {
+    logger.error("Failed to notify shops about deadline change:", notifyErr);
+  }
+
+  return {
+    success: true,
+    newDeadline: parsedNewDeadline.toISOString(),
+    changeCount: newCount,
+  };
 });

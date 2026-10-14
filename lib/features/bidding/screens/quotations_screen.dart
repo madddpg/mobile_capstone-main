@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:iconstruct/features/bidding/data/bid_comparison.dart';
+import 'package:iconstruct/features/bidding/data/bidding_schedule.dart';
 import 'package:iconstruct/features/bidding/screens/project_bids_screen.dart';
+import 'package:iconstruct/features/bidding/widgets/bidding_status_banner.dart';
+import 'package:iconstruct/features/bidding/widgets/change_deadline_sheet.dart';
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/perf/perf_log.dart';
@@ -54,6 +58,19 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
           projectName: name.isEmpty ? 'Project' : name,
         ),
       ),
+    );
+  }
+
+  void _openChangeDeadline(
+    BuildContext context,
+    BiddingSchedule schedule,
+    String projectName,
+  ) {
+    ChangeDeadlineSheet.show(
+      context,
+      postId: widget.postId,
+      projectName: projectName,
+      schedule: schedule,
     );
   }
 
@@ -270,6 +287,11 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
         builder: (context, postSnap) {
           final postData = postSnap.data?.data() as Map<String, dynamic>? ?? {};
           final bom = parseQuotedLines(postData);
+          final schedule = BiddingSchedule.fromMap(postData);
+          final currentUid = FirebaseAuth.instance.currentUser?.uid;
+          final isOwner = currentUid != null && currentUid == postData['userId'];
+          final resolvedProjectName = widget.projectName ??
+              (postData['projectName'] as String? ?? 'Project');
 
           return StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -293,41 +315,62 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
               final docs = snapshot.data!.docs;
 
               if (docs.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.inventory_2_outlined,
-                          size: 80,
-                          color: QuotationsScreen.navyColor.withValues(
-                            alpha: 0.5,
+                return Column(
+                  children: [
+                    if (schedule != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                        child: BiddingStatusBanner(
+                          schedule: schedule,
+                          isOwner: isOwner,
+                          onChangeDeadline: isOwner
+                              ? () => _openChangeDeadline(
+                                    context,
+                                    schedule,
+                                    resolvedProjectName,
+                                  )
+                              : null,
+                        ),
+                      ),
+                    Expanded(
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.inventory_2_outlined,
+                                size: 80,
+                                color: QuotationsScreen.navyColor.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No quotations yet',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: QuotationsScreen.navyColor,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Shops appear here after they send a quotation.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 15,
+                                  color: Colors.black54,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No quotations yet',
-                          style: GoogleFonts.poppins(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: QuotationsScreen.navyColor,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Shops appear here after they send a quotation.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            color: Colors.black54,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 );
               }
 
@@ -367,6 +410,20 @@ class _QuotationsScreenState extends State<QuotationsScreen> {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              if (schedule != null) ...[
+                                BiddingStatusBanner(
+                                  schedule: schedule,
+                                  isOwner: isOwner,
+                                  onChangeDeadline: isOwner
+                                      ? () => _openChangeDeadline(
+                                            context,
+                                            schedule,
+                                            resolvedProjectName,
+                                          )
+                                      : null,
+                                ),
+                                const SizedBox(height: 12),
+                              ],
                               _BidSummaryCard(
                                 lines: summary,
                                 quoteCount: quotes.length,
