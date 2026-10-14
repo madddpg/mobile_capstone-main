@@ -361,9 +361,16 @@ service cloud.firestore {
            ));
 
       allow create: if signedIn()
-        && request.resource.data.keys().hasAll(["shopId"])
+        && request.resource.data.keys().hasAll(["shopId", "projectId"])
         && request.resource.data.shopId == request.auth.uid
-        && shopIsApproved(request.auth.uid);
+        && shopIsApproved(request.auth.uid)
+        && exists(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId))
+        && get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)).data.get('biddingStatus', 'open') != 'closed'
+        && get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)).data.get('status', 'open') != 'closed'
+        && (!('biddingStartsAt' in get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)).data)
+            || request.time >= get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)).data.biddingStartsAt)
+        && (!('biddingEndsAt' in get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)).data)
+            || request.time <= get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)).data.biddingEndsAt);
     }
 
     // Builder ↔ shop chat. Unlocks once a quotation is accepted by the
