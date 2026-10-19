@@ -7,6 +7,8 @@ import 'package:iconstruct/core/theme/app_theme.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/widgets/iconstruct_panel.dart';
 import 'package:iconstruct/features/chat/data/chat_attachment_service.dart';
+import 'package:iconstruct/features/chat/data/transaction_invoice.dart';
+import 'package:iconstruct/features/chat/widgets/transaction_invoice_card.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -101,6 +103,10 @@ class MessengerMessageList extends StatelessWidget {
     required String? uid,
   }) {
     if (previous == null) return true;
+    if (TransactionInvoice.isInvoiceMessage(previous) ||
+        TransactionInvoice.isInvoiceMessage(current)) {
+      return true;
+    }
     if (_isSystem(previous) != _isSystem(current)) return true;
     if (_senderIsBuilder(previous, uid) != _senderIsBuilder(current, uid)) {
       return true;
@@ -165,7 +171,9 @@ class MessengerMessageList extends StatelessWidget {
   int get _lastMineIndex {
     for (var i = docs.length - 1; i >= 0; i--) {
       final m = docs[i];
-      if (!_isSystem(m) && _isMine(m)) return i;
+      if (!_isSystem(m) && !TransactionInvoice.isInvoiceMessage(m) && _isMine(m)) {
+        return i;
+      }
     }
     return -1;
   }
@@ -184,6 +192,23 @@ class MessengerMessageList extends StatelessWidget {
         final text = (msg['text'] ?? '').toString();
         final startsRun = _startsRun(i);
         final endsRun = _endsRun(i);
+        final sentAt = _sentAt(msg);
+
+        // Official Quotation & Transaction Invoice message
+        if (TransactionInvoice.isInvoiceMessage(msg)) {
+          final invoice = TransactionInvoice.fromMessage(
+            msg,
+            conversation: conversation,
+            defaultShopName: shopName,
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (startsRun && sentAt != null) _timeSeparator(sentAt),
+              TransactionInvoiceCard(invoice: invoice),
+            ],
+          );
+        }
 
         if (_isSystem(msg)) {
           return Padding(

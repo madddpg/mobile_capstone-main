@@ -212,6 +212,44 @@ class ChatService {
     await batch.commit();
   }
 
+  /// Dispatches an official Quotation & Transaction Invoice message directly into
+  /// the conversation thread under `conversations/{postId}_{shopId}/messages`.
+  Future<void> sendInvoiceMessage({
+    required String conversationId,
+    required String quotationId,
+    required String projectId,
+    required double acceptedTotal,
+    required Map<String, dynamic> quotationSnapshot,
+    String? text,
+  }) async {
+    final convRef = _db.collection('conversations').doc(conversationId);
+    final fallbackText = text ??
+        '[OFFICIAL_TRANSACTION_INVOICE] Quotation Ref #$quotationId for ₱${acceptedTotal.toStringAsFixed(2)} confirmed and secured.';
+
+    final batch = _db.batch();
+    final msgRef = convRef.collection('messages').doc();
+    batch.set(msgRef, {
+      'type': 'quotation_invoice',
+      'quotationId': quotationId,
+      'projectId': projectId,
+      'acceptedTotal': acceptedTotal,
+      'quotationSnapshot': quotationSnapshot,
+      'text': fallbackText,
+      'senderRole': 'system',
+      'senderId': 'system',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    batch.set(convRef, {
+      'lastMessage': fallbackText,
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastSenderId': 'system',
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    await batch.commit();
+  }
+
   /// Makes sure the thread with [shopId] exists, creating it if nobody has.
   ///
   /// The shop dashboard's `onQuotationAccepted` Cloud Function creates the

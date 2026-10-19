@@ -545,7 +545,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
 
                                         return MessengerMessageList(
                                           docs: docs
-                                              .map((d) => d.data())
+                                              .map((d) => {'id': d.id, ...d.data()})
                                               .toList(),
                                           uid: uid,
                                           shopName: shopName,
