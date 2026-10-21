@@ -181,7 +181,9 @@ class BiddingSchedule {
     if (remaining.inHours >= 1) {
       final hours = remaining.inHours;
       final mins = remaining.inMinutes % 60;
-      return mins > 0 ? '$hours hr${hours == 1 ? '' : 's'} $mins m left' : '$hours hr${hours == 1 ? '' : 's'} left';
+      return mins > 0
+          ? '$hours hr${hours == 1 ? '' : 's'} $mins m left'
+          : '$hours hr${hours == 1 ? '' : 's'} left';
     }
     final mins = remaining.inMinutes;
     if (mins > 0) {
@@ -193,8 +195,18 @@ class BiddingSchedule {
   /// Formats date and time into local Philippine style: "October 18, 2026 at 5:00 PM".
   static String formatDateTime(DateTime dt) {
     final months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     final month = months[dt.month - 1];
     final day = dt.day;
@@ -309,6 +321,22 @@ class BiddingSchedule {
     return null;
   }
 
+  /// Whether a `projectPosts` document stores a real quotation deadline.
+  ///
+  /// [BiddingSchedule.fromMap] falls back to "posted + 3 days" for posts made
+  /// before schedules existed, so check this before showing a deadline.
+  static bool hasStoredDeadline(Map<String, dynamic> data) {
+    final value =
+        data['biddingEndsAt'] ??
+        data['biddingDeadline'] ??
+        data['deadline'] ??
+        data['closingDate'] ??
+        data['endDate'];
+    if (value is Timestamp || value is DateTime) return true;
+    if (value is String) return DateTime.tryParse(value) != null;
+    return false;
+  }
+
   /// Parses schedule fields from a `projectPosts` document data map.
   factory BiddingSchedule.fromMap(Map<String, dynamic> data) {
     DateTime parseDate(dynamic value, DateTime fallback) {
@@ -325,7 +353,9 @@ class BiddingSchedule {
     final postedAt = parseDate(data['postedAt'], now);
 
     final startsAt = parseDate(
-      data['biddingStartsAt'] ?? data['biddingOpeningDate'] ?? data['startDate'],
+      data['biddingStartsAt'] ??
+          data['biddingOpeningDate'] ??
+          data['startDate'],
       postedAt,
     );
     final endsAt = parseDate(
@@ -341,7 +371,8 @@ class BiddingSchedule {
       endsAt,
     );
 
-    final rawStatus = data['biddingStatus']?.toString() ?? data['status']?.toString();
+    final rawStatus =
+        data['biddingStatus']?.toString() ?? data['status']?.toString();
     final status = resolveStatus(
       startsAt: startsAt,
       endsAt: endsAt,

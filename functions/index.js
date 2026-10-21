@@ -50,6 +50,12 @@ const {
   previewFor,
   senderLabelFor,
 } = require("./src/services/chatNotify");
+const {
+  shouldIssueInvoice,
+  buildInvoiceMessage,
+  invoiceMessageId,
+  invoicePreview,
+} = require("./src/services/transactionInvoice");
 
 const db = admin.firestore();
 const auth = admin.auth();
@@ -921,6 +927,109 @@ exports.onProjectPostUpdated = onDocumentUpdated("projectPosts/{postId}", async 
 
   return null;
 });
+
+/**
+ * Posts the official quotation invoice into the builder–shop chat once both
+ * sides have agreed: the builder accepted the quotation and the shop has just
+ * confirmed it (`shopConfirmation` set to "confirmed" from the dashboard).
+ *
+ * Runs here rather than in either app so it happens even when neither app is
+ * open, and once: the message id is fixed per quotation and created inside a
+ * transaction, so a retried trigger finds it and stops.
+ */
+exports.onQuotationConfirmed = onDocumentUpdated(
+  "projectPosts/{postId}/quotations/{quotationId}",
+  async (event) => {
+    const before = event.data?.before?.data() || {};
+    const after = event.data?.after?.data();
+    const { postId, quotationId } = event.params;
+    if (!after) return null;
+    // Cheap check first, so most quotation edits never read the post.
+    if (String(after.shopConfirmation || "").toLowerCase() !== "confirmed") return null;
+
+    try {
+      const postRef = db.collection("projectPosts").doc(postId);
+      const postSnap = await postRef.get();
+      const post = postSnap.exists ? postSnap.data() : null;
+      if (!shouldIssueInvoice({ before, after, post, quotationId })) return null;
+
+      const shopId = String(after.shopId || quotationId).trim();
+      const builderId = String(post.userId || post.builderId || "").trim();
+      if (!shopId || !builderId) {
+        logger.warn(`Invoice skipped for ${postId}/${quotationId}: missing shop or builder id`);
+        return null;
+      }
+
+      // Same id the apps use: ChatService.conversationId(postId, shopId).
+      const conversationId = `${postId}_${shopId}`;
+      const convRef = db.collection("conversations").doc(conversationId);
+      const messageRef = convRef.collection("messages").doc(invoiceMessageId(quotationId));
+
+      await db.runTransaction(async (txn) => {
+        const [convSnap, messageSnap] = await Promise.all([
+          txn.get(convRef),
+          txn.get(messageRef),
+        ]);
+        if (messageSnap.exists) return;
+
+        const conversation = convSnap.exists ? convSnap.data() : null;
+        const message = buildInvoiceMessage({
+          postId,
+          quotationId,
+          quotation: after,
+          post,
+          conversation,
+        });
+        const now = Timestamp.now();
+        const preview = invoicePreview(message.acceptedTotal);
+
+        // Normally opened at acceptance by the app or the dashboard; made here
+        // with the same fields if neither got to it.
+        if (!conversation) {
+          txn.set(convRef, {
+            projectId: postId,
+            quotationId,
+            shopId,
+            shopName: message.quotationSnapshot.shopName,
+            builderId,
+            userId: builderId,
+            builderName: message.quotationSnapshot.builderName || "Builder",
+            projectTitle: message.quotationSnapshot.projectTitle,
+            status: "open",
+            createdAt: now,
+          });
+        }
+
+        txn.set(messageRef, { ...message, createdAt: now });
+        txn.set(
+          convRef,
+          {
+            lastMessage: preview,
+            lastMessageAt: now,
+            lastSenderId: "system",
+            updatedAt: now,
+          },
+          { merge: true }
+        );
+        // A system message gets no chat push (see recipientFor), so the
+        // builder is told here.
+        txn.set(db.collection("notifications").doc(), {
+          type: "chat_message",
+          conversationId,
+          recipientId: builderId,
+          title: message.quotationSnapshot.shopName || "Hardware shop",
+          message: `${preview}. Open the chat to download or print it.`,
+          isRead: false,
+          createdAt: now,
+        });
+      });
+    } catch (error) {
+      logger.error(`Error issuing invoice for ${postId}/${quotationId}:`, error);
+    }
+
+    return null;
+  }
+);
 
 exports.consultAIMaterials = onCall(
   {

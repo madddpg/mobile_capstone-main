@@ -327,7 +327,6 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                     final quotes = shops.map((s) => s.quote).toList();
                     final comparison = BidComparison.fromQuotes(quotes);
                     final advice = canvassAdvice(bom, quotes);
-                    final materials = materialsToCompare(bom, quotes);
                     shops.sort((a, b) {
                       final aSuggested = a.quote.id == advice.suggestedShopId;
                       final bSuggested = b.quote.id == advice.suggestedShopId;
@@ -403,29 +402,6 @@ class _ProjectBidsScreenState extends State<ProjectBidsScreen> {
                           ),
                           const SizedBox(height: 12),
                         ],
-                        const SizedBox(height: 6),
-                        _SectionLabel('Price per material'),
-                        const SizedBox(height: 6),
-                        Text(
-                          'A missing material shows as Unavailable.',
-                          style: GoogleFonts.poppins(
-                            color: AppColors.cream.withValues(alpha: 0.7),
-                            fontSize: 12,
-                            height: 1.4,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        if (materials.isEmpty)
-                          const _CreamCard(
-                            child: Text(
-                              'No item list to compare yet. Shop totals are still shown above.',
-                            ),
-                          )
-                        else
-                          for (final item in materials) ...[
-                            _MaterialCompareCard(item: item, shops: shops),
-                            const SizedBox(height: 10),
-                          ],
                       ],
                     );
                   },
@@ -1699,132 +1675,6 @@ class _SheetLineRow extends StatelessWidget {
   }
 }
 
-class _MaterialCompareCard extends StatelessWidget {
-  final QuotedLine item;
-  final List<_ShopOffer> shops;
-
-  const _MaterialCompareCard({required this.item, required this.shops});
-
-  @override
-  Widget build(BuildContext context) {
-    final quotes = shops.map((s) => s.quote).toList();
-    final lowest = lowestPricedShopFor(quotes, item.name);
-    final quotedCount = shops
-        .where(
-          (s) => findQuotedLine(s.quote.lines, item.name)?.hasPrice == true,
-        )
-        .length;
-
-    final detail = [
-      if (item.quantityLabel.isNotEmpty) item.quantityLabel,
-      if (item.size.trim().isNotEmpty) item.size.trim(),
-      '$quotedCount of ${shops.length} quoted',
-    ].join('  ·  ');
-
-    return _CreamCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            item.name,
-            style: GoogleFonts.poppins(
-              color: AppColors.textDark,
-              fontWeight: FontWeight.w800,
-              fontSize: 15,
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            detail,
-            style: GoogleFonts.poppins(
-              color: AppColors.textMuted,
-              fontSize: 11.5,
-            ),
-          ),
-          const SizedBox(height: 10),
-          for (final shop in shops)
-            _ComparePriceRow(
-              shopName: shop.quote.shopName,
-              line: findQuotedLine(shop.quote.lines, item.name),
-              item: item,
-              isLowest: lowest?.id == shop.quote.id,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ComparePriceRow extends StatelessWidget {
-  final String shopName;
-  final QuotedLine? line;
-  final QuotedLine item;
-  final bool isLowest;
-
-  const _ComparePriceRow({
-    required this.shopName,
-    required this.line,
-    required this.item,
-    required this.isLowest,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hasPrice = line?.hasPrice == true;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              shopName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(
-                color: AppColors.textDark,
-                fontWeight: FontWeight.w600,
-                fontSize: 12.5,
-              ),
-            ),
-          ),
-          if (line?.isSubstitute == true) ...[
-            const _Pill(
-              label: 'Substitute',
-              bg: Color(0xFFFEF3C7),
-              fg: Color(0xFF92400E),
-              dense: true,
-            ),
-            const SizedBox(width: 6),
-          ],
-          if (hasPrice && isLowest) ...[
-            const _Pill(
-              label: 'Lowest',
-              bg: Color(0xFFD1FAE5),
-              fg: Color(0xFF065F46),
-              dense: true,
-            ),
-            const SizedBox(width: 8),
-          ],
-          Text(
-            // Not listed, listed without a price, and marked unavailable are
-            // one answer, and read the way the shop dashboard shows it.
-            hasPrice ? unitPriceLabel(line!, bom: item) : 'Unavailable',
-            style: GoogleFonts.poppins(
-              color: hasPrice
-                  ? (isLowest ? AppColors.success : AppColors.textDark)
-                  : AppColors.textMuted,
-              fontWeight: hasPrice ? FontWeight.w800 : FontWeight.w600,
-              fontSize: 12.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _PanelMessage extends StatelessWidget {
   final String text;
 
@@ -1929,22 +1779,13 @@ class _Pill extends StatelessWidget {
   final String label;
   final Color bg;
   final Color fg;
-  final bool dense;
 
-  const _Pill({
-    required this.label,
-    required this.bg,
-    required this.fg,
-    this.dense = false,
-  });
+  const _Pill({required this.label, required this.bg, required this.fg});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: dense ? 7 : 10,
-        vertical: dense ? 2 : 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(20),
@@ -1953,7 +1794,7 @@ class _Pill extends StatelessWidget {
         label,
         style: GoogleFonts.poppins(
           color: fg,
-          fontSize: dense ? 10 : 11,
+          fontSize: 11,
           fontWeight: FontWeight.w700,
         ),
       ),

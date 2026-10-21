@@ -23,8 +23,14 @@ void main() {
 
       final schedule = BiddingSchedule.fromMap(map);
       expect(schedule, isNotNull);
-      expect(schedule!.startsAt.millisecondsSinceEpoch, equals(starts.millisecondsSinceEpoch));
-      expect(schedule.endsAt.millisecondsSinceEpoch, equals(ends.millisecondsSinceEpoch));
+      expect(
+        schedule!.startsAt.millisecondsSinceEpoch,
+        equals(starts.millisecondsSinceEpoch),
+      );
+      expect(
+        schedule.endsAt.millisecondsSinceEpoch,
+        equals(ends.millisecondsSinceEpoch),
+      );
       expect(schedule.status, equals(BiddingStatus.open));
       expect(schedule.deadlineChangeCount, equals(1));
       expect(schedule.isDeadlineChanged, isTrue);
@@ -35,9 +41,7 @@ void main() {
     });
 
     test('falls back gracefully on legacy map without schedule fields', () {
-      final map = <String, dynamic>{
-        'projectName': 'Kitchen Renovation',
-      };
+      final map = <String, dynamic>{'projectName': 'Kitchen Renovation'};
 
       final schedule = BiddingSchedule.fromMap(map);
       expect(schedule, isNotNull);
@@ -129,16 +133,12 @@ void main() {
       );
 
       expect(
-        BiddingSchedule.formatDuration(
-          const Duration(hours: 4, minutes: 15),
-        ),
+        BiddingSchedule.formatDuration(const Duration(hours: 4, minutes: 15)),
         equals('4 hours and 15 minutes'),
       );
 
       expect(
-        BiddingSchedule.formatDuration(
-          const Duration(minutes: 45),
-        ),
+        BiddingSchedule.formatDuration(const Duration(minutes: 45)),
         equals('45 minutes'),
       );
     });
@@ -154,15 +154,24 @@ void main() {
 
       // 5 hours remaining
       final fiveHoursBefore = DateTime(2026, 10, 18, 4, 0);
-      expect(schedule.remainingTimeLabel(fiveHoursBefore), equals('5 hrs left'));
+      expect(
+        schedule.remainingTimeLabel(fiveHoursBefore),
+        equals('5 hrs left'),
+      );
 
       // 25 minutes remaining
       final twentyFiveMinsBefore = DateTime(2026, 10, 18, 8, 35);
-      expect(schedule.remainingTimeLabel(twentyFiveMinsBefore), equals('25 mins left'));
+      expect(
+        schedule.remainingTimeLabel(twentyFiveMinsBefore),
+        equals('25 mins left'),
+      );
 
       // Past deadline
       final pastDeadline = DateTime(2026, 10, 18, 9, 1);
-      expect(schedule.remainingTimeLabel(pastDeadline), equals('Bidding closed'));
+      expect(
+        schedule.remainingTimeLabel(pastDeadline),
+        equals('Bidding closed'),
+      );
     });
   });
 
@@ -199,7 +208,10 @@ void main() {
         endsAt: endsBeforeStarts,
         now: now,
       );
-      expect(error, contains('Quotation deadline must be after the bidding start time'));
+      expect(
+        error,
+        contains('Quotation deadline must be after the bidding start time'),
+      );
     });
 
     test('rejects quotation period shorter than 1 hour', () {
@@ -250,7 +262,10 @@ void main() {
         startsAt: startsLater,
         now: now,
       );
-      expect(error, contains('The new deadline must be after the bidding start time'));
+      expect(
+        error,
+        contains('The new deadline must be after the bidding start time'),
+      );
     });
 
     test('rejects shortening deadline when notice is under 24 hours', () {
@@ -305,6 +320,40 @@ void main() {
       expect(payload['biddingEndsAt'], isA<Timestamp>());
       expect(payload['biddingStatus'], equals('open'));
       expect(payload['deadlineChangeCount'], equals(0));
+    });
+  });
+
+  group('hasStoredDeadline', () {
+    test('is true when the post stores a deadline under any known key', () {
+      final ends = Timestamp.fromDate(DateTime(2026, 10, 23, 17));
+      expect(
+        BiddingSchedule.hasStoredDeadline({'biddingEndsAt': ends}),
+        isTrue,
+      );
+      expect(BiddingSchedule.hasStoredDeadline({'deadline': ends}), isTrue);
+      expect(
+        BiddingSchedule.hasStoredDeadline({'closingDate': '2026-10-23'}),
+        isTrue,
+      );
+    });
+
+    test('is false for a legacy post with no deadline', () {
+      // fromMap would invent "posted + 3 days" here; a card must not show it.
+      expect(
+        BiddingSchedule.hasStoredDeadline({
+          'postedAt': Timestamp.fromDate(DateTime(2026, 1, 1)),
+          'status': 'open',
+        }),
+        isFalse,
+      );
+      expect(
+        BiddingSchedule.hasStoredDeadline({'biddingEndsAt': null}),
+        isFalse,
+      );
+      expect(
+        BiddingSchedule.hasStoredDeadline({'deadline': 'not a date'}),
+        isFalse,
+      );
     });
   });
 }

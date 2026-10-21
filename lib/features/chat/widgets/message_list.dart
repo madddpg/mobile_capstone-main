@@ -226,7 +226,6 @@ class MessengerMessageList extends StatelessWidget {
         }
 
         final mine = _isMine(msg);
-        final sentAt = _sentAt(msg);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

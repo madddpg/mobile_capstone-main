@@ -16,7 +16,8 @@ import 'package:iconstruct/features/project_creation/widgets/bom_share_sheet.dar
 import 'package:iconstruct/core/widgets/app_message.dart';
 import 'package:iconstruct/core/widgets/app_skeleton.dart';
 import 'package:iconstruct/core/perf/perf_log.dart';
-import 'package:iconstruct/features/bidding/data/project_post_payload.dart';
+import 'package:iconstruct/features/bidding/data/bidding_schedule.dart';
+import 'dart:async';
 
 /// How [SavedProjectsScreen] focuses the list for different home entry points.
 enum SavedProjectsFocus {
@@ -560,12 +561,15 @@ class ProjectCard extends StatelessWidget {
 
         if (postDoc.exists) {
           final postData = postDoc.data() ?? {};
-          final selectedQuoteId = (project.selectedQuotationId ??
-                  postData['selectedQuotationId'] ??
-                  '')
+          final selectedQuoteId =
+              (project.selectedQuotationId ??
+                      postData['selectedQuotationId'] ??
+                      '')
+                  .toString()
+                  .trim();
+          resolvedSupplierName ??= (postData['selectedShopName'] ?? '')
               .toString()
               .trim();
-          resolvedSupplierName ??= (postData['selectedShopName'] ?? '').toString().trim();
           if (resolvedSupplierName.isEmpty) resolvedSupplierName = null;
 
           if (selectedQuoteId.isNotEmpty) {
@@ -580,10 +584,17 @@ class ProjectCard extends StatelessWidget {
               final quoteData = quoteDoc.data() ?? {};
               quotationStatus = (quoteData['status'] ?? '').toString();
               quotationItems = [
-                for (final item in (quoteData['items'] ?? quoteData['materials'] ?? quoteData['lineItems'] ?? []))
+                for (final item
+                    in (quoteData['items'] ??
+                        quoteData['materials'] ??
+                        quoteData['lineItems'] ??
+                        []))
                   if (item is Map) Map<String, dynamic>.from(item),
               ];
-              resolvedSupplierName ??= (quoteData['shopName'] ?? quoteData['vendorName'])?.toString().trim();
+              resolvedSupplierName ??=
+                  (quoteData['shopName'] ?? quoteData['vendorName'])
+                      ?.toString()
+                      .trim();
             }
           }
         }
@@ -1092,6 +1103,10 @@ class ProjectCard extends StatelessWidget {
                             ],
                           ),
                         ),
+                        if (BiddingSchedule.hasStoredDeadline(data!))
+                          _DeadlineChip(
+                            schedule: BiddingSchedule.fromMap(data),
+                          ),
                       ],
                       const SizedBox(height: 6),
                     ],
@@ -1207,6 +1222,101 @@ class ProjectCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The quotation deadline of a posted estimate, with the time left while
+/// bidding is open. Refreshes every 30 seconds, like the bids screen banner.
+class _DeadlineChip extends StatefulWidget {
+  final BiddingSchedule schedule;
+
+  const _DeadlineChip({required this.schedule});
+
+  @override
+  State<_DeadlineChip> createState() => _DeadlineChipState();
+}
+
+class _DeadlineChipState extends State<_DeadlineChip> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final schedule = widget.schedule;
+    final now = DateTime.now();
+    final status = BiddingSchedule.resolveStatus(
+      startsAt: schedule.startsAt,
+      endsAt: schedule.endsAt,
+      storedStatus: schedule.status.name,
+      now: now,
+    );
+    final (Color bg, Color fg, IconData icon) = switch (status) {
+      BiddingStatus.open => (
+        Colors.green.shade100,
+        Colors.green.shade800,
+        Icons.timer_outlined,
+      ),
+      BiddingStatus.scheduled => (
+        Colors.blue.shade100,
+        Colors.blue.shade800,
+        Icons.calendar_month_outlined,
+      ),
+      BiddingStatus.closed => (
+        Colors.grey.shade200,
+        Colors.grey.shade700,
+        Icons.lock_clock_outlined,
+      ),
+    };
+    final deadline =
+        'Deadline: ${BiddingSchedule.formatDateTime(schedule.endsAt)}';
+    final left = status == BiddingStatus.closed
+        ? 'Bidding closed'
+        : schedule.remainingTimeLabel(now);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: fg),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  left,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: fg,
+                  ),
+                ),
+                Text(deadline, style: TextStyle(fontSize: 12, color: fg)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
