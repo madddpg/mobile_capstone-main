@@ -429,34 +429,6 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
                                 color: AppColors.cream.withValues(alpha: 0.35),
                               ),
                             ),
-                            if (_confirmation == ShopConfirmation.pending)
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                color: AppColors.cream.withValues(alpha: 0.12),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.info_outline_rounded,
-                                      size: 15,
-                                      color: AppColors.cream,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Order submitted. You can message and share photos or files with $shopName to coordinate.',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 11.5,
-                                          color: AppColors.cream,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
                             Expanded(
                               child: _confirmation == ShopConfirmation.declined
                                   ? _LockedThread(

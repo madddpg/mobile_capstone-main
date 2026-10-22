@@ -3,10 +3,8 @@
 /**
  * The official quotation invoice posted into the builder–shop chat.
  *
- * The deal has two steps: the builder accepts a quotation (whole or in part),
- * then the shop confirms it from the dashboard by writing
- * `shopConfirmation: "confirmed"`. Only when both have happened is an invoice
- * issued. The chat renders the message as a card with a PDF button; see
+ * Accepting a quotation (whole or in part) is the deal: the invoice is issued
+ * then, without waiting for the shop to confirm. The chat renders the message as a card with a PDF button; see
  * `TransactionInvoice.fromMessage` in
  * lib/features/chat/data/transaction_invoice.dart, which reads what is built
  * here.
@@ -81,16 +79,19 @@ function confirmationOf(data) {
   return String((data && data.shopConfirmation) || "").trim().toLowerCase();
 }
 
+function isAccepted(data) {
+  return ACCEPTED_STATUSES.includes(String((data && data.status) || "").toLowerCase());
+}
+
 /**
- * Whether this quotation update is the moment both sides agreed: the shop
- * just confirmed, the quotation is the builder's accepted one, and the post
- * still names it as the selection.
+ * Whether this quotation update is the deal: the builder just accepted it
+ * (whole or in part) and the post names it as the selection. The shop does
+ * not have to confirm; only a shop that has already backed out gets none.
  */
 function shouldIssueInvoice({ before, after, post, quotationId }) {
   if (!after || !post) return false;
-  if (confirmationOf(after) !== "confirmed") return false;
-  if (confirmationOf(before) === "confirmed") return false;
-  if (!ACCEPTED_STATUSES.includes(String(after.status || "").toLowerCase())) return false;
+  if (!isAccepted(after) || isAccepted(before)) return false;
+  if (confirmationOf(after) === "declined") return false;
   return String(post.selectedQuotationId || "") === String(quotationId);
 }
 

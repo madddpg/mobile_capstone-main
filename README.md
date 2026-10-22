@@ -191,6 +191,7 @@ All functions live in `functions/index.js` (Node 20, Firebase codebase `builder`
 | `onProjectPostCreated` | `projectPosts/{postId}` created | Notifies approved shops of a new estimate |
 | `onQuotationSubmitted` | `projectPosts/{postId}/quotations/{shopId}` created | Moves the estimate to "Receiving Quotations" and notifies the builder |
 | `onProjectPostUpdated` | `projectPosts/{postId}` updated | Copies "Supplier Selected" onto the builder's saved estimate |
+| `issueQuotationInvoice` | `projectPosts/{postId}/quotations/{shopId}` updated | When the builder accepts a quotation, posts the official quotation invoice into the builder–shop chat |
 | `consultAIMaterials` | Callable | AI chat consultation |
 | `generateAIBOM` | Callable | AI work-item recommendation; also serves as the fallback path for consultation |
 | `cancelSupplierSelection` | Callable | Cancels an award with a reason and reopens the estimate |

@@ -372,8 +372,8 @@ service cloud.firestore {
             || request.time <= get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)).data.biddingEndsAt);
     }
 
-    // Builder ↔ shop chat. Unlocks once a quotation is accepted by the
-    // builder and confirmed by the shop.
+    // Builder ↔ shop chat. Unlocks as soon as the builder accepts a
+    // quotation, and stays shut only if the shop backs out.
     // Canonical builder uid is userId on the post; conversations store it as
     // builderId (and may also copy userId).
     match /conversations/{conversationId} {
@@ -385,12 +385,13 @@ service cloud.firestore {
         );
       }
 
-      // The shop's answer to an accepted quotation. A quotation from before
-      // shops confirmed has no field and counts as confirmed, matching
+      // Accepting is the deal: the builder does not wait for the shop, so a
+      // missing, "pending" or "confirmed" answer all count. Only a shop that
+      // backed out ("declined") closes the thread. Matches
       // shopConfirmationOf() in lib/features/bidding/data/shop_confirmation.dart.
       function quotationIsConfirmed(projectId, quotationId) {
         return get(/databases/$(database)/documents/projectPosts/$(projectId)/quotations/$(quotationId))
-          .data.get('shopConfirmation', 'confirmed') == 'confirmed';
+          .data.get('shopConfirmation', 'confirmed') != 'declined';
       }
 
       function acceptedQuoteForConv() {
@@ -442,7 +443,7 @@ service cloud.firestore {
         // a string <= 4000 chars; imageUrl (when present) is an https URL
         // <= 2000 chars. At least one of the two must be a non-empty string.
         //
-        // Nobody can send until the shop has confirmed, even into a thread
+        // Nobody can send once the shop has backed out, even into a thread
         // that already exists (e.g. created early by the web Function). The
         // quotation is found from the parent thread; messages do not carry
         // projectId or quotationId themselves.

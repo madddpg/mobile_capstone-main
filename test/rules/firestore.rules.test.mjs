@@ -422,15 +422,12 @@ test('the builder can never write shopConfirmation', async () => {
   );
 });
 
-test('pending confirmation: no thread from the app, no messages in any thread', async () => {
+test('accepting is the deal: chat opens while the shop is still "pending"', async () => {
   await seedAccepted({ shopConfirmation: 'pending' });
   const builder = authed('builder-1');
-  await assertFails(builder.doc(THREAD).set(thread()));
-
-  // A thread the web Function already created still cannot be written in.
-  await seedThread();
-  await assertFails(builder.doc(MESSAGE_1).set(message('builder-1', 'builder')));
-  await assertFails(authed('shop-a').doc(MESSAGE_2).set(message('shop-a', 'shop')));
+  await assertSucceeds(builder.doc(THREAD).set(thread()));
+  await assertSucceeds(builder.doc(MESSAGE_1).set(message('builder-1', 'builder')));
+  await assertSucceeds(authed('shop-a').doc(MESSAGE_2).set(message('shop-a', 'shop')));
 });
 
 test('declined confirmation blocks the thread and its messages', async () => {
@@ -450,16 +447,16 @@ test('confirmed: the builder opens the thread and both sides can write', async (
   await assertSucceeds(authed('shop-a').doc(MESSAGE_2).set(message('shop-a', 'shop')));
 });
 
-test('a thread created early opens for messages once the shop confirms', async () => {
+test('a thread created early closes when the shop backs out', async () => {
   await seedAccepted({ shopConfirmation: 'pending' });
   await seedThread();
   const builder = authed('builder-1');
-  await assertFails(builder.doc(MESSAGE_1).set(message('builder-1', 'builder')));
+  await assertSucceeds(builder.doc(MESSAGE_1).set(message('builder-1', 'builder')));
 
   await assertSucceeds(
-    authed('shop-a').doc(QUOTE).update({ shopConfirmation: 'confirmed' }),
+    authed('shop-a').doc(QUOTE).update({ shopConfirmation: 'declined' }),
   );
-  await assertSucceeds(builder.doc(MESSAGE_1).set(message('builder-1', 'builder')));
+  await assertFails(builder.doc(MESSAGE_2).set(message('builder-1', 'builder')));
 });
 
 test('a quotation from before confirmations existed counts as confirmed', async () => {

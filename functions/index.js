@@ -929,15 +929,17 @@ exports.onProjectPostUpdated = onDocumentUpdated("projectPosts/{postId}", async 
 });
 
 /**
- * Posts the official quotation invoice into the builder–shop chat once both
- * sides have agreed: the builder accepted the quotation and the shop has just
- * confirmed it (`shopConfirmation` set to "confirmed" from the dashboard).
+ * Posts the official quotation invoice into the builder–shop chat the moment
+ * the builder accepts a quotation, whole or in part. Accepting is the deal;
+ * the shop does not have to confirm first.
  *
  * Runs here rather than in either app so it happens even when neither app is
  * open, and once: the message id is fixed per quotation and created inside a
- * transaction, so a retried trigger finds it and stops.
+ * transaction, so a retried trigger finds it and stops. Not named
+ * onQuotationAccepted: the web dashboard's codebase already deploys a
+ * function by that name to the same project.
  */
-exports.onQuotationConfirmed = onDocumentUpdated(
+exports.issueQuotationInvoice = onDocumentUpdated(
   "projectPosts/{postId}/quotations/{quotationId}",
   async (event) => {
     const before = event.data?.before?.data() || {};
@@ -945,7 +947,9 @@ exports.onQuotationConfirmed = onDocumentUpdated(
     const { postId, quotationId } = event.params;
     if (!after) return null;
     // Cheap check first, so most quotation edits never read the post.
-    if (String(after.shopConfirmation || "").toLowerCase() !== "confirmed") return null;
+    const status = String(after.status || "").toLowerCase();
+    if (status !== "accepted" && status !== "partially_accepted") return null;
+    if (String(before.status || "").toLowerCase() === status) return null;
 
     try {
       const postRef = db.collection("projectPosts").doc(postId);

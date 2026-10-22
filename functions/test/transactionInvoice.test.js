@@ -34,21 +34,21 @@ function test(name, fn) {
 }
 
 const post = { selectedQuotationId: "shop1", projectName: "Bathroom", ownerName: "Ana" };
-const accepted = { status: "accepted", shopConfirmation: "pending" };
-const confirmed = { status: "accepted", shopConfirmation: "confirmed" };
+const submitted = { status: "submitted" };
+const accepted = { status: "accepted" };
 
-test("an invoice is due when the shop confirms the builder's accepted quotation", () => {
+test("an invoice is due the moment the builder accepts, with no shop confirmation", () => {
   assert.strictEqual(
-    shouldIssueInvoice({ before: accepted, after: confirmed, post, quotationId: "shop1" }),
+    shouldIssueInvoice({ before: submitted, after: accepted, post, quotationId: "shop1" }),
     true
   );
 });
 
-test("a partial acceptance confirmed by the shop gets an invoice too", () => {
+test("a partial acceptance gets an invoice too", () => {
   assert.strictEqual(
     shouldIssueInvoice({
-      before: { status: "partially_accepted" },
-      after: { status: "partially_accepted", shopConfirmation: "confirmed" },
+      before: submitted,
+      after: { status: "partially_accepted" },
       post,
       quotationId: "shop1",
     }),
@@ -56,14 +56,35 @@ test("a partial acceptance confirmed by the shop gets an invoice too", () => {
   );
 });
 
-test("no invoice until the shop confirms", () => {
+test("a \"pending\" mark from the dashboard does not hold the invoice back", () => {
   assert.strictEqual(
-    shouldIssueInvoice({ before: { status: "submitted" }, after: accepted, post, quotationId: "shop1" }),
-    false
+    shouldIssueInvoice({
+      before: submitted,
+      after: { status: "accepted", shopConfirmation: "pending" },
+      post,
+      quotationId: "shop1",
+    }),
+    true
   );
+});
+
+test("later edits to an accepted quotation do not issue a second invoice", () => {
+  // e.g. the dashboard writing shopConfirmation after acceptance
   assert.strictEqual(
     shouldIssueInvoice({
       before: accepted,
+      after: { status: "accepted", shopConfirmation: "confirmed" },
+      post,
+      quotationId: "shop1",
+    }),
+    false
+  );
+});
+
+test("no invoice for a shop that has backed out", () => {
+  assert.strictEqual(
+    shouldIssueInvoice({
+      before: submitted,
       after: { status: "accepted", shopConfirmation: "declined" },
       post,
       quotationId: "shop1",
@@ -72,29 +93,17 @@ test("no invoice until the shop confirms", () => {
   );
 });
 
-test("an unrelated edit after confirmation does not issue a second invoice", () => {
-  assert.strictEqual(
-    shouldIssueInvoice({ before: confirmed, after: { ...confirmed, updatedAt: 2 }, post, quotationId: "shop1" }),
-    false
-  );
-});
-
 test("no invoice when the builder has not accepted this quotation", () => {
   assert.strictEqual(
-    shouldIssueInvoice({
-      before: { status: "submitted" },
-      after: { status: "submitted", shopConfirmation: "confirmed" },
-      post,
-      quotationId: "shop1",
-    }),
+    shouldIssueInvoice({ before: submitted, after: { status: "rejected" }, post, quotationId: "shop1" }),
     false
   );
   assert.strictEqual(
-    shouldIssueInvoice({ before: accepted, after: confirmed, post, quotationId: "shop2" }),
+    shouldIssueInvoice({ before: submitted, after: accepted, post, quotationId: "shop2" }),
     false
   );
   assert.strictEqual(
-    shouldIssueInvoice({ before: accepted, after: confirmed, post: null, quotationId: "shop1" }),
+    shouldIssueInvoice({ before: submitted, after: accepted, post: null, quotationId: "shop1" }),
     false
   );
 });

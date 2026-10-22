@@ -927,16 +927,6 @@ class _ShopSummaryCard extends StatelessWidget {
               ],
             ],
           ),
-          if (isSelected && confirmation == ShopConfirmation.pending) ...[
-            const SizedBox(height: 12),
-            _ConfirmationNote(
-              icon: Icons.hourglass_top_rounded,
-              text:
-                  'Waiting for ${quote.shopName} to confirm the order. Chat '
-                  'and rating open once they do.',
-              tint: AppColors.warning,
-            ),
-          ],
           if (isSelected && confirmation == ShopConfirmation.declined) ...[
             const SizedBox(height: 12),
             _ConfirmationNote(
@@ -2039,25 +2029,18 @@ class _InsightChip extends StatelessWidget {
 class _StatusBadge extends StatelessWidget {
   final String status;
 
-  /// The shop's answer, on the selected quotation only. A pending or declined
-  /// answer says more than "Selected" does.
+  /// The shop's answer, on the selected quotation only. A shop that backed
+  /// out says more than "Selected" does.
   final ShopConfirmation? confirmation;
 
   const _StatusBadge({required this.status, this.confirmation});
 
   @override
   Widget build(BuildContext context) {
-    final key = switch (confirmation) {
-      ShopConfirmation.pending => 'awaiting_shop',
-      ShopConfirmation.declined => 'shop_declined',
-      _ => status.toLowerCase(),
-    };
+    final key = confirmation == ShopConfirmation.declined
+        ? 'shop_declined'
+        : status.toLowerCase();
     final (:label, :bg, :fg) = switch (key) {
-      'awaiting_shop' => (
-        label: 'Awaiting shop',
-        bg: const Color(0xFFFEF3C7),
-        fg: const Color(0xFF92400E),
-      ),
       'shop_declined' => (
         label: 'Shop backed out',
         bg: const Color(0xFFFECACA),
